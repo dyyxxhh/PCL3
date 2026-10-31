@@ -1,4 +1,3 @@
-using System.Text.Json.Nodes;
 using PCL;
 using PCL.Network;
 using PCL.Core.Utils;
@@ -10,36 +9,34 @@ void Test(string name, Action body)
     catch (Exception ex) { failed++; Console.WriteLine($"FAIL {name}: {ex.Message}"); }
 }
 void Assert(bool value, string message) { if (!value) throw new Exception(message); }
-var release = """
-[{"draft":false,"prerelease":false,"tag_name":"v0.1.4","published_at":"2026-10-31T00:00:00Z","assets":[
-{"name":"PCL._Release_x64.exe","browser_download_url":"https://github.com/dyyxxhh/PCL3/releases/download/v0.1.4/PCL._Release_x64.exe"},
-{"name":"PCL._Release_x64.sha256","browser_download_url":"https://github.com/dyyxxhh/PCL3/releases/download/v0.1.4/PCL._Release_x64.sha256"}]}]
-""";
-Requester.Json = release;
-Test("current version check must not fetch a checksum asset", () =>
+Requester.LatestHtml = "<html><head><meta property=\"og:url\" content=\"https://github.com/dyyxxhh/PCL3/releases/tag/v0.1.7\"></head></html>";
+Test("release page check bypasses REST API 403 and checksum asset", () =>
 {
-    Requester.StringRequests = 0;
-    Requester.StringError = new IOException("proxy TLS EOF on release-assets.githubusercontent.com");
-    Assert(new UpdatesGithubReleaseModel().IsLatest(UpdateChannel.stable, UpdateArch.x64, SemVer.Parse("0.1.4"), 104), "not latest");
-    Assert(Requester.StringRequests == 0, "unnecessary checksum request");
+    Requester.FetchJsonRequests = 0;
+    Requester.AssetRequests = 0;
+    Requester.StringError = null;
+    Assert(new UpdatesGithubReleaseModel().IsLatest(UpdateChannel.stable, UpdateArch.x64, SemVer.Parse("0.1.7"), 107), "not latest");
+    Assert(Requester.FetchJsonRequests == 0, "REST API was called");
+    Assert(Requester.AssetRequests == 0, "checksum asset was requested during version comparison");
 });
-Test("older version comparison must not require asset network access", () =>
-    Assert(!new UpdatesGithubReleaseModel().IsLatest(UpdateChannel.stable, UpdateArch.x64, SemVer.Parse("0.1.3"), 103), "update missing"));
-Test("wrapper must preserve the original TLS failure", () =>
+Test("older local build is detected using public release page", () =>
+    Assert(!new UpdatesGithubReleaseModel().IsLatest(UpdateChannel.stable, UpdateArch.x64, SemVer.Parse("0.1.5"), 105), "update missing"));
+Test("wrapper preserves the original release page failure", () =>
 {
-    var original = new IOException("TLS unexpected EOF");
-    Requester.JsonError = original;
-    try { new UpdatesWrapperModel([new UpdatesGithubReleaseModel()]).IsLatest(UpdateChannel.stable, UpdateArch.x64, SemVer.Parse("0.1.4"), 104); throw new Exception("no exception"); }
+    var original = new IOException("403 Forbidden");
+    Requester.StringError = original;
+    try { new UpdatesWrapperModel([new UpdatesGithubReleaseModel()]).IsLatest(UpdateChannel.stable, UpdateArch.x64, SemVer.Parse("0.1.7"), 107); throw new Exception("no exception"); }
     catch (Exception ex) { Assert(ReferenceEquals(ex, original) || ReferenceEquals(ex.InnerException, original), "original network error discarded"); }
-    finally { Requester.JsonError = null; }
+    finally { Requester.StringError = null; }
 });
-Test("download metadata still requires valid SHA-256", () =>
+Test("release asset checksum is validated", () =>
 {
     Requester.StringError = null;
-    Requester.StringResult = "invalid-checksum";
-    try { new UpdatesGithubReleaseModel().GetLatestVersion(UpdateChannel.stable, UpdateArch.x64); }
-    catch (Exception ex) when (ex.Message != "accepted invalid hash") { return; }
-    throw new Exception("accepted invalid hash");
+    Requester.Sha256 = new string('a', 64);
+    Assert(new UpdatesGithubReleaseModel().GetLatestVersion(UpdateChannel.stable, UpdateArch.x64).Sha256 == Requester.Sha256, "valid checksum rejected");
+    Requester.Sha256 = "invalid-checksum";
+    try { new UpdatesGithubReleaseModel().GetLatestVersion(UpdateChannel.stable, UpdateArch.x64); throw new Exception("accepted invalid hash"); }
+    catch (Exception ex) when (ex.Message != "accepted invalid hash") { }
 });
 Environment.ExitCode = failed == 0 ? 0 : 1;
 
@@ -62,25 +59,33 @@ namespace PCL.Network.Loaders
 }
 namespace PCL.Network
 {
-    public struct RequestParam { public static RequestParam WithRetry => new(); }
+    public struct RequestParam
+    {
+        public bool UseBrowserUserAgent { get; set; }
+        public static RequestParam WithRetry => new();
+    }
     public static class Requester
     {
-        public static string Json = "[]";
-        public static Exception? JsonError;
+        public static string LatestHtml = "";
         public static Exception? StringError;
-        public static string StringResult = "";
-        public static int StringRequests;
-        public static JsonNode FetchJson(string url, RequestParam param)
-        {
-            if (!url.Equals("https://api.github.com/repos/dyyxxhh/pcl3/releases", StringComparison.OrdinalIgnoreCase)) throw new Exception("foreign update source");
-            if (JsonError is not null) throw JsonError;
-            return JsonNode.Parse(Json)!;
-        }
+        public static string Sha256 = "";
+        public static int AssetRequests;
+        public static int FetchJsonRequests;
         public static string FetchString(string url, RequestParam param)
         {
-            StringRequests++;
-            if (StringError is not null) throw StringError;
-            return StringResult;
+            if (url == "https://github.com/dyyxxhh/PCL3/releases/latest")
+            {
+                if (!param.UseBrowserUserAgent) throw new Exception("release page did not use browser User-Agent");
+                if (StringError is not null) throw StringError;
+                return LatestHtml;
+            }
+            AssetRequests++;
+            return Sha256;
+        }
+        public static System.Text.Json.Nodes.JsonNode FetchJson(string url, RequestParam param)
+        {
+            FetchJsonRequests++;
+            throw new System.Net.Http.HttpRequestException("403 Forbidden");
         }
     }
 }

@@ -21,11 +21,11 @@ check('Lang.Text("Main.Telemetry.' not in main, 'telemetry consent popup still a
 service = (CORE / 'App/Essentials/TelemetryService.cs').read_text(encoding='utf-8-sig')
 check('SentrySdk.Init(' not in service and '_ReportDeviceEnvironment(' not in service, 'telemetry can still collect or initialize')
 for path in (APP, CORE):
-    for file in path.rglob('*.cs'):
-        if {'bin','obj'} & set(file.parts): continue
-        text = file.read_text(encoding='utf-8-sig')
+    for source_file in path.rglob('*.cs'):
+        if {'bin','obj'} & set(source_file.parts): continue
+        text = source_file.read_text(encoding='utf-8-sig')
         for endpoint in ('PCL-Community/PCL-CE/releases', 'PCL-Community/PCL2-CE/issues', 'PCL-Community/PCL2-CE/contributors'):
-            check(endpoint not in text, f'{file.relative_to(ROOT)}: active upstream endpoint {endpoint}')
+            check(endpoint not in text, f'{source_file.relative_to(ROOT)}: active upstream endpoint {endpoint}')
 check('PCL-Community/PCL2-CE' not in (CORE / 'IO/Net/Http/HttpSenderExtension.cs').read_text(encoding='utf-8-sig'), 'upstream identity remains in HTTP User-Agent')
 check('PCL-CE' not in (CORE / 'IO/Net/NetworkService.cs').read_text(encoding='utf-8-sig'), 'upstream identity remains in default HTTP User-Agent')
 check('PCL-CE' not in (APP / 'Modules/Network/Http/RequestSigning.cs').read_text(encoding='utf-8-sig'), 'upstream identity remains in signed-request User-Agent')

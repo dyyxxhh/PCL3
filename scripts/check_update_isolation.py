@@ -11,10 +11,13 @@ UPDATES = APP / "Modules/Updates"
 manager = (UPDATES / "UpdateManager.cs").read_text(encoding="utf-8-sig")
 source = (UPDATES / "UpdatesGithubReleaseModel.cs").read_text(encoding="utf-8-sig")
 assert re.findall(r"new (Updates\w+Model)\(", manager) == ["UpdatesGithubReleaseModel"]
-assert 'https://api.github.com/repos/dyyxxhh/pcl3/releases' in source
-assert '.Where(x => x["draft"]?.GetValue<bool>() == false)' in source
-assert '.Where(x => x["prerelease"]?.GetValue<bool>() == false)' in source
-assert 'asset["browser_download_url"]' in source
+assert 'https://github.com/dyyxxhh/PCL3' in source
+assert '"/releases/latest"' in source
+assert 'PCL._Release_{architecture}{suffix}' in source
+assert 'PCL-Community/PCL-CE/releases' not in source
+assert 'Requester.FetchJson' not in source
+assert 'GetAssetName(arch, ".exe")' in source
+assert 'GetAssetName(arch, ".sha256")' in source
 assert 'UpdateChannel.beta' not in source + manager
 assert 'new LoaderDownload' in source
 assert 'Update.Error.Sha256Mismatch' in manager
