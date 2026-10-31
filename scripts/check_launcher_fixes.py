@@ -27,7 +27,10 @@ assert "AnnouncementService.Load();" not in update_manager
 assert 'https://s3.pysio.online/pcl2-ce/apiv2/pages/announce.xaml' not in homepage
 assert 'case 14:' in homepage and 'content = "";' in homepage
 assert 'new UpdatesGithubReleaseModel()' in update_manager
-assert 'PCL\\PCL₃.exe' in update_manager
+assert 'Visibility="Collapsed"' in (APP / "Pages/PageTools/PageToolsLeft.xaml").read_text(encoding="utf-8")
+assert 'Visibility="Collapsed"' in (APP / "Pages/PageSetup/PageSetupLeft.xaml").read_text(encoding="utf-8")
+assert 'id == FormMain.PageSubType.ToolsGameLink' in (APP / "Pages/PageTools/PageToolsLeft.xaml.cs").read_text(encoding="utf-8")
+assert 'id == FormMain.PageSubType.SetupGameLink' in (APP / "Pages/PageSetup/PageSetupLeft.xaml.cs").read_text(encoding="utf-8")
 for path in [CORE / "App/Paths.cs", CORE / "App/Essentials/RpcService.cs"]:
     assert path.exists(), path
 

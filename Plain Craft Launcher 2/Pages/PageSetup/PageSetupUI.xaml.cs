@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -790,9 +790,7 @@ public partial class PageSetupUI
                     !HiddenForceShow && conf.SetupJava ? Visibility.Collapsed : Visibility.Visible;
                 Launcher.frmSetupLeft.ItemUpdate.Visibility =
                     !HiddenForceShow && conf.SetupUpdate ? Visibility.Collapsed : Visibility.Visible;
-                Launcher.frmSetupLeft.ItemGameLink.Visibility = !HiddenForceShow && conf.SetupGameLink
-                    ? Visibility.Collapsed
-                    : Visibility.Visible;
+                Launcher.frmSetupLeft.ItemGameLink.Visibility = Visibility.Collapsed;
                 Launcher.frmSetupLeft.ItemAbout.Visibility =
                     !HiddenForceShow && conf.SetupAbout ? Visibility.Collapsed : Visibility.Visible;
                 Launcher.frmSetupLeft.ItemFeedback.Visibility = !HiddenForceShow && conf.SetupFeedback
@@ -805,7 +803,7 @@ public partial class PageSetupUI
                 {
                     (Launcher.frmSetupLeft.TextGameCategory,
                         !(conf.SetupLaunch && conf.SetupJava && conf.SetupGameManage)),
-                    (Launcher.frmSetupLeft.TextToolsCategory, !conf.SetupGameLink),
+                    (Launcher.frmSetupLeft.TextToolsCategory, false),
                     (Launcher.frmSetupLeft.TextLauncherCategory, !(conf.SetupUi && conf.SetupLauncherLanguage && conf.SetupLauncherMisc)),
                     (Launcher.frmSetupLeft.TextAboutCategory,
                         !(conf.SetupAbout && conf.SetupUpdate && conf.SetupFeedback && conf.SetupLog))
@@ -819,7 +817,8 @@ public partial class PageSetupUI
                         category.Item1.Opacity = 0.6d;
                 }
 
-                // 统计设置页可用项数量
+                Launcher.frmSetupLeft.TextToolsCategory.Visibility = Visibility.Collapsed;
+
                 var setupCount = 0;
                 if (!conf.SetupLaunch)
                     setupCount += 1;
@@ -835,8 +834,6 @@ public partial class PageSetupUI
                     setupCount += 1;
                 if (!conf.SetupUpdate)
                     setupCount += 1;
-                if (!conf.SetupGameLink)
-                    setupCount += 1;
                 if (!conf.SetupAbout)
                     setupCount += 1;
                 if (!conf.SetupFeedback)
@@ -850,16 +847,12 @@ public partial class PageSetupUI
             // 工具子页面 (FrmToolsLeft)
             if (Launcher.frmToolsLeft is not null)
             {
-                Launcher.frmToolsLeft.ItemGameLink.Visibility = !HiddenForceShow && conf.ToolsGameLink
-                    ? Visibility.Collapsed
-                    : Visibility.Visible;
+                Launcher.frmToolsLeft.ItemGameLink.Visibility = Visibility.Collapsed;
                 Launcher.frmToolsLeft.ItemTest.Visibility =
                     !HiddenForceShow && conf.ToolsTest ? Visibility.Collapsed : Visibility.Visible;
 
                 // 处理分类标题
-                var isGameLinkVisible = (!HiddenForceShow && !conf.ToolsGameLink) || HiddenForceShow;
-                Launcher.frmToolsLeft.TextGameLinkCategory.Visibility = isGameLinkVisible ? Visibility.Visible : Visibility.Collapsed;
-                if (isGameLinkVisible) Launcher.frmToolsLeft.TextGameLinkCategory.Opacity = 0.6;
+                Launcher.frmToolsLeft.TextGameLinkCategory.Visibility = Visibility.Collapsed;
 
                 var isToolsVisible = (!HiddenForceShow && !conf.ToolsTest) || HiddenForceShow;
                 Launcher.frmToolsLeft.TextToolsCategory.Visibility = isToolsVisible ? Visibility.Visible : Visibility.Collapsed;
@@ -867,8 +860,6 @@ public partial class PageSetupUI
 
                 // 统计工具页可用项数量
                 var toolsCount = 0;
-                if (!conf.ToolsGameLink)
-                    toolsCount += 1;
                 if (!conf.ToolsTest)
                     toolsCount += 1;
                 Launcher.frmToolsLeft.PanItem.Visibility =

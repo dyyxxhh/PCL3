@@ -1,10 +1,10 @@
-﻿{
+{
   "name": "PCL₃ (三氯化磷启动器)",
   "version": {
-    "base": "0.1.1",
+    "base": "0.1.2",
     "upstream": "2.15.1",
     "suffix": "PCL₃",
-    "code": 101
+    "code": 102
   },
   "licenses": [
     {

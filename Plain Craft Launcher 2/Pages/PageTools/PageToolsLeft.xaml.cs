@@ -1,4 +1,4 @@
-﻿using System.Windows;
+using System.Windows;
 using System.Windows.Controls;
 
 using PCL.Core.App.Localization;
@@ -21,7 +21,7 @@ public partial class PageToolsLeft
 
     private void PageLinkLeft_Loaded(object sender, RoutedEventArgs e)
     {
-        var isHiddenPage = _vm.IsHiddenPage(ItemGameLink.Checked, ItemTest.Checked, PageSetupUI.HiddenForceShow);
+        var isHiddenPage = _vm.IsHiddenPage(ItemGameLink.Checked, ItemTest.Checked);
 
         // 若页面错误，或尚未加载，则继续
         if (isLoad && !isHiddenPage)
@@ -32,15 +32,7 @@ public partial class PageToolsLeft
         // 选择第一个未被禁用的子页面
         if (isPageSwitched)
             return;
-        switch (_vm.ResolveInitialPageId())
-        {
-            case FormMain.PageSubType.ToolsTest:
-                ItemTest.SetChecked(true, false, false);
-                break;
-            default:
-                ItemGameLink.SetChecked(true, false, false);
-                break;
-        }
+        ItemTest.SetChecked(true, false, false);
     }
 
     private void PageOtherLeft_Unloaded(object sender, RoutedEventArgs e)
@@ -72,7 +64,7 @@ public partial class PageToolsLeft
     /// <summary>
     ///     当前页面的编号。
     /// </summary>
-    public FormMain.PageSubType pageID = FormMain.PageSubType.ToolsGameLink;
+    public FormMain.PageSubType pageID = FormMain.PageSubType.ToolsTest;
 
     /// <summary>
     ///     勾选事件改变页面。
@@ -115,6 +107,8 @@ public partial class PageToolsLeft
     /// </summary>
     public void PageChange(FormMain.PageSubType id)
     {
+        if (id == FormMain.PageSubType.ToolsGameLink)
+            return;
         if (pageID == id)
             return;
         Animations.AniBeginControl();

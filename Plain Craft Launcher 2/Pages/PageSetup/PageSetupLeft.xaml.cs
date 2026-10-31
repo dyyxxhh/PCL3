@@ -1,4 +1,4 @@
-﻿using System.Windows;
+using System.Windows;
 using System.Windows.Controls;
 using PCL.Core.App;
 using PCL.Core.App.Localization;
@@ -28,7 +28,7 @@ public partial class PageSetupLeft : IPageView
         if (ItemLaunch.Checked && hide.SetupLaunch) isHiddenPage = true;
         if (ItemJava.Checked && hide.SetupJava) isHiddenPage = true;
         if (ItemGameManage.Checked && hide.SetupGameManage)  isHiddenPage = true;
-        if (ItemGameLink.Checked && hide.SetupGameLink) isHiddenPage = true;
+        if (ItemGameLink.Checked) isHiddenPage = true;
         if (ItemUI.Checked && hide.SetupUi) isHiddenPage = true;
         if (ItemLauncherLanguage.Checked && hide.SetupLauncherLanguage) isHiddenPage = true;
         if (ItemLauncherMisc.Checked && hide.SetupLauncherMisc) isHiddenPage = true;
@@ -36,7 +36,7 @@ public partial class PageSetupLeft : IPageView
         if (ItemUpdate.Checked && hide.SetupUpdate) isHiddenPage = true;
         if (ItemFeedback.Checked && hide.SetupFeedback) isHiddenPage = true;
         if (ItemLog.Checked && hide.SetupLog) isHiddenPage = true;
-        if (PageSetupUI.HiddenForceShow)
+        if (PageSetupUI.HiddenForceShow && !ItemGameLink.Checked)
             isHiddenPage = false;
         // 若页面错误，或尚未加载，则继续
         if (isLoad && !isHiddenPage)
@@ -54,8 +54,6 @@ public partial class PageSetupLeft : IPageView
             ItemJava.SetChecked(true, false, false);
         else if (!hideCfg.SetupGameManage)
             ItemGameManage.SetChecked(true, false, false);
-        else if (!hideCfg.SetupGameLink)
-            ItemGameLink.SetChecked(true, false, false);
         else if (!hideCfg.SetupUi)
             ItemUI.SetChecked(true, false, false);
         else if (!hideCfg.SetupLauncherLanguage)
@@ -320,6 +318,8 @@ public partial class PageSetupLeft : IPageView
     /// </summary>
     public void PageChange(FormMain.PageSubType id)
     {
+        if (id == FormMain.PageSubType.SetupGameLink)
+            return;
         if (pageID == id)
             return;
         Animations.AniBeginControl();

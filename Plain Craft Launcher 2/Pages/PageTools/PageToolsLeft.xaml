@@ -1,4 +1,4 @@
-﻿<local:MyPageLeft x:Class="PCL.PageToolsLeft"
+<local:MyPageLeft x:Class="PCL.PageToolsLeft"
                   xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                   xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -11,9 +11,9 @@
         <TextBlock Text="{loc:Loc Tools.Left.Multiplayer}"
                    Margin="13,5,5,3"
                    Opacity="0.6" FontSize="12"
-                   x:Name="TextGameLinkCategory" />
+                   x:Name="TextGameLinkCategory" Visibility="Collapsed" />
 
-        <local:MyListItem x:Name="ItemGameLink"
+        <local:MyListItem x:Name="ItemGameLink" Visibility="Collapsed"
                           IsScaleAnimationEnabled="False"
                           Type="RadioBox" Tag="1"
                           Check="PageCheck"
