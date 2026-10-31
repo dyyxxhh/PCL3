@@ -2,72 +2,67 @@
 
 <div align="center">
 
-<img src="Plain Craft Launcher 2/Images/icon.ico" alt="Logo" width="80" height="80">
+<img src="Plain Craft Launcher 2/Images/icon.png" alt="PCl₃" width="80" height="80">
 
-# PCL Community Edition
+# PCl₃ (三氯化磷啟動器)
 
-[![Stars](https://img.shields.io/github/stars/PCL-Community/PCL-CE?style=for-the-badge&logo=data:image/svg%2bxml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZlcnNpb249IjEiIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiI+PHBhdGggZD0iTTggLjI1YS43NS43NSAwIDAgMSAuNjczLjQxOGwxLjg4MiAzLjgxNSA0LjIxLjYxMmEuNzUuNzUgMCAwIDEgLjQxNiAxLjI3OWwtMy4wNDYgMi45Ny43MTkgNC4xOTJhLjc1MS43NTEgMCAwIDEtMS4wODguNzkxTDggMTIuMzQ3bC0zLjc2NiAxLjk4YS43NS43NSAwIDAgMS0xLjA4OC0uNzlsLjcyLTQuMTk0TC44MTggNi4zNzRhLjc1Ljc1IDAgMCAxIC40MTYtMS4yOGw0LjIxLS42MTFMNy4zMjcuNjY4QS43NS43NSAwIDAgMSA4IC4yNVoiIGZpbGw9IiNlYWM1NGYiLz48L3N2Zz4=&logoSize=auto&label=stars&labelColor=444444&color=eac54f)](https://github.com/PCL-Community/PCL-CE/)
-![GitHub Release](https://img.shields.io/github/v/release/PCL-Community/PCL-CE?label=release&logo=github&style=for-the-badge)
-![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/PCL-Community/PCL-CE/build-test.yml?style=for-the-badge)
+**PCl₃**，即三氯化磷（Phosphorus Trichloride），無色透明液體，用於製造有機磷化合物。
 
-[![Issues](https://img.shields.io/github/issues/PCL-Community/PCL-CE?style=for-the-badge&label=issues&labelColor=444444&color=1F883D&logo=github)](https://github.com/PCL-Community/PCL-CE/issues)
-[![Pull requests](https://img.shields.io/github/issues-pr/PCL-Community/PCL-CE?style=for-the-badge&label=pull%20requests&labelColor=444444&color=1F883D&logo=github)](https://github.com/PCL-Community/PCL-CE/pulls)
-![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/PCL-Community/PCL-CE/total?style=for-the-badge)
-[![嗶哩嗶哩](https://img.shields.io/badge/貼文-bilibili-00A4DB?style=for-the-badge&labelColor=444444&logo=bilibili)](https://space.bilibili.com/3546847192811755/dynamic) <br />
+基於 [PCL CE](https://github.com/PCL-Community/PCL-CE)（Plain Craft Launcher Community Edition）二次改編的 Minecraft Java 版啟動器。
 
-<a href="https://trendshift.io/repositories/21800?utm_source=trendshift-badge&amp;utm_medium=badge&amp;utm_campaign=badge-trendshift-21800" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/trendshift/repositories/21800/daily?language=C%23" alt="PCL-Community%2FPCL-CE | Trendshift" width="250" height="55"/></a>
-<a href="https://trendshift.io/repositories/21800" target="_blank"><img src="https://trendshift.io/api/badge/repositories/21800" alt="PCL-Community%2FPCL-CE | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
+[![GitHub Release](https://img.shields.io/github/v/release/dyyxxhh/pcl3?label=release&logo=github&style=for-the-badge)](https://github.com/dyyxxhh/pcl3/releases/latest)
+[![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/dyyxxhh/pcl3/build-test.yml?style=for-the-badge)](https://github.com/dyyxxhh/pcl3/actions)
 
-[社群版下載](https://github.com/PCL-Community/PCL-CE/releases/latest) |
-[上游儲存庫](https://github.com/Meloong-Git/PCL)
-
-[提交問題](https://github.com/PCL-Community/PCL-CE/issues/new/choose) |
-[貢獻指南](https://github.com/PCL-Community/PCL-CE/wiki/开发指南)
+[下載最新版](https://github.com/dyyxxhh/pcl3/releases/latest) | [提交問題](https://github.com/dyyxxhh/pcl3/issues/new/choose)
 
 </div>
 
-PCL CE 是基於 PCL 開放原始碼二次開發的社群版本，包括了主線暫未製作的功能和改進！
+## 這是什麼
 
-社群版的版本號與主線並非嚴格對應關係，也請不要向官方儲存庫回饋社群版問題。
+PCl₃ 是 [PCL CE](https://github.com/PCL-Community/PCL-CE) 的個人改編版。上游 PCL CE 自 2.12.x 起對中國大陸區域做了功能限制（地區偵測、帳號限制），本倉庫將其解除，並重新品牌化為 PCl₃。
 
-歡迎大家來用用看！
+**請勿向 PCL CE 官方倉庫回報本倉庫的問題。**
 
-**開發群:** [599620549](https://qm.qq.com/q/PNQA4Md8wc) | **使用者 1 群:** [1028074835](https://qm.qq.com/q/qrMGJo8BQQ) | **使用者 2 群:** [1070029541](https://qm.qq.com/q/lBywbDMWhG)
+## 相比上游新增 / 修改了什麼
 
-## 💻 支援平台
+| 改動 | 說明 |
+|---|---|
+| 解除區域限制 | `RegionPolicy` / `RestrictedFeaturePolicy` 判定改為恆不受限，中國大陸可直接下載 Minecraft 本體、整合包與載入器 |
+| 解除帳號限制 | 無需正版帳號：離線登入、第三方登入隨時可建立（`ProfileUi.CanCreateOtherProfile` 恆為 `true`） |
+| 移除正版購買提示 | 啟動遊戲前不再彈出「正版購買 / 帳號驗證」視窗，受限地區也不再跳過客戶端檔案下載 |
+| 品牌重製 | 啟動器名稱、標題列、AUMID、組件資訊、全部 7 種語言檔案統一更名為 PCl₃；更換啟動器圖示 |
+| 版本號獨立 | 自 3.0.0 起獨立編號（`metadata.json` 中 `upstream` 記錄所基於的上游版本） |
 
-| 作業系統 | 支援情況 | 環境要求 |
+## 上游（PCL CE）都有什麼
+
+以下功能全部繼承自上游，本倉庫未做刪減：
+
+- **啟動器核心**：Minecraft Java 版本體、整合包（CurseForge / Modrinth / MC 百科等）、載入器（Forge / NeoForge / Fabric / Quilt / OptiFine）下載安裝
+- **帳號系統**：微軟正版、離線、第三方認證伺服器（authlib-injector）、統一通行證登入
+- **實例管理**：多實例（多版本隔離）、Mod 管理（Jar-in-Jar 依賴分析）、存檔 / 截圖 / 伺服器管理
+- **下載源**：官方源、BMCLAPI、官方注入源，支援搜尋 Mod、整合包、資源包、光影
+- **其他**：Java 管理、記憶體最佳化、崩潰分析、自訂主題 / 背景音樂 / 特效、聯機（EasyTier）等
+
+詳見 [PCL CE 倉庫](https://github.com/PCL-Community/PCL-CE)。
+
+## 支援平台
+
+| 作業系統 | 支援情況 | 環境需求 |
 |---|---|---|
 | Windows 10 1809 (17763) 或更高 | ✅ 完整支援 | [.NET 10 Desktop Runtime](https://get.dot.net/10) |
-| Windows 8 - Windows 10 1809 (17763) | ⚠️ 理論能跑，酌情提供社群支援 | [.NET 10 Desktop Runtime](https://get.dot.net/10) |
+| Windows 8 - Windows 10 1809 (17763) | ⚠️ 理論可執行 | [.NET 10 Desktop Runtime](https://get.dot.net/10) |
 | Windows 7 或更低版本 | ❌ 不支援 | / |
-| macOS / Linux / 其他作業系統 | ⚠️ 僅跨平台開發支援（交叉編譯）| [.NET 10 SDK](https://get.dot.net/10) |
+| macOS / Linux | 僅交叉編譯開發支援 | [.NET 10 SDK](https://get.dot.net/10) |
 
-**✅ 完整支援**：盡可能提供一切相關支援，但必須確保啟動器為最新版本。
+Release 提供 x64 與 ARM64 兩個架構的依賴框架版本，需系統已安裝 .NET 10 Desktop Runtime。
 
-**⚠️ 理論能跑，酌情提供社群支援**：PCL CE 應該可以在這些平台上執行，但不保證功能完全可用。你可能需要升級到完整支援的系統版本以獲得進一步社群技術支援。
+## 與上游同步
 
-**❌ 不支援**：PCL CE 在這些平台的可用性較低，甚至根本打不開。請升級作業系統以使用 PCL CE。
+本倉庫基於上游 `dev` 分支（建置版本見 [Releases](https://github.com/dyyxxhh/pcl3/releases) 頁所註明的上游 commit）。上游更新後，將 PCl₃ 的改動（見上方「相比上游新增 / 修改了什麼」）重新套用即可。
 
-**⚠️ 僅跨平台開發支援（交叉編譯）**：PCL CE 的原始碼可以在 macOS 與 Linux 平台編譯，但無法直接執行。作為開發者，你可以在這些平台上進行開發，然後將編譯產物轉移到 Windows 系統測試。
+## 授權條款
 
-**注**：
-社群僅對最新版本的啟動器提供支援。
-取決於部分問題的特殊性（如系統不完整），有時你仍然必須升級作業系統以繼續獲得支援。
-PCL CE 始終建議使用最新版本的作業系統以獲得最佳體驗。
-你仍然可以嘗試在不受支援的系統上使用 PCL CE，但可能會遇到很多額外問題。
+- `Plain Craft Launcher 2/` 使用 [自訂授權條款](Plain%20Craft%20Launcher%202/LICENCE)（繼承自 PCL CE，禁止商用等）
+- `其餘所有目錄` 使用 [Apache License 2.0](LICENSE)
 
-## 🔒 授權條款
-
-- `Plain Craft Launcher 2/` 使用 [自訂授權條款](https://github.com/PCL-Community/PCL-CE/blob/dev/Plain%20Craft%20Launcher%202/LICENCE)
-- `其餘所有目錄` 使用 [Apache License 2.0](https://github.com/PCL-Community/PCL-CE/blob/dev/LICENSE)
-
-## 🌟 統計資料
-![Alt](https://repobeats.axiom.co/api/embed/3e46296e6e3a134991a783480fd2f62723bb0353.svg "Repobeats analytics image")
-
-[![Star History Chart](https://api.star-history.com/svg?repos=PCL-Community/PCL-CE&type=Date)](https://www.star-history.com/#PCL-Community/PCL-CE&Date)
-
-**此頁瀏覽量**（總計 / 今日）：[![Hits](https://hits.zkitefly.eu.org/?tag=https://github.com/PCL-Community/PCL-CE)](https://hits.zkitefly.eu.org/?tag=https://github.com/PCL-Community/PCL-CE&web=true)
-## ❤️ 貢獻者
-
-[![](https://contrib.rocks/image?repo=PCL-Community/PCL-CE)](https://github.com/PCL-Community/PCL-CE/graphs/contributors)
+上游 PCL CE 由 [PCL Community](https://github.com/PCL-Community) 維護，原始 PCL 由 [龍騰貓躍](https://github.com/Meloong-Git/PCL) 開發，感謝他們的工作。
