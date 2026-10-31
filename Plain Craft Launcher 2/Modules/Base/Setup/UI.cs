@@ -196,7 +196,7 @@ public partial class Setup
                 if (value == 2)
                     CustomEventService.SetEventData(
                         ui.HintCustom,
-                        "https://github.com/PCL-Community/PCL-CE/discussions");
+                        "https://github.com/dyyxxhh/PCL3/issues");
             }
         }
 

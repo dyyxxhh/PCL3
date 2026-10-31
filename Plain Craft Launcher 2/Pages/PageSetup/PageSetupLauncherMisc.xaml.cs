@@ -72,14 +72,6 @@ public partial class PageSetupLauncherMisc : IPageView
         _vm.Reload();
         CheckSystemDisableHardwareAcceleration.Checked = Config.System.DisableHardwareAcceleration;
         SliderMaxLog.Value = Config.System.MaxGameLog;
-        CheckSystemTelemetry.Checked = Config.System.Telemetry;
-        if (TelemetryService.IsBuildUntrusted)
-        {
-            CheckSystemTelemetry.Checked = false;
-            CheckSystemTelemetry.ToolTip = Lang.Text("Setup.Misc.System.Telemetry.Unavailable");
-            ToolTipService.SetShowOnDisabled(CheckSystemTelemetry, true);
-        }
-
         // 网络
         ((MyRadioBox)FindName($"RadioHttpProxyType{Config.Network.HttpProxy.Type}")).SetChecked(true, false);
         CheckNetDohEnable.Checked = Config.Network.EnableDoH;

@@ -1,3 +1,4 @@
+using System.Runtime.ExceptionServices;
 using PCL.Core.App.Localization;
 using PCL.Core.Utils;
 
@@ -49,6 +50,7 @@ public class UpdatesWrapperModel : IUpdateSource
 
     public VersionDataModel GetLatestVersion(UpdateChannel channel, UpdateArch arch)
     {
+        Exception? lastException = null;
         foreach (var item in _sources)
             try
             {
@@ -59,6 +61,7 @@ public class UpdatesWrapperModel : IUpdateSource
                     }
                     catch (Exception ex)
                     {
+                        lastException = ex;
                         Common.Log(ex, $"[Update] 缓存的版本源 {_versionSource.SourceName} 不可用");
                     }
 
@@ -68,15 +71,18 @@ public class UpdatesWrapperModel : IUpdateSource
             }
             catch (Exception ex)
             {
-                Common.Log(ex, $"[Update] {item.SourceName} 无法获取最新版本信息");
+                lastException = ex;
+                Common.Log(ex, $"[Update] {item.SourceName} 无法获取最新版本信息", Common.LogLevel.Normal);
             }
 
         Common.Log("[Update] 错误！所有的版本源都无法使用！");
+        if (lastException is not null) ExceptionDispatchInfo.Capture(lastException).Throw();
         throw new Exception(Lang.Text("Update.Task.GetVersionInfoFailed"));
     }
 
     public bool IsLatest(UpdateChannel channel, UpdateArch arch, SemVer currentVersion, int currentVersionCode)
     {
+        Exception? lastException = null;
         foreach (var item in _sources)
             try
             {
@@ -87,6 +93,7 @@ public class UpdatesWrapperModel : IUpdateSource
                     }
                     catch (Exception ex)
                     {
+                        lastException = ex;
                         Common.Log(ex, $"[Update] 缓存的版本源 {_versionSource.SourceName} 不可用");
                     }
 
@@ -96,10 +103,12 @@ public class UpdatesWrapperModel : IUpdateSource
             }
             catch (Exception ex)
             {
-                Common.Log(ex, $"[Update] {item.SourceName} 无法获取最新版本信息");
+                lastException = ex;
+                Common.Log(ex, $"[Update] {item.SourceName} 无法获取最新版本信息", Common.LogLevel.Normal);
             }
 
         Common.Log("[Update] 错误！所有的版本源都无法使用！");
+        if (lastException is not null) ExceptionDispatchInfo.Capture(lastException).Throw();
         throw new Exception(Lang.Text("Update.Task.GetVersionInfoFailed"));
     }
 
@@ -134,6 +143,7 @@ public class UpdatesWrapperModel : IUpdateSource
     public List<Loading.LoaderBase> GetDownloadLoader(UpdateChannel channel, UpdateArch arch,
         string output)
     {
+        Exception? lastException = null;
         foreach (var item in _sources)
             try
             {
@@ -144,6 +154,7 @@ public class UpdatesWrapperModel : IUpdateSource
                     }
                     catch (Exception ex)
                     {
+                        lastException = ex;
                         Common.Log(ex, $"[Update] 缓存的版本源 {_versionSource.SourceName} 不可用");
                     }
 
@@ -153,10 +164,12 @@ public class UpdatesWrapperModel : IUpdateSource
             }
             catch (Exception ex)
             {
-                Common.Log(ex, $"[Update] {item.SourceName} 无法获取最新版本信息");
+                lastException = ex;
+                Common.Log(ex, $"[Update] {item.SourceName} 无法获取最新版本信息", Common.LogLevel.Normal);
             }
 
         Common.Log("[Update] 错误！所有的版本源都无法使用！");
+        if (lastException is not null) ExceptionDispatchInfo.Capture(lastException).Throw();
         throw new Exception(Lang.Text("Update.Task.GetVersionInfoFailed"));
     }
 

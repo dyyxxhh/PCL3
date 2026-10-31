@@ -37,7 +37,7 @@ public partial class PageSetupAboutViewModel : ViewModelBase
     [RelayCommand]
     public async Task LoadContributorsAsync()
     {
-        var contributors = await RunAsync(ct => Task.Run(FetchContributorsAsync, ct));
+        var contributors = await FetchContributorsAsync();
         if (contributors is null) return;
         Contributors.Clear();
         foreach (var contributor in contributors)
@@ -167,9 +167,19 @@ public partial class PageSetupAboutViewModel : ViewModelBase
 
     private static async Task<List<PageSetupAbout.GitHubContributor>> FetchContributorsAsync()
     {
-        using var response = await HttpRequest
-            .Create("https://api.github.com/repos/PCL-Community/PCL2-CE/contributors").SendAsync();
-        response.EnsureSuccessStatusCode();
-        return await response.AsJsonAsync<List<PageSetupAbout.GitHubContributor>>(JsonCompat.SerializerOptions) ?? [];
+        try
+        {
+            using var timeout = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(10));
+            using var response = await HttpRequest
+                .Create("https://api.github.com/repos/dyyxxhh/PCL3/contributors")
+                .SendAsync(retryTimes: 1, cancellationToken: timeout.Token);
+            response.EnsureSuccessStatusCode();
+            return await response.AsJsonAsync<List<PageSetupAbout.GitHubContributor>>(JsonCompat.SerializerOptions) ?? [];
+        }
+        catch (Exception ex)
+        {
+            Common.Log(ex, "[About] 贡献者列表暂不可用，可通过项目页面查看");
+            return [];
+        }
     }
 }

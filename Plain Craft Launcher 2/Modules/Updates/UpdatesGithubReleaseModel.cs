@@ -35,6 +35,8 @@ public sealed class UpdatesGithubReleaseModel : IUpdateSource
 
         var sha256 = Requester.FetchString(shaAsset["browser_download_url"]!.ToString(), RequestParam.WithRetry)
             .Split(new[] { ' ', '\t', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)[0];
+        if (sha256.Length != 64 || !sha256.All(Uri.IsHexDigit))
+            throw new Exception("GitHub Release 返回了无效的 SHA-256 校验和");
         return new VersionDataModel
         {
             Source = SourceName,
@@ -46,7 +48,10 @@ public sealed class UpdatesGithubReleaseModel : IUpdateSource
     }
 
     public bool IsLatest(UpdateChannel channel, UpdateArch arch, SemVer currentVersion, int currentVersionCode)
-        => currentVersion >= SemVer.Parse(GetLatestVersion(channel, arch).VersionName);
+    {
+        var latestVersion = NormalizeVersion(GetReleaseForChannel(channel)["tag_name"]?.ToString());
+        return currentVersion >= SemVer.Parse(latestVersion);
+    }
 
     public VersionAnnouncementDataModel GetAnnouncementList() => new() { Content = new() };
 

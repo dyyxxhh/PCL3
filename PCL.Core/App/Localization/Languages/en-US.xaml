@@ -1553,11 +1553,6 @@
     <sys:String x:Key="Launch.Error.ExportScriptTitle">Failed to export launch script</sys:String>
     <sys:String x:Key="Launch.Error.OperationFailed">A launch page operation failed. See the details below.</sys:String>
     <sys:String x:Key="Launch.Error.Title">Launch failed</sys:String>
-    <sys:String x:Key="Launch.Right.CommunityHint.HidePrompt">To permanently hide this notice, enter the correct PCL₃ development organization name.</sys:String>
-    <sys:String x:Key="Launch.Right.CommunityHint.InputTitle">Enter the PCL₃ development organization name</sys:String>
-    <sys:String x:Key="Launch.Right.CommunityHint.Message">You are using PCL₃ (PCL Community Edition)! This version is independently developed and maintained, and differs from the original version in its development path and user experience.&#xA;&#xA;If you downloaded the PCL₃ by accident, we strongly recommend downloading the original PCL version for long-term use, as this distribution may not be user-friendly for newcomers.&#xA;Additionally, please submit PCL₃ issues to the PCL₃ repository, and do not report PCL₃ issues to the original repository!</sys:String>
-    <sys:String x:Key="Launch.Right.CommunityHint.Title">PCL₃ notice</sys:String>
-    <sys:String x:Key="Launch.Right.CommunityHint.WrongInput">Not quite right...</sys:String>
     <sys:String x:Key="Launch.Right.Log.Title">Launch log</sys:String>
 
     <!-- Launch.Account -->
@@ -1967,8 +1962,6 @@
     <sys:String x:Key="Main.Tab.Launch">Launch</sys:String>
     <sys:String x:Key="Main.Tab.Settings">Settings</sys:String>
     <sys:String x:Key="Main.Tab.Tools">Tools</sys:String>
-    <sys:String x:Key="Main.Telemetry.Message">After telemetry data collection is enabled, the launcher will collect and report errors and device environment information. This can help developers fix potential issues and better plan and develop the launcher.&#xA;If this feature is enabled, we will collect the following information:&#xA;&#xA;- Errors that occur in the launcher&#xA;- Launcher version information and identifier&#xA;- Windows system version and architecture&#xA;- Installed physical memory size&#xA;- NAT and IPv6 support status&#xA;- Whether you have used the original PCL, HMCL, or BakaXL&#xA;&#xA;This data is not associated with you, and we will never sell it to any third party.&#xA;If you do not want to enable telemetry, you can choose to decline. This will not affect normal use of other features, but may affect developers' ability to fix potential bugs.&#xA;You can change this setting at any time in launcher settings.</sys:String>
-    <sys:String x:Key="Main.Telemetry.Title">Enable telemetry data collection</sys:String>
     <sys:String x:Key="Main.Title.GameLog">Launch log</sys:String>
     <sys:String x:Key="Main.Title.InstanceSelect">Selection</sys:String>
     <sys:String x:Key="Main.Title.InstanceSetup">Properties - {0}</sys:String>
@@ -2558,7 +2551,11 @@
 
     <!-- Setup.About -->
 
-    <sys:String x:Key="Setup.About.Community.Info">The development team of PCL₃!</sys:String>
+    <sys:String x:Key="Setup.About.Maintainer.Info">Independently maintained by dyyxxhh, based on PCL and PCL CE.</sys:String>
+
+    <sys:String x:Key="Setup.About.Maintainer.Name">PCL₃ maintainer</sys:String>
+
+    <sys:String x:Key="Setup.About.Community.Info">Developers of upstream PCL CE; not the PCL₃ maintenance team.</sys:String>
     <sys:String x:Key="Setup.About.Community.Name">PCL Community</sys:String>
     <sys:String x:Key="Setup.About.Contributors.Title">Contributors</sys:String>
     <sys:String x:Key="Setup.About.Contributors.ViewMore">View more</sys:String>
@@ -2612,19 +2609,19 @@
 
     <sys:String x:Key="Setup.About.Legal.CommunityLobbyPrivacy">Community lobby privacy policy</sys:String>
     <sys:String x:Key="Setup.About.Legal.CommunitySource">PCL₃ source code</sys:String>
-    <sys:String x:Key="Setup.About.Legal.CopyrightText">Copyright © PCL Community &amp; LTCat (龙腾猫跃) 2026.&#xD;NOT AN OFFICIAL MINECRAFT PRODUCT. NOT APPROVED BY OR ASSOCIATED WITH MOJANG OR MICROSOFT.</sys:String>
+    <sys:String x:Key="Setup.About.Legal.CopyrightText">Copyright © 2026 dyyxxhh. Upstream code and contributions by LTCat and PCL CE are acknowledged.</sys:String>
     <sys:String x:Key="Setup.About.Legal.NatayarkTerms">Natayark OpenID ToS</sys:String>
     <sys:String x:Key="Setup.About.Legal.OtherInfo">Other information</sys:String>
     <sys:String x:Key="Setup.About.Legal.PrivacyNotice">Privacy statement</sys:String>
-    <sys:String x:Key="Setup.About.Legal.PrivacyText">The User Agent of this software includes the launcher version number to count the number of users on each version.&#xD;Other than this, this software will not upload any other information to the developers.&#xD;* Online and hardware/software survey features follow their own privacy policies, which are separate from this notice.</sys:String>
+    <sys:String x:Key="Setup.About.Legal.PrivacyText">PCL₃ does not initialize Sentry or collect exception telemetry or device-environment surveys. Saved legacy opt-ins are disabled.&#xD;Explicit features such as GitHub updates, sign-in and downloads still contact their respective services and may include a version User Agent.</sys:String>
     <sys:String x:Key="Setup.About.Legal.Title">Legal information</sys:String>
 
     <!-- Setup.About.SpecialThanks -->
 
     <sys:String x:Key="Setup.About.SpecialThanks.GoBlog">Blog</sys:String>
     <sys:String x:Key="Setup.About.SpecialThanks.Info.Bmclapi">Provided BMCLAPI mirror and Forge installation tool. Details at https://bmclapi.bangbang93.com</sys:String>
-    <sys:String x:Key="Setup.About.SpecialThanks.Info.Cloud">Provided cloud services for PCL₃.</sys:String>
-    <sys:String x:Key="Setup.About.SpecialThanks.Info.IconDesign">Designed and created the PCL₃ icon.</sys:String>
+    <sys:String x:Key="Setup.About.SpecialThanks.Info.Cloud">Provided cloud services for upstream PCL CE.</sys:String>
+    <sys:String x:Key="Setup.About.SpecialThanks.Info.IconDesign">Designed and created the upstream PCL CE icon.</sys:String>
     <sys:String x:Key="Setup.About.SpecialThanks.Info.LinkModule">Provided the multiplayer module!</sys:String>
     <sys:String x:Key="Setup.About.SpecialThanks.Info.Mcim">Provided MCIM community resource mirrors and image hosting services for the help center!</sys:String>
     <sys:String x:Key="Setup.About.SpecialThanks.Info.Mcmod">Provided Chinese translation of mods and more related information!</sys:String>
