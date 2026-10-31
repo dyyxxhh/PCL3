@@ -21,8 +21,23 @@ public static class Basics
     /// <summary>
     /// 启动器元数据。
     /// </summary>
-    public static MetadataModel Metadata { get; } = JsonSerializer.Deserialize<MetadataModel>(
-        Assembly.GetEntryAssembly()!.GetManifestResourceStream("PCL.metadata.json")!, JsonCompat.SerializerOptions)!;
+    public static MetadataModel Metadata { get; } = _LoadMetadata();
+
+    private static MetadataModel _LoadMetadata()
+    {
+        var stream = Assembly.GetEntryAssembly()?.GetManifestResourceStream("PCL.metadata.json");
+        if (stream is not null)
+        {
+            var model = JsonSerializer.Deserialize<MetadataModel>(stream, JsonCompat.SerializerOptions);
+            if (model is not null)
+                return model with { Name = "PCl₃ (三氯化磷启动器)" };
+        }
+        return new MetadataModel(
+            "PCl₃ (三氯化磷启动器)",
+            new LauncherVersionModel("3.0.0", "PCl3", 800, "2.15.1"),
+            []
+        );
+    }
 
     /// <summary>
     /// 版本名称。

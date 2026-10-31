@@ -39,7 +39,7 @@ public class RegionPolicyTest
     {
         var result = RegionPolicy.Evaluate(new RegionSignals(null, false, [], false, null, false, null, false));
         Assert.AreEqual(RegionClassification.Unknown, result.Classification);
-        Assert.IsTrue(result.IsRestricted);
+        Assert.IsFalse(result.IsRestricted);
         Assert.AreEqual("signals-unavailable", result.Reason);
     }
 
@@ -67,7 +67,7 @@ public class RegionPolicyTest
             deviceRegion: 45, deviceRegionAvailable: true));
         Assert.AreEqual(RegionClassification.Mainland, result.Classification);
         Assert.AreEqual("device-region-cn", result.Reason);
-        Assert.IsTrue(result.IsRestricted);
+        Assert.IsFalse(result.IsRestricted);
     }
 
     [TestMethod]
@@ -76,7 +76,7 @@ public class RegionPolicyTest
         var result = RegionPolicy.Evaluate(
             new RegionSignals(null, false, [], false, null, false, null, false, 45, true));
         Assert.AreEqual(RegionClassification.Mainland, result.Classification);
-        Assert.IsTrue(result.IsRestricted);
+        Assert.IsFalse(result.IsRestricted);
     }
 
     [TestMethod]
@@ -94,7 +94,7 @@ public class RegionPolicyTest
         var result = RegionPolicy.Evaluate(
             new RegionSignals(null, false, [], false, null, false, null, false, 242, true));
         Assert.AreEqual(RegionClassification.Unknown, result.Classification);
-        Assert.IsTrue(result.IsRestricted);
+        Assert.IsFalse(result.IsRestricted);
     }
 
     [TestMethod]
@@ -113,7 +113,7 @@ public class RegionPolicyTest
         var result = RegionPolicy.Evaluate(new RegionSignals(null, false, ["zh-CN"], true,
             null, false, null, false));
         Assert.AreEqual(RegionClassification.Unknown, result.Classification);
-        Assert.IsTrue(result.IsRestricted);
+        Assert.IsFalse(result.IsRestricted);
     }
 
     [TestMethod]

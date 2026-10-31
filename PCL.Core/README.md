@@ -1,6 +1,6 @@
-## ✨ PCL.Core
+## ✨ PCl₃.Core（三氯化磷启动器核心库）
 
-这是为 PCL CE 版本特别开发的核心库，由社区开发与维护
+这是为 PCl₃（三氯化磷启动器 / Phosphorus Trichloride Launcher）开发的核心库，已解除中国大陆地区下载安装限制与强制正版登录限制。
 
 ## 🔒 协议
 

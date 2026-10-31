@@ -171,10 +171,10 @@ public partial class FormMain
             AddResizer();
         else
             RemoveResizer();
-        // PLC 彩蛋
+        // PCl₃ 彩蛋
         if (RandomUtils.NextInt(1, 1000) == 233)
             ShapeTitleLogo.Data = (Geometry)new GeometryConverter().ConvertFromString(
-                "M26,29 v-25 h6 a7,7 180 0 1 0,14 h-6 M83,6.5 a10,11.5 180 1 0 0,18 M48,2.5 v24.5 h13.5");
+                "M26,29 v-25 h6 a7,7 180 0 1 0,14 h-6 M75,6.5 a10,11.5 180 1 0 0,18 M48,2.5 v21.5 a3,3 0 0 0 3,3 h2.5");
         // 加载窗口
 
         ThemeManager.ThemeRefresh();
