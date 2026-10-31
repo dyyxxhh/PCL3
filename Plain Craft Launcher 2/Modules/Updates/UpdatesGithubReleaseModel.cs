@@ -1,5 +1,6 @@
 using System.Text.Json.Nodes;
 using PCL.Core.App;
+using PCL.Core.App.Localization;
 using PCL.Core.Utils;
 using PCL.Network;
 using PCL.Network.Loaders;
