@@ -68,7 +68,7 @@ public sealed class UpdatesGithubReleaseModel : IUpdateSource
             ?? throw new Exception("GitHub Releases 返回格式无效");
         var release = releases.OfType<JsonObject>()
             .Where(x => x["draft"]?.GetValue<bool>() == false)
-            .Where(x => channel == UpdateChannel.beta || x["prerelease"]?.GetValue<bool>() == false)
+            .Where(x => x["prerelease"]?.GetValue<bool>() == false)
             .OrderByDescending(x => x["published_at"]?.ToString())
             .FirstOrDefault();
         return release ?? throw new Exception("GitHub Releases 没有可用版本");

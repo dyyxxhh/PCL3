@@ -193,13 +193,7 @@ public sealed partial class TelemetryService
             Is64Bit = Environment.Is64BitOperatingSystem,
             IsArm64 = RuntimeInformation.OSArchitecture.Equals(Architecture.Arm64),
             Launcher = Basics.VersionName,
-            LauncherBranch = Config.Update.UpdateChannel switch
-            {
-                UpdateChannel.Release => "Release",
-                UpdateChannel.Beta => "Beta",
-                UpdateChannel.Dev => "Dev",
-                _ => "Unknown"
-            },
+            LauncherBranch = "Release",
             UsedOfficialPcl =
                 bool.TryParse(Registry.GetValue(@"HKEY_CURRENT_USER\Software\PCL", "SystemEula", "false") as string,
                     out var officialPcl) && officialPcl,

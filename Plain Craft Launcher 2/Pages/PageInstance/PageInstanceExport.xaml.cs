@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using System.IO.Compression;
 using System.Windows;
 using System.Windows.Controls;
@@ -927,7 +927,7 @@ public partial class PageInstanceExport : IRefreshable, IPageView
                 loader =>
                 {
                     UpdateManager.DownloadLatestPCL(loader);
-                    Common.CopyFile(Path.Combine(Common.pathTemp, "CE-Latest.exe"),
+                    Common.CopyFile(Path.Combine(Common.pathTemp, "PCL₃-Latest.exe"),
                         Path.Combine(cacheFolder, "Plain Craft Launcher.exe"));
                 })
             {

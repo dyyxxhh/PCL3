@@ -2,8 +2,7 @@ namespace PCL;
 
 public enum UpdateChannel
 {
-    stable,
-    beta
+    stable
 }
 
 public enum UpdateArch

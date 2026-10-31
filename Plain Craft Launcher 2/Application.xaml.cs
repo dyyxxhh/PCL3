@@ -82,12 +82,6 @@ public partial class Application
             _ = Config.Download.ThreadLimit;
             _ = Config.Download.SpeedLimit;
             _ = Config.Preference.Font;
-            var updateBranchCfg = Config.Update.UpdateChannelConfig;
-            if (updateBranchCfg.IsDefault())
-                updateBranchCfg.SetValue(Common.VersionBaseName.Contains("beta")
-                    ? Core.App.UpdateChannel.Beta
-                    : Core.App.UpdateChannel.Release);
-
             // 删除旧日志
             for (var i = 1; i <= 5; i++)
             {

@@ -39,7 +39,7 @@ public partial class FormMain
     {
         Common.RunInNewThread(() =>
         {
-            var changelogFile = $"{Common.pathTemp}CEUpdateLog.md";
+            var changelogFile = $"{Common.pathTemp}PCL₃UpdateLog.md";
             string changelog;
             if (File.Exists(changelogFile))
                 changelog = Common.ReadFile(changelogFile);
@@ -47,7 +47,7 @@ public partial class FormMain
                 changelog = Lang.Text("Main.UpdateLog.Empty");
             if (Launcher.MyMsgBoxMarkdown(changelog,
                     Lang.Text("Main.UpdateLog.Title", Common.VersionBranchName, Common.VersionBaseName), Lang.Text("Common.Action.Confirm"), Lang.Text("Main.UpdateLog.FullChangelog")) ==
-                2) Common.OpenWebsite("https://github.com/PCL-Community/PCL2-CE/releases");
+                2) Common.OpenWebsite("https://github.com/dyyxxhh/PCL3/releases");
         }, "UpdateLog Output");
     }
 
@@ -245,7 +245,7 @@ public partial class FormMain
                         $"{hint}{"\r\n"}{"\r\n"}{Lang.Text("Main.SpecialVersion.HideHintNotice")}",
                         Lang.Text("Main.SpecialVersion.Title"), Lang.Text("Main.SpecialVersion.IUnderstand"), Lang.Text("Main.SpecialVersion.OpenDownloadPageAndExit"), isWarn: true, button2Action: () =>
                         {
-                            Common.OpenWebsite("https://github.com/PCL-Community/PCL2-CE/releases/latest");
+                            Common.OpenWebsite("https://github.com/dyyxxhh/PCL3/releases/latest");
                             EndProgram(false);
                         });
                 }

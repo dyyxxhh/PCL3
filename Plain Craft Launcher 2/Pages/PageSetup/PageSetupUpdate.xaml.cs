@@ -44,9 +44,6 @@ public partial class PageSetupUpdate : IPageView
     private void Init()
     {
         Animations.AniBeginControl();
-        TextMirrorCDK.Password = Config.Update.MirrorChyanKey;
-
-        ComboSystemUpdateChannel.SelectedIndex = (int)Config.Update.UpdateChannel;
         ComboSystemUpdateMode.SelectedIndex = (int)Config.Update.UpdateMode;
 
         _vm.Reload();
@@ -58,10 +55,8 @@ public partial class PageSetupUpdate : IPageView
     {
         try
         {
-            // 修复：使用 dynamic 绕过命名空间重名导致的编译期类型冲突，
-            // 或者你可以尝试替换为 PCL.Core.App.SemVer.Parse(Common.VersionBaseName)
             if (await UpdateManager.remoteServer.IsLatestAsync(
-                    UpdateManager.IsCurrentVersionBeta ? UpdateChannel.beta : UpdateChannel.stable,
+                    UpdateChannel.stable,
                     SystemInfo.IsArm64System ? UpdateArch.arm64 : UpdateArch.x64,
                     SemVer.Parse(Common.VersionBaseName),
                     Common.VersionCode))
@@ -99,9 +94,7 @@ public partial class PageSetupUpdate : IPageView
                 try
                 {
                     updateInfo = UpdateManager.remoteServer.GetLatestVersion(
-                        UpdateManager.IsCurrentVersionBeta
-                            ? UpdateChannel.beta
-                            : UpdateChannel.stable, SystemInfo.IsArm64System ? UpdateArch.arm64 : UpdateArch.x64);
+                        UpdateChannel.stable, SystemInfo.IsArm64System ? UpdateArch.arm64 : UpdateArch.x64);
                     _vm.UpdateNameText = "PCL₃ " + VersionNameFormat(updateInfo.VersionName);
                     var summary = updateInfo.Changelog.Between("<summary>", "</summary>");
                     if (!updateInfo.Changelog.Contains("<summary>") || string.IsNullOrWhiteSpace(summary.Trim()))
@@ -218,99 +211,9 @@ public partial class PageSetupUpdate : IPageView
             Config.Update.UpdateMode = (LauncherAutoUpdateBehavior)ComboSystemUpdateMode.SelectedIndex;
     }
 
-    private async void ComboSystemUpdateBranch_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        var ctl = sender as Control;
-        if (ctl is not null) ctl.IsEnabled = false;
-        try
-        {
-            if (Animations.AniExitsAnyControl() || sender is not MyComboBox combo || (!combo.IsDropDownOpen && !Keyboard.IsKeyDown(Key.Enter)))
-                return;
-
-            var isCancelled = false;
-            switch (ComboSystemUpdateChannel.SelectedIndex)
-            {
-                case 0:
-                {
-                    break;
-                }
-                case 1:
-                {
-                    if (await Launcher.MyMsgBoxAsync(Lang.Text("Setup.Update.Channel.Beta.Warning.Message"),
-                            Lang.Text("Setup.Update.Channel.Common.Warning.Title"),
-                            Lang.Text("Setup.Update.Channel.Common.Warning.Confirm"),
-                            Lang.Text("Common.Action.Cancel"), isWarn: true) == 2)
-                        isCancelled = true;
-                    else
-                        CheckUpdate();
-                    break;
-                }
-                case 2:
-                {
-                    if (await Launcher.MyMsgBoxAsync(Lang.Text("Setup.Update.Channel.Dev.Warning.Message"),
-                            Lang.Text("Setup.Update.Channel.Common.Warning.Title"),
-                            Lang.Text("Setup.Update.Channel.Common.Warning.Confirm"),
-                            Lang.Text("Common.Action.Cancel"), isWarn: true) == 2)
-                    {
-                        isCancelled = true;
-                        break;
-                    }
-
-                    var confirmText = Lang.Text("Setup.Update.Channel.Dev.FinalConfirm.ExpectedInput");
-                    var ret = await Launcher.MyMsgBoxInputAsync(
-                        Lang.Text("Setup.Update.Channel.Dev.FinalConfirm.Title"),
-                        Lang.Text("Setup.Update.Channel.Dev.FinalConfirm.Message", confirmText),
-                        button1: Lang.Text("Setup.Update.Channel.Dev.FinalConfirm.Submit"),
-                        button2: Lang.Text("Common.Action.Cancel"), isWarn: true);
-
-                    if (ret == confirmText)
-                    {
-                        CheckUpdate();
-                    }
-                    else
-                    {
-                        HintService.Hint(Lang.Text("Setup.Update.Channel.Dev.FinalConfirm.WrongInput"));
-                        isCancelled = true;
-                    }
-                    break;
-                }
-            }
-
-            if (isCancelled)
-            {
-                Animations.AniBeginControl();
-                ComboSystemUpdateChannel.SelectedItem = e.RemovedItems[0];
-                Animations.AniEndControl();
-            }
-            else
-            {
-                Config.Update.UpdateChannel = (Core.App.UpdateChannel)ComboSystemUpdateChannel.SelectedIndex;
-            }
-        }
-        catch (Exception ex)
-        {
-            Common.Log(ex, "切换更新通道失败", Common.LogLevel.Feedback,
-                userSummary: Lang.Text("Setup.Error.OperationFailed"));
-        }
-        finally
-        {
-            if (ctl is not null) ctl.IsEnabled = true;
-        }
-    }
-
-    private void TextMirrorCDK_PasswordChanged(object sender, EventArgs e)
-    {
-        Config.Update.MirrorChyanKey = TextMirrorCDK.Password;
-    }
-
-    private void BtnGetMirrorCDK_Click(object sender, MouseButtonEventArgs e)
-    {
-        Common.OpenWebsite("https://mirrorchyan.com/");
-    }
-
     private void BtnChangelog_Click(object sender, MouseButtonEventArgs e)
     {
-        Common.OpenWebsite("https://github.com/PCL-Community/PCL2-CE/releases/v" + Common.VersionBaseName);
+        Common.OpenWebsite("https://github.com/dyyxxhh/PCL3/releases/tag/v" + Common.VersionBaseName);
     }
 
     public string VersionNameFormat(string str) => PageSetupUpdateViewModel.VersionNameFormat(str);

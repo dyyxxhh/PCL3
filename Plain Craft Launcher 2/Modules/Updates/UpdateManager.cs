@@ -12,42 +12,17 @@ public static class UpdateManager
 {
     public static bool isUpdateWaitingRestart;
 
-    public static UpdatesWrapperModel remoteServer = new(new List<IUpdateSource>
+    public static readonly UpdatesWrapperModel remoteServer = new(new List<IUpdateSource>
     {
         new UpdatesGithubReleaseModel()
     });
 
-    public static bool IsCurrentVersionBeta
-    {
-        get
-        {
-            if (Common.VersionBaseName.Contains("beta"))
-                return true;
-            return (int)Config.Update.UpdateChannel == 1;
-        }
-    }
-    
     public static UpdateEnums.VersionStatus GetVersionStatus()
     {
         try
         {
-            if (IsCurrentVersionBeta && (int)Config.Update.UpdateChannel != 1)
-            {
-                var isNewerThanStable = remoteServer.IsLatest(UpdateChannel.stable,
-                    SystemInfo.IsArm64System ? UpdateArch.arm64 : UpdateArch.x64,
-                    SemVer.Parse(Common.VersionBaseName),
-                    Common.VersionCode);
-                var isBetaLatest = remoteServer.IsLatest(UpdateChannel.beta,
-                    SystemInfo.IsArm64System ? UpdateArch.arm64 : UpdateArch.x64,
-                    SemVer.Parse(Common.VersionBaseName),
-                    Common.VersionCode);
-                return isNewerThanStable && isBetaLatest
-                    ? UpdateEnums.VersionStatus.Latest
-                    : UpdateEnums.VersionStatus.NotLatest;
-            }
-
             return remoteServer.IsLatest(
-                IsCurrentVersionBeta ? UpdateChannel.beta : UpdateChannel.stable,
+                UpdateChannel.stable,
                 SystemInfo.IsArm64System ? UpdateArch.arm64 : UpdateArch.x64,
                 SemVer.Parse(Common.VersionBaseName),
                 Common.VersionCode)
@@ -75,11 +50,11 @@ public static class UpdateManager
             try
             {
                 var version = remoteServer.GetLatestVersion(
-                    IsCurrentVersionBeta ? UpdateChannel.beta : UpdateChannel.stable,
+                    UpdateChannel.stable,
                     SystemInfo.IsArm64System ? UpdateArch.arm64 : UpdateArch.x64
                 );
 
-                Common.WriteFile($"{Common.pathTemp}CEUpdateLog.md", version.Changelog);
+                Common.WriteFile($"{Common.pathTemp}PCL₃UpdateLog.md", version.Changelog);
                 Common.Log(
                     $"[Update] 远程最新版本: {version.VersionName}, 当前版本: {Common.VersionBaseName}");
                 if (!(SemVer.Parse(version.VersionName) > SemVer.Parse(Common.VersionBaseName)))
@@ -105,7 +80,7 @@ public static class UpdateManager
                 var loaders = new List<Loading.LoaderBase>();
                 // 下载
                 loaders.AddRange(remoteServer.GetDownloadLoader(
-                    IsCurrentVersionBeta ? UpdateChannel.beta : UpdateChannel.stable,
+                    UpdateChannel.stable,
                     SystemInfo.IsArm64System ? UpdateArch.arm64 : UpdateArch.x64, dlTargetPath));
                 loaders.Add(new Loading.LoaderTask<int, int>(Lang.Text("Update.Task.Check"), _ =>
                 {
@@ -218,7 +193,7 @@ public static class UpdateManager
     internal static void DownloadLatestPCL(Loading.LoaderBase loaderToSyncProgress = null)
     {
         // 注意：如果要自行实现这个功能，请换用另一个文件路径，以免与官方版本冲突
-        var latestPCLPath = Path.Combine(Common.pathTemp, "CE-Latest.exe");
+        var latestPCLPath = Path.Combine(Common.pathTemp, "PCL₃-Latest.exe");
         var target = remoteServer.GetLatestVersion(UpdateChannel.stable,
             SystemInfo.IsArm64System ? UpdateArch.arm64 : UpdateArch.x64);
         if (target is null)
@@ -246,7 +221,7 @@ public static class UpdateManager
     }
 
     public static Loading.LoaderTask<int, int> serverLoader =
-        new(Lang.Text("Update.Service.PclCe"),
+        new(Lang.Text("Update.Service.Github"),
             _ => LoadOnlineInfo(),
             priority: ThreadPriority.BelowNormal);
 
@@ -279,14 +254,4 @@ public static class UpdateManager
         }
     }
 
-    /// <summary>
-    ///     展示社区版提示
-    /// </summary>
-    /// <param name="IsUpdate">是否为更新时启动</param>
-    public static void ShowCEAnnounce()
-    {
-        Launcher.MyMsgBox(Lang.Text("Update.CommunityNotice.Body"),
-            Lang.Text("Update.CommunityNotice.Title"),
-            Lang.Text("Update.CommunityNotice.Confirm"));
-    }
 }
