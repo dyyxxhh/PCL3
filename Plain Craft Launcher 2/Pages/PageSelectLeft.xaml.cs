@@ -1,0 +1,997 @@
+﻿using System.IO;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Input;
+using PCL.Core.App;
+using PCL.Core.App.Localization;
+using PCL.Core.Logging;
+using PCL.Core.UI;
+using PCL.Core.Utils.Validate;
+using PCL.Network;
+
+namespace PCL;
+
+public partial class PageSelectLeft : IRefreshable
+{
+    private readonly PageSelectLeftViewModel _vm = new();
+    private List<GameFolders.McFolder> mcFolderListLast;
+
+    public PageSelectLeft()
+    {
+        Initialized += PageSelectLeft_Initialized;
+        Loaded += PageSelectLeft_Loaded;
+        InitializeComponent();
+        DataContext = _vm;
+    }
+
+    void IRefreshable.Refresh()
+    {
+        RefreshCurrent();
+    }
+
+    protected override void RefreshLocalization()
+    {
+        // 重建文件夹列表前记录滚动位置，避免切语言时跳回顶部
+        var savedOffset = PanScroll.VerticalOffset;
+        McFolderListUI(true);
+        Dispatcher.BeginInvoke(new Action(() => PanScroll.ScrollToVerticalOffset(savedOffset)));
+    }
+
+    private void PageSelectLeft_Initialized(object sender, EventArgs e)
+    {
+        GameFolders.McFolderListLoader.PreviewFinish += _ =>
+        {
+            if (Launcher.frmSelectLeft is not null) Common.RunInUiWait(() => McFolderListUI());
+        };
+    }
+
+    private void PageSelectLeft_Loaded(object sender, RoutedEventArgs e)
+    {
+        if (_vm.IsFirstLoad)
+            McFolderListUI(); // 若已经执行完成，触发首次加载
+        _vm.IsFirstLoad = false;
+    }
+
+    private void McFolderListUI(bool force = false)
+    {
+        try
+        {
+            // 确认数据有变化
+            if (!force && mcFolderListLast is not null &&
+                mcFolderListLast.SequenceEqual(GameFolders.mcFolderList))
+                return;
+
+            mcFolderListLast = new List<GameFolders.McFolder>(GameFolders.mcFolderList);
+
+            // 创建 UI
+            Launcher.frmSelectLeft.PanList.Children.Clear();
+
+            // 文件夹列表标题
+            var listTitle = new TextBlock
+            {
+                Margin = new Thickness(13, 18, 5, 4),
+                Opacity = 0.6,
+                FontSize = 12
+            };
+            listTitle.TrySetLocalizedValue("Text", "Select.Folder.ListTitle");
+            Launcher.frmSelectLeft.PanList.Children.Add(listTitle);
+
+            for (var i = 0; i < GameFolders.mcFolderList.Count; i++)
+            {
+                var folder = GameFolders.mcFolderList[i];
+
+                // 创建 ContextMenu
+                var contMenu = new ContextMenu();
+
+                // 添加菜单项
+                void AddMenuItem(string name, string headerKey, string svgIcon = null,
+                    Thickness? padding = null,
+                    RoutedEventHandler clickHandler = null)
+                {
+                    var item = new MyMenuItem
+                    {
+                        Name = name,
+                        SvgIcon = svgIcon,
+                        Padding = padding ?? new Thickness(0)
+                    };
+                    // 菜单会随页面缓存长期存活，标题需要按当前语言求值
+                    item.SetLocalizedValue(HeaderedItemsControl.HeaderProperty, headerKey);
+                    if (clickHandler is not null)
+                        item.Click += clickHandler;
+                    contMenu.Items.Add(item);
+                }
+
+                const string iconRestore = "lucide/rotate-ccw";
+                const string iconRename = "lucide/pencil";
+                const string iconMoveup = "lucide/move-up";
+                const string iconMovedown = "lucide/move-down";
+                const string iconOpen = "lucide/folder-open";
+                const string iconRefresh = "lucide/refresh-cw";
+                const string iconDelete = "lucide/trash-2";
+                const string iconRemove = "lucide/list-x";
+
+                switch (folder.Type)
+                {
+                    case GameFolders.McFolder.Types.Original:
+                        AddMenuItem("Rename", "Select.Folder.Rename", iconRename,
+                            new Thickness(0, 2, 0, 0),
+                            Launcher.frmSelectLeft.Rename_Click);
+                        AddMenuItem("MoveUp", "Select.Folder.MoveUp", iconMoveup, null,
+                            Launcher.frmSelectLeft.MoveUp_Click);
+                        AddMenuItem("MoveDown", "Select.Folder.MoveDown", iconMovedown, null,
+                            Launcher.frmSelectLeft.MoveDown_Click);
+                        AddMenuItem("Open", "Common.Action.Open", iconOpen, null,
+                            Launcher.frmSelectLeft.Open_Click);
+                        AddMenuItem("Refresh", "Common.Action.Refresh", iconRefresh, null,
+                            Launcher.frmSelectLeft.Refresh_Click);
+                        AddMenuItem("Delete",
+                            GameFolders.mcFolderList.Count == 1 &&
+                            folder.Location == Path.Combine(Common.ExePath, ".minecraft") + @"\"
+                                ? "Select.Folder.Clear"
+                                : "Common.Action.Delete", iconDelete, new Thickness(0, 0, 0, 2),
+                            Launcher.frmSelectLeft.Delete_Click);
+                        break;
+
+                    case GameFolders.McFolder.Types.RenamedOriginal:
+                        AddMenuItem("Restore", "Select.Folder.RestoreName", iconRestore,
+                            new Thickness(0, 2, 0, 0),
+                            Launcher.frmSelectLeft.Restore_Click);
+                        AddMenuItem("Rename", "Select.Folder.Rename", iconRename, null,
+                            Launcher.frmSelectLeft.Rename_Click);
+                        AddMenuItem("MoveUp", "Select.Folder.MoveUp", iconMoveup, null,
+                            Launcher.frmSelectLeft.MoveUp_Click);
+                        AddMenuItem("MoveDown", "Select.Folder.MoveDown", iconMovedown, null,
+                            Launcher.frmSelectLeft.MoveDown_Click);
+                        AddMenuItem("Open", "Common.Action.Open", iconOpen, null,
+                            Launcher.frmSelectLeft.Open_Click);
+                        AddMenuItem("Refresh", "Common.Action.Refresh", iconRefresh, null,
+                            Launcher.frmSelectLeft.Refresh_Click);
+                        AddMenuItem("Delete", "Common.Action.Delete", iconDelete,
+                            new Thickness(0, 0, 0, 2),
+                            Launcher.frmSelectLeft.Delete_Click);
+                        break;
+
+                    case GameFolders.McFolder.Types.Custom:
+                        AddMenuItem(
+                            "Rename",
+                            "Select.Folder.Rename",
+                            iconRename,
+                            new Thickness(0, 2, 0, 0),
+                            Launcher.frmSelectLeft.Rename_Click);
+                        AddMenuItem(
+                            "MoveUp",
+                            "Select.Folder.MoveUp",
+                            iconMoveup,
+                            null,
+                            Launcher.frmSelectLeft.MoveUp_Click);
+                        AddMenuItem(
+                            "MoveDown",
+                            "Select.Folder.MoveDown",
+                            iconMovedown,
+                            null,
+                            Launcher.frmSelectLeft.MoveDown_Click);
+                        AddMenuItem(
+                            "Open",
+                            "Common.Action.Open",
+                            iconOpen,
+                            null,
+                            Launcher.frmSelectLeft.Open_Click);
+                        AddMenuItem(
+                            "Refresh",
+                            "Common.Action.Refresh",
+                            iconRefresh,
+                            null,
+                            Launcher.frmSelectLeft.Refresh_Click);
+                        AddMenuItem(
+                            "Remove",
+                            "Select.Folder.RemoveFromList",
+                            iconRemove,
+                            null,
+                            Launcher.frmSelectLeft.Remove_Click);
+                        AddMenuItem(
+                            "Delete",
+                            "Common.Action.Delete",
+                            iconDelete,
+                            new Thickness(0, 0, 0, 2),
+                            Launcher.frmSelectLeft.Delete_Click);
+                        break;
+                }
+
+                // 控制上移下移显示
+                var moveUpItem = contMenu.Items.OfType<MyMenuItem>().FirstOrDefault(x => x.Name == "MoveUp");
+                var moveDownItem = contMenu.Items.OfType<MyMenuItem>().FirstOrDefault(x => x.Name == "MoveDown");
+
+                // 如果是第一个项目，隐藏上移按钮
+                if (PageSelectLeftViewModel.IsFirstItem(i)) moveUpItem.Visibility = Visibility.Collapsed;
+
+                // 如果是最后一个项目，隐藏下移按钮
+                if (PageSelectLeftViewModel.IsLastItem(i, GameFolders.mcFolderList.Count))
+                    moveDownItem.Visibility = Visibility.Collapsed;
+
+                // 构建列表项
+                var newItem = new MyListItem
+                {
+                    IsScaleAnimationEnabled = false,
+                    Type = MyListItem.CheckType.RadioBox,
+                    MinPaddingRight = 30,
+                    Title = folder.DisplayName,
+                    Info = folder.Location,
+                    Height = 40,
+                    ContextMenu = contMenu,
+                    Tag = folder
+                };
+
+                newItem.Changed += (a, b) => Launcher.frmSelectLeft.Folder_Change((MyListItem)a, b);
+
+                // 拖拽
+                newItem.AllowDrop = true;
+                newItem.MouseMove += Launcher.frmSelectLeft.Item_MouseMove;
+                newItem.DragEnter += Launcher.frmSelectLeft.Item_DragEnter;
+                newItem.DragOver += Launcher.frmSelectLeft.Item_DragOver;
+                newItem.DragLeave += Launcher.frmSelectLeft.Item_DragLeave;
+                newItem.Drop += Launcher.frmSelectLeft.Item_Drop;
+
+                // 图标按钮
+                var newIconButton = new MyIconButton
+                {
+                    SvgIcon = "lucide/settings",
+                    LogoScale = 1.1
+                };
+                newIconButton.Click += (_, _) =>
+                {
+                    contMenu.PlacementTarget = newItem;
+                    contMenu.IsOpen = true;
+                };
+                newItem.Buttons = [newIconButton];
+
+                Launcher.frmSelectLeft.PanList.Children.Add(newItem);
+
+                LogWrapper.Info($"[Minecraft] 有效的 Minecraft 文件夹：{folder.DisplayName} > {folder.Location}");
+            }
+
+            // 标题文本
+            var addOrImportTitle = new TextBlock
+            {
+                Margin = new Thickness(13, 18, 5, 4),
+                Opacity = 0.6,
+                FontSize = 12
+            };
+            addOrImportTitle.TrySetLocalizedValue("Text", "Select.Folder.AddOrImport");
+            Launcher.frmSelectLeft.PanList.Children.Add(addOrImportTitle);
+
+            // 创建新文件夹按钮
+            if (!Directory.Exists(Path.Combine(Common.ExePath, ".minecraft")))
+            {
+                var itemCreate = new MyListItem
+                {
+                    IsScaleAnimationEnabled = false,
+                    Type = MyListItem.CheckType.Clickable,
+                    Height = 34,
+                    LogoScale = 0.9,
+                    SvgIcon = "lucide/folder-plus"
+                };
+                itemCreate.TrySetLocalizedValue("Title", "Select.Folder.CreateNew.Title");
+                itemCreate.TrySetLocalizedValue("ToolTip", "Select.Folder.CreateNew.ToolTip");
+                ToolTipService.SetPlacement(itemCreate, PlacementMode.Right);
+                itemCreate.Click += (_, _) => Launcher.frmSelectLeft.Create_Click();
+                Launcher.frmSelectLeft.PanList.Children.Add(itemCreate);
+            }
+
+            // 添加按钮
+            var itemAdd = new MyListItem
+            {
+                IsScaleAnimationEnabled = false,
+                Type = MyListItem.CheckType.Clickable,
+                Height = 34,
+                SvgIcon = "lucide/folder-input"
+            };
+            itemAdd.TrySetLocalizedValue("Title", "Select.Folder.AddExisting.Title");
+            itemAdd.TrySetLocalizedValue("ToolTip", "Select.Folder.AddExisting.ToolTip");
+            ToolTipService.SetPlacement(itemAdd, PlacementMode.Right);
+            itemAdd.Click += (_, _) => Launcher.frmSelectLeft.Add_Click();
+            Launcher.frmSelectLeft.PanList.Children.Add(itemAdd);
+
+            // 导入整合包
+            var itemInstall = new MyListItem
+            {
+                IsScaleAnimationEnabled = false,
+                Type = MyListItem.CheckType.Clickable,
+                Height = 34,
+                SvgIcon = "lucide/package-plus"
+            };
+            itemInstall.TrySetLocalizedValue("Title", "Select.Folder.ImportModpack.Title");
+            itemInstall.TrySetLocalizedValue("ToolTip", "Select.Folder.ImportModpack.ToolTip");
+            ToolTipService.SetPlacement(itemInstall, PlacementMode.Right);
+            itemInstall.Click += (_, _) => Modpack.ModpackInstall();
+            Launcher.frmSelectLeft.PanList.Children.Add(itemInstall);
+
+            // 边距
+            Launcher.frmSelectLeft.PanList.Children.Add(new FrameworkElement { Height = 10, IsHitTestVisible = false });
+
+            // 确认勾选状态
+            for (var i = 0; i < GameFolders.mcFolderList.Count; i++)
+                if (GameFolders.mcFolderList[i].Location == GameFolders.mcFolderSelected)
+                {
+                    ((MyListItem)Launcher.frmSelectLeft.PanList.Children[i + 1]).Checked = true; //去掉第一个标题
+                    return;
+                }
+
+            if (GameFolders.mcFolderList.Count == 0)
+                throw new ArgumentNullException("没有可用的 Minecraft 文件夹");
+            States.Game.SelectedFolder = GameFolders.mcFolderList[0].Location.Replace(Common.ExePath, "$");
+            ((MyListItem)Launcher.frmSelectLeft.PanList.Children[1]).Checked = true;
+        }
+        catch (Exception ex)
+        {
+            LogWrapper.Error(ex, "构建 Minecraft 文件夹列表 UI 出错");
+        }
+        finally
+        {
+            Loading.LoaderFolderRun(InstanceList.mcInstanceListLoader,
+                GameFolders.mcFolderSelected,
+                Loading.LoaderFolderRunType.RunOnUpdated,
+                1,
+                "versions\\");
+        }
+    }
+
+    private void MoveUp_Click(object sender, RoutedEventArgs e)
+    {
+        var folder =
+            (GameFolders.McFolder)((MyListItem)((Popup)((ContextMenu)((MyMenuItem)sender).Parent).Parent)
+                .PlacementTarget)
+            .Tag;
+        var index = GameFolders.mcFolderList.IndexOf(folder);
+        if (index <= 0) return;
+        GameFolders.mcFolderList.RemoveAt(index);
+        GameFolders.mcFolderList.Insert(index - 1, folder);
+        UpdateFolderOrder();
+    }
+
+    private void MoveDown_Click(object sender, RoutedEventArgs e)
+    {
+        var folder =
+            (GameFolders.McFolder)((MyListItem)((Popup)((ContextMenu)((MyMenuItem)sender).Parent).Parent)
+                .PlacementTarget)
+            .Tag;
+        var index = GameFolders.mcFolderList.IndexOf(folder);
+        if (index >= GameFolders.mcFolderList.Count - 1) return;
+        GameFolders.mcFolderList.RemoveAt(index);
+        GameFolders.mcFolderList.Insert(index + 1, folder);
+        UpdateFolderOrder();
+    }
+
+    private void UpdateFolderOrder()
+    {
+        States.Game.Folders = GameFolders.mcFolderList
+            .Select(folder => $"{folder.Name}>{folder.Location}")
+            .ToArray()
+            .Join("|");
+        McFolderListUI();
+    }
+
+    private void Restore_Click(object sender, RoutedEventArgs e)
+    {
+        var folder =
+            (GameFolders.McFolder)((MyListItem)((Popup)((ContextMenu)((MyMenuItem)sender).Parent).Parent)
+                .PlacementTarget)
+            .Tag;
+        var index = GameFolders.mcFolderList.IndexOf(folder);
+        GameFolders.mcFolderList[index] .Type = GameFolders.McFolder.Types.Original;
+        GameFolders.mcFolderList[index].Name = GetOriginalFolderName(folder.Location);
+        UpdateFolderOrder();
+    }
+
+    /// <summary>
+    ///     取回指定路径对应的默认显示名称。<br/>
+    ///     内置文件夹返回带 <c>$</c> 前缀的资源键，其余文件夹返回目录名。
+    /// </summary>
+    private static string GetOriginalFolderName(string? location)
+    {
+        var normalized = Normalize(location);
+        if (string.Equals(
+                normalized,
+                Normalize(Common.ExePath),
+                StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(
+                normalized,
+                Normalize(Path.Combine(Common.ExePath, ".minecraft")),
+                StringComparison.OrdinalIgnoreCase))
+            return GameFolders.McFolder.BuiltinNamePrefix + "Select.Folder.CurrentFolder";
+
+        var mojangPath = Normalize(Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            ".minecraft"));
+        if (string.Equals(normalized, mojangPath, StringComparison.OrdinalIgnoreCase))
+            return GameFolders.McFolder.BuiltinNamePrefix + "Select.Folder.OfficialLauncherFolder";
+
+        var directoryName = Path.GetFileName(normalized);
+        return string.IsNullOrEmpty(directoryName)
+            ? GameFolders.McFolder.BuiltinNamePrefix + "Select.Folder.OfficialLauncherFolder"
+            : directoryName;
+
+        static string Normalize(string? path)
+        {
+            return (path ?? "").TrimEnd('\\', '/');
+        }
+    }
+
+    // 添加文件夹
+    private async void Add_Click()
+    {
+        var newFolder = "";
+        // 检查是否有下载任务
+        if (NetFacade.HasDownloadingTask())
+        {
+            HintService.Hint(Lang.Text("Select.Folder.CannotAddWhileDownloading"), HintType.Error);
+            return;
+        }
+
+        try
+        {
+            // 获取输入
+            newFolder = SystemDialogs.SelectFolder();
+            if (string.IsNullOrEmpty(newFolder))
+                return;
+            if (newFolder.Contains('!') || newFolder.Contains(';'))
+            {
+                HintService.Hint(Lang.Text("Select.Folder.InvalidPathChars"), HintType.Error);
+                return;
+            }
+
+            // 要求输入显示名称
+            var splitedNames = newFolder.TrimEnd('\\').Split(@"\");
+            var defaultName = splitedNames.Last() == ".minecraft"
+                ? splitedNames.Length >= 3 ? splitedNames[^2] : ""
+                : splitedNames.Last();
+            if (defaultName.Length > 40)
+                defaultName = defaultName[..39];
+            var newName = await Launcher.MyMsgBoxInputAsync(Lang.Text("Select.Folder.InputDisplayName.Title"),
+                Lang.Text("Select.Folder.InputDisplayName.Message"), defaultName,
+                [new NullOrWhiteSpaceValidator(), new StringLengthValidator(), new BlacklistValidator([">", "|"])]);
+            if (string.IsNullOrWhiteSpace(newName))
+                return;
+            // 添加文件夹
+            AddFolder(newFolder, newName, true);
+        }
+        catch (Exception ex)
+        {
+            Common.Log(
+                ex,
+                Lang.Text("Select.Folder.Error.Add", newFolder),
+                Common.LogLevel.Feedback,
+                userSummary: Lang.Text("Select.Folder.Error.Add", newFolder));
+        }
+    }
+
+    /// <summary>
+    ///     将指定文件夹添加到 Minecraft 文件夹列表，并选中它。
+    /// </summary>
+    public static void AddFolder(string folderPath, string displayName, bool showHint)
+    {
+        // 检查文件夹权限
+        // 检查实际的 Minecraft 文件夹位置（没有问题，或是在子文件夹中）
+        // 判断是否已经添加过，若添加过则直接修改自定义名
+        // 如果没有添加过，则添加进去
+        // 保存
+        // 切换选择并更新列表
+        // 提示
+        // 检查是否为根目录整合包，自动关闭版本隔离
+        // 1. 根目录中存在数个 Mod
+        // 2. 实例数较少，可能为整合包
+        // 3. 能够找到可安装 Mod 的实例
+        // 4. 该实例的隔离文件夹下不存在 mods
+        // 满足以上全部条件则视为根目录整合包
+        Common.RunInThread(() =>
+        {
+            try
+            {
+                if (!folderPath.EndsWith(@"\")) folderPath += @"\";
+                if (!Common.CheckPermission(folderPath))
+                {
+                    if (!showHint) throw new Exception("PCL 没有访问文件夹的权限：" + folderPath);
+                    HintService.Hint(Lang.Text("Select.Folder.AccessDenied"), HintType.Error);
+                    return;
+                }
+
+                if (!Common.CheckPermission(folderPath + @"versions\"))
+                    foreach (var Folder in new DirectoryInfo(folderPath).GetDirectories())
+                        if (Common.CheckPermission(Path.Combine(Folder.FullName, "versions")))
+                        {
+                            folderPath = Folder.FullName + @"\";
+                            break;
+                        }
+
+                var folders = new List<string>(States.Game.Folders.Split("|"));
+                var isAdded = false;
+                var isReplace = false;
+                for (int i = 0, loopTo = folders.Count - 1; i <= loopTo; i++)
+                {
+                    var folder = folders[i];
+                    if (string.IsNullOrEmpty(folder)) continue;
+                    if (folder.Split(">")[1] != (folderPath ?? "")) continue;
+                    isAdded = true;
+                    if (folder.Split(">")[0] == displayName)
+                    {
+                        if (showHint) HintService.Hint(Lang.Text("Select.Folder.AlreadyInList"));
+                        return;
+                    }
+
+                    folders[i] = $"{displayName}>{folderPath}";
+                    isReplace = true;
+                    if (showHint)
+                        HintService.Hint(Lang.Text("Select.Folder.NameUpdated", displayName), HintType.Success);
+                    break;
+                }
+
+                if (!isAdded) folders.Add($"{displayName}>{folderPath}");
+                States.Game.Folders = folders.ToArray().Join("|");
+                States.Game.SelectedFolder = folderPath.Replace(Common.ExePath, "$");
+                GameFolders.McFolderListLoader.Start(isForceRestart: true);
+                if (isReplace) return;
+                if (showHint) HintService.Hint(Lang.Text("Select.Folder.Added", displayName), HintType.Success);
+                var modFolder = new DirectoryInfo(folderPath + @"mods\");
+                if (!(modFolder.Exists && modFolder.EnumerateFiles().Count() >= 3)) return;
+                var versionFolder = new DirectoryInfo(folderPath + @"versions\");
+                if (!(versionFolder.Exists && versionFolder.EnumerateDirectories().Count() <= 3)) return;
+                foreach (var VersionPath in versionFolder.EnumerateDirectories())
+                {
+                    var version = new McInstance(VersionPath.FullName);
+                    version.Load();
+                    if (!version.Modable) continue;
+                    var modIndieFolder = new DirectoryInfo(version.PathInstance + @"mods\");
+                    if (modIndieFolder.Exists && modIndieFolder.EnumerateFiles().Any()) return;
+                    Config.Instance.IndieV1[version.PathInstance] = 2;
+                    Config.Instance.IndieV2[version.PathInstance] = false;
+                    Common.Log("[Setup] 已自动关闭单版本隔离：" + version.Name, Common.LogLevel.Debug);
+                }
+            }
+            catch (Exception ex)
+            {
+                Common.Log(
+                    ex,
+                    Lang.Text("Select.Folder.Error.AddNew"),
+                    Common.LogLevel.Feedback,
+                    userSummary: Lang.Text("Select.Folder.Error.AddNew"));
+            }
+        }); // 加上斜杠……
+    }
+
+    // 创建文件夹
+    public void Create_Click()
+    {
+        // 检查是否有下载任务
+        if (NetFacade.HasDownloadingTask())
+        {
+            HintService.Hint(Lang.Text("Select.Folder.CannotCreateWhileDownloading"), HintType.Error);
+            return;
+        }
+
+        if (!Directory.Exists(Common.ExePath + @".minecraft\"))
+        {
+            Directory.CreateDirectory(Common.ExePath + @".minecraft\");
+            Directory.CreateDirectory(Common.ExePath + @".minecraft\versions\");
+            States.Game.SelectedFolder = @"$.minecraft\";
+            GameFolders.McFolderLauncherProfilesJsonCreate(Common.ExePath + @".minecraft\");
+            HintService.Hint(Lang.Text("Select.Folder.CreateSuccess"), HintType.Success);
+        }
+
+        GameFolders.McFolderListLoader.Start(isForceRestart: true);
+    }
+
+    // 右键菜单
+    public async void Remove_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var folder =
+                (GameFolders.McFolder)((MyListItem)((Popup)((ContextMenu)((MyMenuItem)sender).Parent).Parent)
+                    .PlacementTarget).Tag;
+            switch (await Launcher.MyMsgBoxAsync(
+                        Lang.Text("Select.Folder.Cleanup.Message"),
+                        Lang.Text("Select.Folder.Cleanup.Title"), Lang.Text("Common.Action.Delete"),
+                        Lang.Text("Select.Folder.Cleanup.Keep"), Lang.Text("Common.Action.Cancel")))
+            {
+                case 1:
+                {
+                    // 删除配置文件
+                    if (File.Exists(folder.Location + "PCL.ini"))
+                        File.Delete(folder.Location + "PCL.ini");
+                    if (Directory.Exists(folder.Location + @"versions\"))
+                        foreach (var Version in new DirectoryInfo(folder.Location + @"versions\")
+                                     .EnumerateDirectories())
+                            if (Directory.Exists(Path.Combine(Version.FullName, "PCL")))
+                                Directory.Delete(Path.Combine(Version.FullName, "PCL"), true);
+
+                    break;
+                }
+                case 2:
+                {
+                    break;
+                }
+                // 不删除
+                case 3:
+                {
+                    // 取消
+                    return;
+                }
+            }
+
+            // 若修改了本部分代码，应对应修改 Delete_Click 中的代码
+            // 获取并删除列表项
+            var folders = new List<string>(States.Game.Folders.Split("|"));
+            var name = "";
+            for (int i = 0, loopTo = folders.Count - 1; i <= loopTo; i++)
+            {
+                if (string.IsNullOrEmpty(folders[i]))
+                    break;
+                if (!folders[i].EndsWith(folder.Location)) continue;
+                name = folders[i].BeforeFirst(">");
+                folders.RemoveAt(i);
+                break;
+            }
+
+            // 保存
+            States.Game.Folders = folders.Count == 0 ? "" : folders.ToArray().Join("|");
+            HintService.Hint(
+                folder.Type == GameFolders.McFolder.Types.Custom
+                    ? Lang.Text("Select.Folder.RemoveSuccess", name)
+                    : Lang.Text("Select.Folder.RestoreSuccess"),
+                HintType.Success);
+            GameFolders.McFolderListLoader.Start(isForceRestart: true);
+        }
+
+        catch (Exception ex)
+        {
+            Common.Log(
+                ex,
+                Lang.Text("Select.Folder.Error.Remove"),
+                Common.LogLevel.Feedback,
+                userSummary: Lang.Text("Select.Folder.Error.Remove"));
+        }
+    }
+
+    public async void Delete_Click(object sender, RoutedEventArgs e)
+    {
+        var menuItem = (MyMenuItem)sender;
+        var contextMenu = (ContextMenu)menuItem.Parent;
+        var popup = (Popup)contextMenu.Parent;
+        var listItem = (MyListItem)popup.PlacementTarget;
+        var folder = (GameFolders.McFolder)listItem.Tag;
+
+        var isClearing = PageSelectLeftViewModel.IsClearingDefaultFolder(folder, GameFolders.mcFolderList.Count);
+
+        var deleteText = Lang.Text(isClearing ? "Select.Folder.Clear" : "Common.Action.Delete");
+        var firstWarning =
+            Lang.Text(isClearing ? "Select.Folder.Clear.FirstWarning" : "Select.Folder.Delete.FirstWarning",
+                folder.Location);
+        var finalWarning =
+            Lang.Text(isClearing ? "Select.Folder.Clear.FinalWarning" : "Select.Folder.Delete.FinalWarning",
+                folder.Location);
+        var confirmTitle = Lang.Text(isClearing ? "Select.Folder.Clear.Confirm" : "Select.Folder.Delete.Confirm");
+        var inProgress = Lang.Text(
+            isClearing
+                ? "Select.Folder.Clear.InProgress"
+                : "Select.Folder.Delete.InProgress",
+            folder.DisplayName);
+        var success = Lang.Text(
+            isClearing
+                ? "Select.Folder.Clear.Success"
+                : "Select.Folder.Delete.Success",
+            folder.DisplayName);
+
+        try
+        {
+            if (await Launcher.MyMsgBoxAsync(firstWarning, Lang.Text("Select.Folder.Delete.WarningTitle"),
+                    Lang.Text("Common.Action.Cancel"), Lang.Text("Common.Action.Confirm"),
+                    Lang.Text("Common.Action.Cancel")) != 2)
+                return;
+
+            if (await Launcher.MyMsgBoxAsync(finalWarning, Lang.Text("Select.Folder.Delete.WarningTitle"),
+                    confirmTitle, Lang.Text("Common.Action.Cancel"),
+                    isWarn: true) != 1)
+                return;
+        }
+        catch (Exception ex)
+        {
+            Common.Log(ex, Lang.Text("Select.Folder.Error.Operate", deleteText, folder.DisplayName));
+            return;
+        }
+
+        var folders = States.Game.Folders.Split('|', StringSplitOptions.RemoveEmptyEntries).ToList();
+        var index = folders.FindIndex(f => f.EndsWith(folder.Location));
+        if (index >= 0)
+            folders.RemoveAt(index);
+        States.Game.Folders = string.Join("|", folders);
+
+        Common.RunInNewThread(() =>
+        {
+            try
+            {
+                HintService.Hint(inProgress);
+                Common.DeleteDirectory(folder.Location);
+                if (isClearing)
+                    Directory.CreateDirectory(folder.Location);
+                HintService.Hint(success, HintType.Success);
+            }
+            catch (Exception ex)
+            {
+                Common.Log(
+                    ex,
+                    Lang.Text("Select.Folder.Error.Operate", deleteText, folder.DisplayName),
+                    Common.LogLevel.Hint,
+                    userSummary: Lang.Text(
+                        "Select.Folder.Error.Operate",
+                        deleteText,
+                        folder.DisplayName));
+            }
+            finally
+            {
+                GameFolders.McFolderListLoader.Start(isForceRestart: true);
+            }
+        }, "Folder Delete " + Common.GetUuid(), ThreadPriority.BelowNormal);
+    }
+
+    public void Open_Click(object sender, RoutedEventArgs e)
+    {
+        Common.OpenExplorer(((MyListItem)((Popup)((ContextMenu)((MyMenuItem)sender).Parent).Parent).PlacementTarget)
+            .Info);
+    }
+
+    public void Refresh_Click(object sender, RoutedEventArgs e)
+    {
+        var data = (GameFolders.McFolder)((MyListItem)((Popup)((ContextMenu)((MyMenuItem)sender).Parent).Parent)
+            .PlacementTarget).Tag;
+        RefreshCurrent(data.Location);
+    }
+
+    public void RefreshCurrent()
+    {
+        RefreshCurrent(GameFolders.mcFolderSelected);
+    }
+
+    public static void RefreshCurrent(string folder)
+    {
+        Common.WriteIni(Path.Combine(folder, "PCL.ini"), "InstanceCache", "");
+        if (folder == GameFolders.mcFolderSelected)
+            Loading.LoaderFolderRun(InstanceList.mcInstanceListLoader, GameFolders.mcFolderSelected,
+                Loading.LoaderFolderRunType.ForceRun, 1, @"versions\");
+    }
+
+    public async void Rename_Click(object sender, RoutedEventArgs e)
+    {
+        var folder =
+            (GameFolders.McFolder)((MyListItem)((Popup)((ContextMenu)((MyMenuItem)sender).Parent).Parent)
+                .PlacementTarget)
+            .Tag;
+        try
+        {
+            // 获取输入
+            var newName = await Launcher.MyMsgBoxInputAsync(
+                Lang.Text("Select.Folder.Rename.Title"),
+                "",
+                folder.DisplayName,
+                [
+                    new NullOrWhiteSpaceValidator(), new StringLengthValidator(1, 30),
+                    new BlacklistValidator([">", "|"])
+                ]);
+            if (string.IsNullOrWhiteSpace(newName))
+                return;
+            // 修改自定义名
+            var folders = new List<string>(States.Game.Folders.Split("|"));
+            var isAdded = false;
+            for (int i = 0, loopTo = folders.Count - 1; i <= loopTo; i++)
+            {
+                var folderCurrent = folders[i];
+                if (string.IsNullOrEmpty(folderCurrent))
+                    continue;
+                if (folderCurrent.Split(">")[1] != (folder.Location ?? "")) continue;
+                isAdded = true;
+                if (folderCurrent.Split(">")[0] == newName)
+                    // 名称未修改
+                    return;
+
+                folders[i] = $"{newName}>{folder.Location}";
+                break;
+            }
+
+            // 如果没有添加过，则添加进去（因为修改了默认项的名称）
+            if (!isAdded)
+                folders.Add($"{newName}>{folder.Location}");
+            HintService.Hint(Lang.Text("Select.Folder.NameUpdated", newName), HintType.Success);
+            // 保存
+            States.Game.Folders = folders.ToArray().Join("|");
+            GameFolders.McFolderListLoader.Start(isForceRestart: true);
+        }
+        catch (Exception ex)
+        {
+            Common.Log(
+                ex,
+                Lang.Text("Select.Folder.Error.Rename"),
+                Common.LogLevel.Feedback,
+                userSummary: Lang.Text("Select.Folder.Error.Rename"));
+        }
+    }
+
+    // 点击选项
+    public void Folder_Change(MyListItem sender, Common.RouteEventArgs e)
+    {
+        if (!e.raiseByMouse || !sender.Checked)
+            return;
+        // 检查是否有下载任务
+        if (NetFacade.HasDownloadingTask(true))
+        {
+            HintService.Hint(Lang.Text("Select.Folder.SwitchBlockedByDownload"), HintType.Error);
+            e.handled = true;
+            return;
+        }
+
+        // 更换
+        States.Game.SelectedFolder = ((GameFolders.McFolder)sender.Tag).Location.Replace(Common.ExePath, "$");
+        GameFolders.McFolderListLoader.Start(isForceRestart: true);
+        Loading.LoaderFolderRun(InstanceList.mcInstanceListLoader, GameFolders.mcFolderSelected,
+            Loading.LoaderFolderRunType.RunOnUpdated, 1, @"versions\"); // 刷新实例列表
+    }
+
+    #region 拖拽排序功能
+
+    // 拖拽开始时的鼠标移动处理
+    private void Item_MouseMove(object sender, MouseEventArgs e)
+    {
+        var item = (MyListItem)sender;
+        // 当按住鼠标左键时开始拖拽操作
+        if (e.LeftButton != MouseButtonState.Pressed) return;
+        try
+        {
+            DragDrop.DoDragDrop(item, item.Tag, DragDropEffects.Move);
+        }
+        catch (Exception ex)
+        {
+            Common.Log(ex, "开始拖拽操作失败");
+        }
+    }
+
+    // 拖拽进入时的处理
+    private void Item_DragEnter(object sender, DragEventArgs e)
+    {
+        try
+        {
+            if (e.Data.GetDataPresent(typeof(GameFolders.McFolder)))
+            {
+                e.Effects = DragDropEffects.Move;
+                // 添加视觉反馈
+                var item = (MyListItem)sender;
+                item.Opacity = 0.7d;
+            }
+            else
+            {
+                e.Effects = DragDropEffects.None;
+            }
+        }
+        catch (Exception)
+        {
+            e.Effects = DragDropEffects.None;
+        }
+
+        e.Handled = true;
+    }
+
+    // 拖拽悬停时的处理
+    private void Item_DragOver(object sender, DragEventArgs e)
+    {
+        try
+        {
+            e.Effects = e.Data.GetDataPresent(typeof(GameFolders.McFolder))
+                ? DragDropEffects.Move
+                : DragDropEffects.None;
+        }
+        catch (Exception)
+        {
+            e.Effects = DragDropEffects.None;
+        }
+
+        e.Handled = true;
+    }
+
+    // 拖拽离开时的处理
+    private void Item_DragLeave(object sender, DragEventArgs e)
+    {
+        try
+        {
+            // 恢复视觉状态
+            var item = (MyListItem)sender;
+            item.Opacity = 1.0d;
+        }
+        catch (Exception ex)
+        {
+            Common.Log(ex, "拖拽离开处理失败");
+        }
+
+        e.Handled = true;
+    }
+
+    // 拖拽放下时的处理
+    private void Item_Drop(object sender, DragEventArgs e)
+    {
+        try
+        {
+            var targetItem = (MyListItem)sender;
+            var targetFolder = (GameFolders.McFolder)targetItem.Tag;
+
+            // 恢复视觉状态
+            targetItem.Opacity = 1.0d;
+
+            // 检查数据有效性
+            if (!e.Data.GetDataPresent(typeof(GameFolders.McFolder)))
+            {
+                e.Handled = true;
+                return;
+            }
+
+            var sourceFolder = (GameFolders.McFolder)e.Data.GetData(typeof(GameFolders.McFolder));
+
+            // 检查是否为有效的拖拽操作
+            if (ReferenceEquals(sourceFolder, targetFolder))
+            {
+                e.Handled = true;
+                return;
+            }
+
+            // 检查文件夹是否在列表中
+            if (!GameFolders.mcFolderList.Contains(sourceFolder) || !GameFolders.mcFolderList.Contains(targetFolder))
+            {
+                e.Handled = true;
+                return;
+            }
+
+            // 获取源文件夹和目标文件夹的索引
+            var sourceIndex = GameFolders.mcFolderList.IndexOf(sourceFolder);
+            var targetIndex = GameFolders.mcFolderList.IndexOf(targetFolder);
+
+            // 执行移动操作
+            if (sourceIndex == targetIndex) return;
+            // 先移除源文件夹
+            GameFolders.mcFolderList.RemoveAt(sourceIndex);
+
+            // 计算新的插入位置
+            int newTargetIndex;
+
+            // 向下拖拽：插入到目标项目的后面
+            // 由于移除了源项目，目标索引已经自动减1，所以直接使用TargetIndex就是插入到目标后面
+            // 向上拖拽：插入到目标项目的前面
+            newTargetIndex = targetIndex;
+
+            // 确保插入位置不超出列表范围
+            if (newTargetIndex > GameFolders.mcFolderList.Count)
+                newTargetIndex = GameFolders.mcFolderList.Count;
+            else if (newTargetIndex < 0) newTargetIndex = 0;
+
+            // 插入到新位置
+            GameFolders.mcFolderList.Insert(newTargetIndex, sourceFolder);
+
+            // 更新文件夹顺序并刷新UI
+            UpdateFolderOrder();
+
+            var direction = sourceIndex < targetIndex ? "后面" : "前面";
+            Common.Log(
+                $"[Control] 文件夹拖拽排序：{sourceFolder.Name} -> 位置 {newTargetIndex} (在 {targetFolder.Name} {direction})",
+                Common.LogLevel.Debug);
+        }
+
+        catch (Exception ex)
+        {
+            Common.Log(
+                ex,
+                Lang.Text("Select.Folder.Error.DragDrop"),
+                Common.LogLevel.Feedback,
+                userSummary: Lang.Text("Select.Folder.Error.DragDrop"));
+        }
+        finally
+        {
+            e.Handled = true;
+        }
+    }
+
+    #endregion
+}
