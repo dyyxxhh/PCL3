@@ -62,6 +62,7 @@ jobs:
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
           draft: true
+          target_commitish: ${{ github.sha }}
           tag_name: v${{ inputs.version }}
           name: Release ${{ inputs.version }}
           body_path: CHANGELOG.md
@@ -97,6 +98,7 @@ jobs:
       - name: Create SHA-256 manifest
         run: sha256sum "PCL₃_${{ matrix.configuration }}_${{ matrix.architecture }}.exe" > "PCL₃_${{ matrix.configuration }}_${{ matrix.architecture }}.sha256"
 
+      - name: Sign the binary
         uses: sigstore/gh-action-sigstore-python@790bc6befb9d733738f18d8f895854b453640ec9 # v3.5.0
         with:
           inputs: PCL₃_${{ matrix.configuration }}_${{ matrix.architecture }}.exe
@@ -108,11 +110,12 @@ jobs:
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
           draft: true
+          target_commitish: ${{ github.sha }}
           tag_name: v${{ inputs.version }}
           files: |
             PCL₃_${{ matrix.configuration }}_${{ matrix.architecture }}.exe
             PCL₃_${{ matrix.configuration }}_${{ matrix.architecture }}.exe.sigstore.json
-             PCL₃_${{ matrix.configuration }}_${{ matrix.architecture }}.sha256
+            PCL₃_${{ matrix.configuration }}_${{ matrix.architecture }}.sha256
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -123,5 +126,7 @@ jobs:
       - name: Publish Draft
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
+          target_commitish: ${{ github.sha }}
           tag_name: v${{ inputs.version }}
+          draft: false
 
