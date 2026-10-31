@@ -1,15 +1,15 @@
 ﻿{
-  "name": "PCl₃ (三氯化磷启动器)",
+  "name": "PCL₃ (三氯化磷启动器)",
   "version": {
-    "base": "3.0.0",
+    "base": "0.1.0",
     "upstream": "2.15.1",
     "suffix": "PCl3",
-    "code": 800
+    "code": 100
   },
   "licenses": [
     {
       "name": "PCL.Core",
-      "info": "Copyright © PCl₃ Project (基于 PCL Community 的 PCL.Core)",
+      "info": "Copyright © PCL₃ Project (基于 PCL Community 的 PCL.Core)",
       "website": "https://github.com/dyyxxhh/pcl3/tree/dev/PCL.Core",
       "license": "https://github.com/dyyxxhh/pcl3/blob/dev/LICENSE"
     },

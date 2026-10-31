@@ -1,6 +1,6 @@
 # 如何为项目做贡献
 
-## 这是 PCl₃
+## 这是 PCL₃
 
 本仓库是 [PCL CE](https://github.com/PCL-Community/PCL-CE) 的个人改编版，**不是** PCL CE 官方仓库。
 

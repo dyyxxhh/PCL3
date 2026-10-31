@@ -44,9 +44,6 @@ public partial class PageLoginProfile : IPageView
             case nameof(PageLoginProfileViewModel.ShowCreateHint):
                 HintCreate.Visibility = _vm.ShowCreateHint ? Visibility.Visible : Visibility.Collapsed;
                 break;
-            case nameof(PageLoginProfileViewModel.ShowMicrosoftHint):
-                HintMicrosoft.Visibility = _vm.ShowMicrosoftHint ? Visibility.Visible : Visibility.Collapsed;
-                break;
         }
     }
 

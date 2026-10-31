@@ -3,12 +3,12 @@
     <PropertyGroup>
         <AssemblyTitle>PCL.Core</AssemblyTitle>
         <AssemblyName>PCL.Core</AssemblyName>
-        <Description>PCl₃（三氯化磷启动器 / Phosphorus Trichloride Launcher）核心库</Description>
-        <Company>PCl₃ Project</Company>
-        <Product>PCl₃ (Phosphorus Trichloride Launcher)</Product>
-        <Copyright>Copyright © PCl₃ Project</Copyright>
-        <AssemblyVersion>3.0.0.0</AssemblyVersion>
-        <FileVersion>3.0.0.0</FileVersion>
+        <Description>PCL₃（三氯化磷启动器 / Phosphorus Trichloride Launcher）核心库</Description>
+        <Company>PCL₃ Project</Company>
+        <Product>PCL₃ (Phosphorus Trichloride Launcher)</Product>
+        <Copyright>Copyright © PCL₃ Project</Copyright>
+        <AssemblyVersion>0.1.0.0</AssemblyVersion>
+        <FileVersion>0.1.0.0</FileVersion>
     </PropertyGroup>
     <PropertyGroup>
         <Configuration Condition="'$(Configuration)' == ''">Debug</Configuration>

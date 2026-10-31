@@ -2,11 +2,11 @@
 
 <div align="center">
 
-<img src="Plain Craft Launcher 2/Images/icon.png" alt="PCl₃" width="80" height="80">
+<img src="Plain Craft Launcher 2/Images/icon.png" alt="PCL₃" width="80" height="80">
 
-# PCl₃ (三氯化磷啟動器)
+# PCL₃ (三氯化磷啟動器)
 
-**PCl₃**，即三氯化磷（Phosphorus Trichloride），無色透明液體，用於製造有機磷化合物。
+**PCL₃**，即三氯化磷（Phosphorus Trichloride），無色透明液體，用於製造有機磷化合物。
 
 基於 [PCL CE](https://github.com/PCL-Community/PCL-CE)（Plain Craft Launcher Community Edition）二次改編的 Minecraft Java 版啟動器。
 
@@ -19,7 +19,7 @@
 
 ## 這是什麼
 
-PCl₃ 是 [PCL CE](https://github.com/PCL-Community/PCL-CE) 的個人改編版。上游 PCL CE 自 2.12.x 起對中國大陸區域做了功能限制（地區偵測、帳號限制），本倉庫將其解除，並重新品牌化為 PCl₃。
+PCL₃ 是 [PCL CE](https://github.com/PCL-Community/PCL-CE) 的個人改編版。上游 PCL CE 自 2.12.x 起對中國大陸區域做了功能限制（地區偵測、帳號限制），本倉庫將其解除，並重新品牌化為 PCL₃。
 
 **請勿向 PCL CE 官方倉庫回報本倉庫的問題。**
 
@@ -30,8 +30,8 @@ PCl₃ 是 [PCL CE](https://github.com/PCL-Community/PCL-CE) 的個人改編版�
 | 解除區域限制 | `RegionPolicy` / `RestrictedFeaturePolicy` 判定改為恆不受限，中國大陸可直接下載 Minecraft 本體、整合包與載入器 |
 | 解除帳號限制 | 無需正版帳號：離線登入、第三方登入隨時可建立（`ProfileUi.CanCreateOtherProfile` 恆為 `true`） |
 | 移除正版購買提示 | 啟動遊戲前不再彈出「正版購買 / 帳號驗證」視窗，受限地區也不再跳過客戶端檔案下載 |
-| 品牌重製 | 啟動器名稱、標題列、AUMID、組件資訊、全部 7 種語言檔案統一更名為 PCl₃；更換啟動器圖示 |
-| 版本號獨立 | 自 3.0.0 起獨立編號（`metadata.json` 中 `upstream` 記錄所基於的上游版本） |
+| 品牌重製 | 啟動器名稱、標題列、AUMID、組件資訊、全部 7 種語言檔案統一更名為 PCL₃；更換啟動器圖示 |
+| 版本號獨立 | 自 0.1.0 起獨立編號（`metadata.json` 中 `upstream` 記錄所基於的上游版本） |
 
 ## 上游（PCL CE）都有什麼
 
@@ -58,7 +58,7 @@ Release 提供 x64 與 ARM64 兩個架構的依賴框架版本，需系統已安
 
 ## 與上游同步
 
-本倉庫基於上游 `dev` 分支（建置版本見 [Releases](https://github.com/dyyxxhh/pcl3/releases) 頁所註明的上游 commit）。上游更新後，將 PCl₃ 的改動（見上方「相比上游新增 / 修改了什麼」）重新套用即可。
+本倉庫基於上游 `dev` 分支（建置版本見 [Releases](https://github.com/dyyxxhh/pcl3/releases) 頁所註明的上游 commit）。上游更新後，將 PCL₃ 的改動（見上方「相比上游新增 / 修改了什麼」）重新套用即可。
 
 ## 授權條款
 

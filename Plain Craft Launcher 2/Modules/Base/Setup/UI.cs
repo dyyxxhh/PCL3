@@ -1,4 +1,4 @@
-﻿using System.Windows;
+using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Effects;
 using PCL.Core.App;
@@ -251,7 +251,7 @@ public partial class Setup
             main.ImageTitleLogo.Visibility = ToVisibility(value == 3);
 
             if (value != 4)
-                main.CELogo.Visibility = ToVisibility(value != 0);
+                main.PclThreeLogo.Visibility = ToVisibility(value != 0 && value != 4);
 
             if (ui is not null)
             {

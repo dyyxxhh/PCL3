@@ -69,7 +69,7 @@ public partial class Application
             // 设置初始窗口
             if (Config.Preference.ShowStartupLogo)
             {
-                Launcher.frmStart = new SplashScreen(@"Images\icon.ico");
+                Launcher.frmStart = new SplashScreen(@"Images\icon.png");
                 Launcher.frmStart.Show(false, true);
             }
 

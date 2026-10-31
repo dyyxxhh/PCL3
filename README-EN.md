@@ -2,11 +2,11 @@
 
 <div align="center">
 
-<img src="Plain Craft Launcher 2/Images/icon.png" alt="PCl₃" width="80" height="80">
+<img src="Plain Craft Launcher 2/Images/icon.png" alt="PCL₃" width="80" height="80">
 
-# PCl₃ (Phosphorus Trichloride Launcher)
+# PCL₃ (Phosphorus Trichloride Launcher)
 
-**PCl₃** — phosphorus trichloride, a colourless liquid used to make organophosphorus compounds.
+**PCL₃** — phosphorus trichloride, a colourless liquid used to make organophosphorus compounds.
 
 A Minecraft: Java Edition launcher, forked from [PCL CE](https://github.com/PCL-Community/PCL-CE) (Plain Craft Launcher Community Edition).
 
@@ -19,7 +19,7 @@ A Minecraft: Java Edition launcher, forked from [PCL CE](https://github.com/PCL-
 
 ## What is this
 
-PCl₃ is a personal fork of [PCL CE](https://github.com/PCL-Community/PCL-CE). Since 2.12.x, upstream PCL CE gates features by region (geo/region detection) and by account type. This fork removes those gates and rebrands the launcher.
+PCL₃ is a personal fork of [PCL CE](https://github.com/PCL-Community/PCL-CE). Since 2.12.x, upstream PCL CE gates features by region (geo/region detection) and by account type. This fork removes those gates and rebrands the launcher.
 
 **Please do not report issues with this fork to the PCL CE repository.**
 
@@ -30,8 +30,8 @@ PCl₃ is a personal fork of [PCL CE](https://github.com/PCL-Community/PCL-CE). 
 | Region restrictions removed | `RegionPolicy` / `RestrictedFeaturePolicy` always evaluate as unrestricted, so Minecraft, modpacks and loaders can be downloaded and installed from mainland China |
 | Account restrictions removed | No Microsoft account required: offline and third-party (authlib-injector) profiles can be created at any time (`ProfileUi.CanCreateOtherProfile` always `true`) |
 | Purchase prompts removed | No "buy the game / verify your account" dialog before launch, and client files are no longer skipped in restricted regions |
-| Rebranded | Launcher name, title bar, AUMID, assembly metadata and all 7 locale files say PCl₃; new launcher icon |
-| Independent versioning | Numbered from 3.0.0; `metadata.json` records the upstream version it is based on |
+| Rebranded | Launcher name, title bar, AUMID, assembly metadata and all 7 locale files say PCL₃; new launcher icon |
+| Independent versioning | Numbered from 0.1.0; `metadata.json` records the upstream version it is based on |
 
 ## What upstream (PCL CE) provides
 

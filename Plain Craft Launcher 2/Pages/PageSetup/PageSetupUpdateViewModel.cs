@@ -21,7 +21,7 @@ public partial class PageSetupUpdateViewModel : ViewModelBase
 
     public void Reload()
     {
-        CurrentVersionText = "PCL CE " + VersionNameFormat(Common.VersionBaseName);
+        CurrentVersionText = "PCL₃ " + VersionNameFormat(Common.VersionBaseName);
     }
 
     public static string VersionNameFormat(string str)
