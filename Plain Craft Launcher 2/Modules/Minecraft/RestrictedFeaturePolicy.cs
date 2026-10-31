@@ -1,6 +1,5 @@
+﻿using PCL.Core.App.Localization;
 using PCL.Core.App.Region;
-using PCL.Core.App.Localization;
-using PCL.Core.UI;
 
 namespace PCL;
 

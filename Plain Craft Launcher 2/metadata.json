@@ -1,17 +1,17 @@
-{
-  "name": "Plain Craft Launcher Community Edition",
+﻿{
+  "name": "PCl₃ (三氯化磷启动器)",
   "version": {
-    "base": "2.15.1",
-    "upstream": "2.12.1",
-    "suffix": "",
-    "code": 524
+    "base": "3.0.0",
+    "upstream": "2.15.1",
+    "suffix": "PCl3",
+    "code": 800
   },
   "licenses": [
     {
       "name": "PCL.Core",
-      "info": "Copyright © PCL Community",
-      "website": "https://github.com/PCL-Community/PCL-CE/tree/dev/PCL.Core",
-      "license": "https://github.com/PCL-Community/PCL-CE/blob/dev/LICENSE"
+      "info": "Copyright © PCl₃ Project (基于 PCL Community 的 PCL.Core)",
+      "website": "https://github.com/dyyxxhh/pcl3/tree/dev/PCL.Core",
+      "license": "https://github.com/dyyxxhh/pcl3/blob/dev/LICENSE"
     },
     {
       "name": "LegacyFix",

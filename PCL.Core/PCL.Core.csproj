@@ -1,14 +1,14 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
     <!-- 项目属性 -->
     <PropertyGroup>
         <AssemblyTitle>PCL.Core</AssemblyTitle>
         <AssemblyName>PCL.Core</AssemblyName>
-        <Description>PCL Community 为 PCL 开发的启动器核心库</Description>
-        <Company>PCL Community</Company>
-        <Product>PCL.Core</Product>
-        <Copyright>Copyright © PCL Community</Copyright>
-        <AssemblyVersion>1.0.0.0</AssemblyVersion>
-        <FileVersion>1.0.0.0</FileVersion>
+        <Description>PCl₃（三氯化磷启动器 / Phosphorus Trichloride Launcher）核心库</Description>
+        <Company>PCl₃ Project</Company>
+        <Product>PCl₃ (Phosphorus Trichloride Launcher)</Product>
+        <Copyright>Copyright © PCl₃ Project</Copyright>
+        <AssemblyVersion>3.0.0.0</AssemblyVersion>
+        <FileVersion>3.0.0.0</FileVersion>
     </PropertyGroup>
     <PropertyGroup>
         <Configuration Condition="'$(Configuration)' == ''">Debug</Configuration>
