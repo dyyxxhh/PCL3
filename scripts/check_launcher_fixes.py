@@ -1,10 +1,17 @@
 #!/usr/bin/env python3
 """Fast static regression checks for the launcher fork's requested fixes."""
 from pathlib import Path
+import json
+import re
 
 ROOT = Path(__file__).resolve().parents[1]
 APP = ROOT / "Plain Craft Launcher 2"
 CORE = ROOT / "PCL.Core"
+
+metadata = json.loads((APP / "metadata.json").read_text(encoding="utf-8"))
+version = metadata["version"]
+full_version = version["base"] + (f'-{version["suffix"]}' if version["suffix"] else "")
+assert re.fullmatch(r"(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?", full_version)
 
 profile = (APP / "Modules/Minecraft/ProfileUi.cs").read_text(encoding="utf-8")
 profile_vm = (APP / "Pages/PageLaunch/PageLoginProfileViewModel.cs").read_text(encoding="utf-8")
