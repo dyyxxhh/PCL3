@@ -1,4 +1,4 @@
-﻿using System.ComponentModel;
+using System.ComponentModel;
 using System.IO;
 using System.Net;
 using System.Runtime.InteropServices;
@@ -341,9 +341,14 @@ public partial class FormMain
         if ((int)Config.Launch.GameWindowMode == 5)
             Config.Launch.GameWindowMode = GameWindowSizeMode.Default;
 
-        // 更新后展示社区版提示
-        UpdateManager.ShowCEAnnounce();
-        // 输出更新日志
+        // 迁移已移除的 PCL CE 公告主页，避免旧配置继续加载它
+        if (Config.Preference.Homepage.Type == 3 && Config.Preference.Homepage.SelectedPreset == 14)
+        {
+            Config.Preference.Homepage.Type = 0;
+            Config.Preference.Homepage.SelectedPreset = 0;
+            Common.Log("[Start] 已移除旧版公告主页配置");
+        }
+
         if (lastVersionCode <= 0)
             return;
         if (lowerVersionCode >= Common.VersionCode)

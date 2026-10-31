@@ -1,4 +1,4 @@
-﻿using System.ComponentModel;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using PCL.Core.App;
@@ -14,13 +14,7 @@ public static class UpdateManager
 
     public static UpdatesWrapperModel remoteServer = new(new List<IUpdateSource>
     {
-        new UpdatesMirrorChyanModel(),
-        new UpdatesRandomModel(new[]
-        {
-            new UpdatesMinioModel("https://s3.pysio.online/pcl2-ce/", "Pysio"),
-            new UpdatesMinioModel("https://staticassets.naids.com/resources/pclce/", "Naids")
-        }),
-        new UpdatesMinioModel("https://github.com/PCL-Community/PCL2_CE_Server/raw/main/", "GitHub")
+        new UpdatesGithubReleaseModel()
     });
 
     public static bool IsCurrentVersionBeta
@@ -75,7 +69,7 @@ public static class UpdateManager
 
     public static void UpdateStart(UpdateEnums.UpdateType type, string receivedKey = null, bool forceValidated = false)
     {
-        var dlTargetPath = Common.ExePath + @"PCL\Plain Craft Launcher Community Edition.exe";
+        var dlTargetPath = Common.ExePath + @"PCL\PCL₃.exe";
         Common.RunInNewThread(() =>
         {
             try
@@ -185,7 +179,7 @@ public static class UpdateManager
     {
         try
         {
-            var fileName = Common.ExePath + @"PCL\Plain Craft Launcher Community Edition.exe";
+            var fileName = Common.ExePath + @"PCL\PCL₃.exe";
             if (!File.Exists(fileName))
             {
                 Common.Log("[System] 更新失败：未找到更新文件");
@@ -259,7 +253,7 @@ public static class UpdateManager
     private static void LoadOnlineInfo()
     {
         ScheduleBasedOnConfig();
-        AnnouncementService.Load();
+        // Do not load announcements from the PCL CE update service.
     }
 
     private static void ScheduleBasedOnConfig()

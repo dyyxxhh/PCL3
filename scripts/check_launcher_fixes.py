@@ -20,9 +20,14 @@ assert 'Title="PCL₃ - 三氯化磷启动器 "' in main_xaml
 assert '<Border x:Name="CELogo" Grid.Column="1" Visibility="Collapsed"' in main_xaml
 assert 'x:Name="PclThreeLogo"' in main_xaml
 assert 'main.PclThreeLogo.Visibility = ToVisibility(value != 0 && value != 4);' in (APP / "Modules/Base/Setup/UI.cs").read_text(encoding="utf-8")
-assert 'new SplashScreen(@"Images\\icon.png")' in app_cs
-
-# These are protocol/storage identifiers and must not be changed to display branding.
+update_manager = (APP / "Modules/Updates/UpdateManager.cs").read_text(encoding="utf-8")
+homepage = (APP / "Pages/PageLaunch/PageLaunchRight.xaml.cs").read_text(encoding="utf-8")
+assert "ShowCEAnnounce();" not in (APP / "FormMain.xaml.cs").read_text(encoding="utf-8")
+assert "AnnouncementService.Load();" not in update_manager
+assert 'https://s3.pysio.online/pcl2-ce/apiv2/pages/announce.xaml' not in homepage
+assert 'case 14:' in homepage and 'content = "";' in homepage
+assert 'new UpdatesGithubReleaseModel()' in update_manager
+assert 'PCL\\PCL₃.exe' in update_manager
 for path in [CORE / "App/Paths.cs", CORE / "App/Essentials/RpcService.cs"]:
     assert path.exists(), path
 
