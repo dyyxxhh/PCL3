@@ -359,7 +359,7 @@
                             <local:MyComboBoxItem Content="{loc:Loc Setup.Ui.Homepage.Preset.MinecraftKnowledge}" />
                             <local:MyComboBoxItem Content="{loc:Loc Setup.Ui.Homepage.Preset.ModpackRecommendation}" />
                             <local:MyComboBoxItem Content="{loc:Loc Setup.Ui.Homepage.Preset.Bangumi}" />
-                                                         <!-- Announcement homepage removed -->
+                            <local:MyComboBoxItem Content="{loc:Loc Setup.Ui.Homepage.Preset.PclAnnouncement}" Visibility="Collapsed"/>
                             <local:MyComboBoxItem Content="{loc:Loc Setup.Ui.Homepage.Preset.McOfficialFeed}"/>
                         </local:MyComboBox>
                     </Grid>
