@@ -18,6 +18,9 @@ assert 'asset["browser_download_url"]' in source
 assert 'UpdateChannel.beta' not in source + manager
 assert 'new LoaderDownload' in source
 assert 'Update.Error.Sha256Mismatch' in manager
+auto_update = manager[manager.index('public static void UpdateStart('):]
+assert auto_update.index('remoteServer.IsLatest(') < auto_update.index('remoteServer.GetLatestVersion(')
+assert 'return;' in auto_update[auto_update.index('remoteServer.IsLatest('):auto_update.index('remoteServer.GetLatestVersion(')]
 for name in ('UpdatesMirrorChyanModel.cs', 'UpdatesMinioModel.cs', 'UpdatesRandomModel.cs'):
     assert not (UPDATES / name).exists(), name
 

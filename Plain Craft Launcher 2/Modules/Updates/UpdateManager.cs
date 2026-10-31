@@ -49,9 +49,16 @@ public static class UpdateManager
         {
             try
             {
+                var arch = SystemInfo.IsArm64System ? UpdateArch.arm64 : UpdateArch.x64;
+                if (remoteServer.IsLatest(UpdateChannel.stable, arch,
+                        SemVer.Parse(Common.VersionBaseName), Common.VersionCode))
+                {
+                    Common.Log("[Update] 已是最新版本，无需请求更新校验文件");
+                    return;
+                }
                 var version = remoteServer.GetLatestVersion(
                     UpdateChannel.stable,
-                    SystemInfo.IsArm64System ? UpdateArch.arm64 : UpdateArch.x64
+                    arch
                 );
 
                 Common.WriteFile($"{Common.pathTemp}PCL₃UpdateLog.md", version.Changelog);
