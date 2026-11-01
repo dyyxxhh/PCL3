@@ -89,7 +89,7 @@ public sealed class UpdatesGithubReleaseModel : IUpdateSource
     private static string GetAssetName(UpdateArch arch, string suffix)
     {
         var architecture = arch == UpdateArch.arm64 ? "ARM64" : "x64";
-        return $"PCL._Release_{architecture}{suffix}";
+        return $"PCL3_Release_{architecture}{suffix}";
     }
 
     private static string NormalizeVersion(string tag)
