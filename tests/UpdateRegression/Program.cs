@@ -21,6 +21,17 @@ Test("release page check bypasses REST API 403 and checksum asset", () =>
 });
 Test("older local build is detected using public release page", () =>
     Assert(!new UpdatesGithubReleaseModel().IsLatest(UpdateChannel.stable, UpdateArch.x64, SemVer.Parse("0.1.5"), 105), "update missing"));
+Test("canonical release link is accepted when OpenGraph metadata is absent", () =>
+{
+    Requester.LatestHtml = "<html><head><link href=\"https://github.com/dyyxxhh/PCL3/releases/tag/v0.1.7\" rel=\"canonical\"></head></html>";
+    Assert(new UpdatesGithubReleaseModel().IsLatest(UpdateChannel.stable, UpdateArch.x64, SemVer.Parse("0.1.7"), 107), "canonical release tag was not found");
+});
+Test("embedded release tag link is accepted", () =>
+{
+    Requester.LatestHtml = "<html><a href=\"https://github.com/dyyxxhh/PCL3/releases/tag/v0.1.7\">Release</a></html>";
+    Assert(new UpdatesGithubReleaseModel().IsLatest(UpdateChannel.stable, UpdateArch.x64, SemVer.Parse("0.1.7"), 107), "embedded release tag was not found");
+});
+Requester.LatestHtml = "<html><head><meta property=\"og:url\" content=\"https://github.com/dyyxxhh/PCL3/releases/tag/v0.1.7\"></head></html>";
 Test("wrapper preserves the original release page failure", () =>
 {
     var original = new IOException("403 Forbidden");

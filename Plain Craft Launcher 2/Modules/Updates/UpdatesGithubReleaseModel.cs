@@ -72,12 +72,18 @@ public sealed class UpdatesGithubReleaseModel : IUpdateSource
         var htmlParam = RequestParam.WithRetry;
         htmlParam.UseBrowserUserAgent = true;
         var html = Requester.FetchString(LatestReleaseUrl, htmlParam);
-        var match = Regex.Match(html,
+        var patterns = new[]
+        {
             """<meta\b(?=[^>]*\bproperty\s*=\s*["']og:url["'])(?=[^>]*\bcontent\s*=\s*["']https://github\.com/dyyxxhh/PCL3/releases/tag/(?<tag>[^"'#?&<>\s]+)["'])[^>]*>""",
-            RegexOptions.IgnoreCase | RegexOptions.Singleline);
-        if (!match.Success)
-            throw new Exception("GitHub Release 页面未包含最新版本标记");
-        return Uri.UnescapeDataString(match.Groups["tag"].Value);
+            """<link\b(?=[^>]*\brel\s*=\s*["']canonical["'])(?=[^>]*\bhref\s*=\s*["']https://github\.com/dyyxxhh/PCL3/releases/tag/(?<tag>[^"'#?&<>\s]+)["'])[^>]*>""",
+            """https://github\.com/dyyxxhh/PCL3/releases/tag/(?<tag>[^"'<>\s?#]+)"""
+        };
+        foreach (var pattern in patterns)
+        {
+            var match = Regex.Match(html, pattern, RegexOptions.IgnoreCase | RegexOptions.Singleline);
+            if (match.Success) return Uri.UnescapeDataString(match.Groups["tag"].Value);
+        }
+        throw new Exception("GitHub Release 页面未包含最新版本标记");
     }
 
     private static string GetAssetName(UpdateArch arch, string suffix)
