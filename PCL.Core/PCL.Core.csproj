@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
     <!-- 项目属性 -->
     <PropertyGroup>
         <AssemblyTitle>PCL.Core</AssemblyTitle>
@@ -99,5 +99,6 @@
     <ItemGroup>
         <AdditionalFiles Include="App\IoC\LifecycleState.cs" />
         <ProjectReference Include="..\PCL.Core.SourceGenerators\PCL.Core.SourceGenerators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+        <ProjectReference Include="..\PCL.Core.Shared\PCL.Core.Shared.csproj" />
     </ItemGroup>
 </Project>

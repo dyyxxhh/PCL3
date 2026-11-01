@@ -1,5 +1,6 @@
 using PCL.Core.App;
 using PCL.Core.Logging;
+using PCL.Core.Shared.Java;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -14,6 +15,9 @@ public class DefaultPathsScanner : IJavaScanner
 
     public void Scan(ICollection<string> results)
     {
+        foreach (var candidate in JavaDiscovery.EnumerateCandidates())
+            results.Add(candidate);
+
         try
         {
             var searchRoots = _GetSearchRoots();

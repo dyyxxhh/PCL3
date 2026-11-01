@@ -2,6 +2,7 @@ using PCL.Core.Logging;
 using PCL.Core.Minecraft.Java;
 using PCL.Core.Minecraft.Java.Parser;
 using PCL.Core.Minecraft.Java.Scanner;
+using PCL.Core.Shared.Java;
 using PCL.Core.App;
 using PCL.Core.Utils.Exts;
 using System;
@@ -329,9 +330,7 @@ public class JavaManager
     /// 将 Java 版本规范化为统一比较格式（1.8.0 → 8.0.0）
     /// </summary>
     public static Version NormalizeVersion(Version version) =>
-        version.Major == 1 && version.Minor >= 0
-            ? new Version(version.Minor, Math.Max(version.Build, 0), Math.Max(version.Revision, 0))
-            : version;
+        JavaDiscovery.NormalizeVersion(version);
 
     // ===== 版本处理工具 =====
 
