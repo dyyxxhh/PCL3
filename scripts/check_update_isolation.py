@@ -13,7 +13,7 @@ source = (UPDATES / "UpdatesGithubReleaseModel.cs").read_text(encoding="utf-8-si
 assert re.findall(r"new (Updates\w+Model)\(", manager) == ["UpdatesGithubReleaseModel"]
 assert 'https://github.com/dyyxxhh/PCL3' in source
 assert '"/releases/latest"' in source
-assert 'PCL._Release_{architecture}{suffix}' in source
+assert 'PCL3_Release_{architecture}{suffix}' in source
 assert 'PCL-Community/PCL-CE/releases' not in source
 assert 'Requester.FetchJson' not in source
 assert 'GetAssetName(arch, ".exe")' in source
