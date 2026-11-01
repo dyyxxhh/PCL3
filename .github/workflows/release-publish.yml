@@ -142,8 +142,8 @@ jobs:
           test -x ./linux-artifact/pcl
           cp PCL.Linux.Cli/README.md ./linux-artifact/README.md
           cp LICENSE ./linux-artifact/LICENSE
-          tar -C ./linux-artifact -czf "PCL₃_${{ inputs.configuration }}_linux-x64.tar.gz" pcl README.md LICENSE
-          sha256sum "PCL₃_${{ inputs.configuration }}_linux-x64.tar.gz" > "PCL₃_${{ inputs.configuration }}_linux-x64.tar.gz.sha256"
+          tar -C ./linux-artifact -czf "PCL3_${{ inputs.configuration }}_linux-x64.tar.gz" pcl README.md LICENSE
+          sha256sum "PCL3_${{ inputs.configuration }}_linux-x64.tar.gz" > "PCL3_${{ inputs.configuration }}_linux-x64.tar.gz.sha256"
       - name: Upload Linux CLI to Release
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
@@ -151,8 +151,8 @@ jobs:
           target_commitish: ${{ github.sha }}
           tag_name: v${{ inputs.version }}
           files: |
-            PCL₃_${{ inputs.configuration }}_linux-x64.tar.gz
-            PCL₃_${{ inputs.configuration }}_linux-x64.tar.gz.sha256
+            PCL3_${{ inputs.configuration }}_linux-x64.tar.gz
+            PCL3_${{ inputs.configuration }}_linux-x64.tar.gz.sha256
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
