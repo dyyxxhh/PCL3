@@ -16,7 +16,10 @@ public sealed record MinecraftLaunchOptions(
     string JavaPath,
     string PlayerName = "Player",
     string PlayerUuid = "00000000-0000-0000-0000-000000000000",
-    string AccessToken = "0");
+    string AccessToken = "0",
+    string UserType = "legacy",
+    string? AuthlibInjectorPath = null,
+    string? AuthServer = null);
 
 public sealed class MinecraftInstaller
 {
@@ -81,6 +84,13 @@ public sealed class MinecraftInstaller
 
         var arguments = BuildArguments(metadata, versionId, options, nativesDirectory, libraries, assetsDirectory, assetIndexName);
         var startInfo = new ProcessStartInfo { FileName = options.JavaPath, WorkingDirectory = options.GameDirectory, UseShellExecute = false };
+        if (options.AuthServer is not null)
+        {
+            if (string.IsNullOrEmpty(options.AuthlibInjectorPath) || !File.Exists(options.AuthlibInjectorPath))
+                throw new FileNotFoundException("authlib-injector 不存在。", options.AuthlibInjectorPath);
+            startInfo.ArgumentList.Add($"-javaagent:{options.AuthlibInjectorPath}={options.AuthServer}");
+            startInfo.ArgumentList.Add("-Dauthlibinjector.side=client");
+        }
         foreach (var argument in arguments) startInfo.ArgumentList.Add(argument);
         return Process.Start(startInfo) ?? throw new InvalidOperationException("Could not start Java.");
     }
@@ -317,7 +327,7 @@ public sealed class MinecraftInstaller
             ["${auth_player_name}"] = options.PlayerName,
             ["${auth_uuid}"] = options.PlayerUuid,
             ["${auth_access_token}"] = options.AccessToken,
-            ["${user_type}"] = "legacy",
+            ["${user_type}"] = options.UserType,
             ["${version_name}"] = versionId,
             ["${game_directory}"] = options.GameDirectory,
             ["${assets_root}"] = assetsDirectory,

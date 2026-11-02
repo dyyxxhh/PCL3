@@ -20,7 +20,9 @@ internal static class Program
             {
                 "java" when args.Length == 2 && args[1] == "scan" => ScanJava(),
                 "java" when args.Length == 3 && args[1] == "install" && int.TryParse(args[2], out var major) => await InstallJavaAsync(major).ConfigureAwait(false),
-                "login" when args.Length == 1 => await LoginAsync().ConfigureAwait(false),
+                "login" when args.Length == 1 || args is ["login", "microsoft"] => await LoginAsync().ConfigureAwait(false),
+                "login" when args is ["login", "offline", _] => await LoginOfflineAsync(args[2]).ConfigureAwait(false),
+                "login" when args is ["login", "authlib", _, _] => await LoginAuthlibAsync(args[2], args[3]).ConfigureAwait(false),
                 "logout" when args.Length == 1 => await LogoutAsync().ConfigureAwait(false),
                 "instance" when args.Length >= 2 && args[1] == "list" => ListInstances(args.Skip(2).ToArray()),
                 "install" when args.Length >= 2 => await InstallAsync(args[1], args.Skip(2).ToArray()).ConfigureAwait(false),
@@ -42,7 +44,9 @@ internal static class Program
         Console.WriteLine("Usage:");
         Console.WriteLine("  pcl java scan");
         Console.WriteLine("  pcl java install <major-version>");
-        Console.WriteLine("  pcl login");
+        Console.WriteLine("  pcl login [microsoft]");
+        Console.WriteLine("  pcl login offline <玩家名>");
+        Console.WriteLine("  pcl login authlib <验证服务器URL> <用户名>");
         Console.WriteLine("  pcl logout");
         Console.WriteLine("  pcl instance list [--game-dir <path>]");
         Console.WriteLine("  pcl install <version|latest> [--game-dir <path>]");
@@ -105,12 +109,44 @@ internal static class Program
         Console.WriteLine("Waiting for Microsoft authorization...");
         var account = await complete(CancellationToken.None).ConfigureAwait(false);
         await MinecraftAccountStore.SaveAsync(new StoredMinecraftAccount(account.UserName, account.Uuid, account.RefreshToken)).ConfigureAwait(false);
+        await LauncherProfileStore.SaveAsync(new LauncherProfile("microsoft", account.UserName, account.Uuid)).ConfigureAwait(false);
         Console.WriteLine($"Logged in as {account.UserName}.");
+        return 0;
+    }
+
+    private static async Task<int> LoginOfflineAsync(string name)
+    {
+        var profile = OfflineAuthentication.Create(name);
+        await LauncherProfileStore.SaveAsync(profile).ConfigureAwait(false);
+        Console.WriteLine($"已选择离线账户：{profile.UserName} ({profile.Uuid})");
+        return 0;
+    }
+
+    private static async Task<int> LoginAuthlibAsync(string server, string username)
+    {
+        YggdrasilAuthentication.NormalizeServer(server);
+        if (Console.IsInputRedirected) throw new InvalidOperationException("第三方登录需要交互式终端输入密码。");
+        Console.Write("密码（不回显）：");
+        var password = new System.Text.StringBuilder();
+        while (true)
+        {
+            var key = Console.ReadKey(intercept: true);
+            if (key.Key == ConsoleKey.Enter) break;
+            if (key.Key == ConsoleKey.Backspace) { if (password.Length > 0) password.Length--; continue; }
+            if (!char.IsControl(key.KeyChar)) password.Append(key.KeyChar);
+        }
+        Console.WriteLine();
+        using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+        var profile = await new YggdrasilAuthentication(client).AuthenticateAsync(server, username, password.ToString()).ConfigureAwait(false);
+        password.Clear();
+        await LauncherProfileStore.SaveAsync(profile).ConfigureAwait(false);
+        Console.WriteLine($"第三方登录成功：{profile.UserName}；令牌保存在仅当前用户可读的配置文件中。");
         return 0;
     }
 
     private static async Task<int> LogoutAsync()
     {
+        LauncherProfileStore.Delete();
         await MinecraftAccountStore.DeleteAsync().ConfigureAwait(false);
         Console.WriteLine("Logged out.");
         return 0;
@@ -162,17 +198,33 @@ internal static class Program
             javaPath = await installer.InstallJavaRuntimeAsync(requiredMajor, gameDirectory, new ConsoleDownloadProgress()).ConfigureAwait(false);
         }
 
-        var storedAccount = await MinecraftAccountStore.LoadAsync().ConfigureAwait(false);
-        if (storedAccount is null)
+        var profile = await LauncherProfileStore.LoadAsync().ConfigureAwait(false);
+        MinecraftLaunchOptions launchOptions;
+        if (profile?.Type == "offline")
+            launchOptions = new MinecraftLaunchOptions(gameDirectory, javaPath, profile.UserName, profile.Uuid);
+        else if (profile?.Type == "yggdrasil")
         {
-            Console.Error.WriteLine("No Microsoft account configured. Run 'pcl login' first.");
-            return 1;
+            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+            profile = await new YggdrasilAuthentication(client).RefreshAsync(profile).ConfigureAwait(false);
+            await LauncherProfileStore.SaveAsync(profile).ConfigureAwait(false);
+            var agent = await AuthlibInjector.EnsureAsync(gameDirectory).ConfigureAwait(false);
+            launchOptions = new MinecraftLaunchOptions(gameDirectory, javaPath, profile.UserName, profile.Uuid, profile.AccessToken!, "legacy", agent, profile.Server);
         }
-        var auth = new MicrosoftMinecraftAuth();
-        var account = await auth.RefreshAsync(new MinecraftAccount(storedAccount.UserName, storedAccount.Uuid, string.Empty, storedAccount.RefreshToken, DateTimeOffset.MinValue)).ConfigureAwait(false);
-        await MinecraftAccountStore.SaveAsync(new StoredMinecraftAccount(account.UserName, account.Uuid, account.RefreshToken)).ConfigureAwait(false);
-        var process = await installer.LaunchAsync(version, new MinecraftLaunchOptions(gameDirectory, javaPath, account.UserName, account.Uuid, account.AccessToken)).ConfigureAwait(false);
-        Console.WriteLine($"Started Minecraft {version} as {account.UserName} with Java at {javaPath}.");
+        else if (profile is null || profile.Type == "microsoft")
+        {
+            var storedAccount = await MinecraftAccountStore.LoadAsync().ConfigureAwait(false);
+            if (storedAccount is null)
+            {
+                Console.Error.WriteLine("请先运行 pcl login、pcl login offline 或 pcl login authlib。");
+                return 1;
+            }
+            var account = await new MicrosoftMinecraftAuth().RefreshAsync(new MinecraftAccount(storedAccount.UserName, storedAccount.Uuid, string.Empty, storedAccount.RefreshToken, DateTimeOffset.MinValue)).ConfigureAwait(false);
+            await MinecraftAccountStore.SaveAsync(new StoredMinecraftAccount(account.UserName, account.Uuid, account.RefreshToken)).ConfigureAwait(false);
+            launchOptions = new MinecraftLaunchOptions(gameDirectory, javaPath, account.UserName, account.Uuid, account.AccessToken, "msa");
+        }
+        else throw new InvalidDataException("未知账户类型，请重新登录。");
+        var process = await installer.LaunchAsync(version, launchOptions).ConfigureAwait(false);
+        Console.WriteLine($"Started Minecraft {version} as {launchOptions.PlayerName} with Java at {javaPath}.");
         await process.WaitForExitAsync().ConfigureAwait(false);
         return process.ExitCode;
     }
@@ -195,18 +247,6 @@ internal static class Program
             }
         }
         return true;
-    }
-
-    private static bool IsValidPlayerName(string name)
-        => name.Length is >= 3 and <= 16 && name.All(c => char.IsAsciiLetterOrDigit(c) || c == '_');
-
-    private static string OfflineUuid(string playerName)
-    {
-        var bytes = System.Security.Cryptography.MD5.HashData(System.Text.Encoding.UTF8.GetBytes("OfflinePlayer:" + playerName));
-        bytes[6] = (byte)((bytes[6] & 0x0f) | 0x30);
-        bytes[8] = (byte)((bytes[8] & 0x3f) | 0x80);
-        var hex = Convert.ToHexString(bytes).ToLowerInvariant();
-        return $"{hex[..8]}-{hex[8..12]}-{hex[12..16]}-{hex[16..20]}-{hex[20..32]}";
     }
 
     private sealed class ConsoleDownloadProgress : IProgress<DownloadProgress>

@@ -7,12 +7,16 @@ PCL₃ 的 Linux CLI 与 Windows WPF 前端引用同一个 `PCL.Core.Shared` 项
 发布包包含 self-contained 的 Linux x64 `pcl` 可执行文件，不需要单独安装 .NET Runtime。开发构建需要 .NET 10 SDK。首次登录还需要仓库维护者配置 `PCL_MS_CLIENT_ID`。
 
 ```sh
-pcl login
+pcl login offline <玩家名>
+pcl login authlib <验证服务器URL> <用户名>
+pcl login microsoft
 pcl java scan
 pcl install latest
 pcl instance list
 pcl launch <version>
 ```
+
+第三方登录使用标准 Yggdrasil `/authserver`，在交互终端隐藏输入密码；不保存密码。选中角色和访问令牌保存到 `selected-profile.json`，仅限当前用户访问；启动时刷新令牌并下载、校验 authlib-injector。仅允许 HTTPS（本机测试可用 HTTP）。若服务器未指定角色而返回多个角色，当前选择第一个角色。
 
 例如指定独立游戏目录：
 
@@ -29,7 +33,7 @@ pcl launch 1.20.1 --game-dir "$HOME/Games/Minecraft"
 
 已实现官方原版 Minecraft 版本元数据获取、文件下载/校验、assets/native 安装、Java runtime 自动安装、Microsoft/Xbox/Minecraft 认证、账号刷新及原版启动。
 
-暂不支持 Forge/Fabric/NeoForge 等加载器、整合包导入、自定义 Yggdrasil 认证、TUI、自动更新，以及 Windows 桌面功能的 Linux 等价实现。Linux 首期是 CLI，不会显示 PCL 桌面 UI；Minecraft 游戏窗口由游戏进程直接创建。
+暂不支持 Forge/Fabric/NeoForge 等加载器、整合包导入、Yggdrasil Connect（统一通行证）、TUI、自动更新，以及 Windows 桌面功能的 Linux 等价实现。Linux 首期是 CLI，不会显示 PCL 桌面 UI；Minecraft 游戏窗口由游戏进程直接创建。
 
 Microsoft 登录依赖已授权的 client ID。没有 client ID 时，`pcl login` 会明确报错，不会退回伪造的离线玩家身份。当前启动参数和文件规则已用 Minecraft 1.20.1 验证到 Java 初始化与 GLFW 窗口创建阶段；实际可玩性仍需在具备可用图形会话、显卡驱动和已授权账号的 Linux 桌面环境验收。
 
