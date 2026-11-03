@@ -45,6 +45,12 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Verify release version
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          python3 -c 'import json, os; v=json.load(open("Plain Craft Launcher 2/metadata.json", encoding="utf-8"))["version"]["base"]; requested=os.environ["RELEASE_VERSION"]; assert v == requested, f"Release version {requested} does not match metadata {v}"'
+
       - name: Install git-cliff
         uses: taiki-e/install-action@e407f7bafb71fd004bc5c2da3032e5470cbb6ef0 # v2.87.24
         with:
@@ -138,6 +144,7 @@ jobs:
           dotnet publish PCL.Linux.Cli/PCL.Linux.Cli.csproj \
             --configuration Release --runtime linux-x64 --self-contained true \
             -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true \
+            -p:PclReleaseVersion="${{ inputs.version }}" \
             -o ./linux-artifact
           test -x ./linux-artifact/pcl
           cp PCL.Linux.Cli/README.md ./linux-artifact/README.md

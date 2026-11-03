@@ -1943,6 +1943,12 @@
     <sys:String x:Key="Main.Extra.BackToTop.ToolTip">Back to top</sys:String>
     <sys:String x:Key="Main.Extra.GameLog.ToolTip">Launch log</sys:String>
     <sys:String x:Key="Main.Extra.GiveUp.ToolTip">Surrender</sys:String>
+    <sys:String x:Key="Main.Extra.NeverClick.ToolTip">Do not click</sys:String>
+    <sys:String x:Key="Main.NeverClick.Message1">You were told not to click it!</sys:String>
+    <sys:String x:Key="Main.NeverClick.Message2">You found the secret: the button really does work.</sys:String>
+    <sys:String x:Key="Main.NeverClick.Message3">Nothing happened. Probably.</sys:String>
+    <sys:String x:Key="Main.NeverClick.VideoPrompt">You found a video easter egg. Open YouTube in your browser?</sys:String>
+    <sys:String x:Key="Main.NeverClick.OpenVideo">Open video</sys:String>
     <sys:String x:Key="Main.Extra.ShutdownMinecraft.ToolTip">Close Minecraft</sys:String>
     <sys:String x:Key="Main.Extra.TaskManager.ToolTip">Task manager</sys:String>
     <sys:String x:Key="Main.Extra.UpdateRestart.ToolTip">Restart PCL₃ to apply software updates</sys:String>

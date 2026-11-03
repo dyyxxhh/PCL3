@@ -36,6 +36,39 @@ public static partial class JavaDiscovery
         return version is null ? null : new JavaRuntime(Path.GetFullPath(executablePath), version);
     }
 
+    /// <summary>
+    /// Finds a usable Java runtime installed below <paramref name="root"/>.
+    /// The executable is probed instead of trusting its filename, so incomplete
+    /// or non-executable runtime directories are ignored.
+    /// </summary>
+    public static JavaRuntime? FindRuntime(string root, int majorVersion)
+    {
+        if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root)) return null;
+
+        var executableName = OperatingSystem.IsWindows() ? "java.exe" : "java";
+        try
+        {
+            var options = new EnumerationOptions
+            {
+                RecurseSubdirectories = true,
+                IgnoreInaccessible = true,
+                AttributesToSkip = FileAttributes.ReparsePoint
+            };
+            foreach (var candidate in Directory.EnumerateFiles(root, executableName, options))
+            {
+                var runtime = Probe(candidate);
+                if (runtime is not null && ParseMajorVersion(runtime.Version) == majorVersion)
+                    return runtime;
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // A partially removed or protected runtime must not prevent a fresh install.
+        }
+
+        return null;
+    }
+
     public static Version NormalizeVersion(Version version)
         => version.Major == 1 && version.Minor >= 0
             ? new Version(version.Minor, Math.Max(version.Build, 0), Math.Max(version.Revision, 0))
@@ -62,15 +95,17 @@ public static partial class JavaDiscovery
             });
             if (process is null) return null;
 
-            var stdout = process.StandardOutput.ReadToEnd();
-            var stderr = process.StandardError.ReadToEnd();
+            var stdoutTask = process.StandardOutput.ReadToEndAsync();
+            var stderrTask = process.StandardError.ReadToEndAsync();
             if (!process.WaitForExit(5000))
             {
                 process.Kill(true);
+                process.WaitForExit();
                 return null;
             }
 
-            var match = JavaVersionRegex().Match(string.Concat(stdout, "\n", stderr));
+            if (!Task.WaitAll([stdoutTask, stderrTask], TimeSpan.FromSeconds(1))) return null;
+            var match = JavaVersionRegex().Match(string.Concat(stdoutTask.Result, "\n", stderrTask.Result));
             return process.ExitCode == 0 && match.Success ? match.Groups[1].Value : null;
         }
         catch (Exception ex) when (ex is IOException or InvalidOperationException or System.ComponentModel.Win32Exception)

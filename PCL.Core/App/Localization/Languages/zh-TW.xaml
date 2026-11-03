@@ -1851,6 +1851,12 @@
     <sys:String x:Key="Main.Extra.BackToTop.ToolTip">返回頂部</sys:String>
     <sys:String x:Key="Main.Extra.GameLog.ToolTip">遊戲日誌</sys:String>
     <sys:String x:Key="Main.Extra.GiveUp.ToolTip">投降</sys:String>
+    <sys:String x:Key="Main.Extra.NeverClick.ToolTip">千萬別點</sys:String>
+    <sys:String x:Key="Main.NeverClick.Message1">都說了千萬別點，你還是點了！</sys:String>
+    <sys:String x:Key="Main.NeverClick.Message2">恭喜你發現了這個按鈕的秘密：它真的可以點。</sys:String>
+    <sys:String x:Key="Main.NeverClick.Message3">什麼也沒有發生。大概吧。</sys:String>
+    <sys:String x:Key="Main.NeverClick.VideoPrompt">你發現了一個影片彩蛋。要在瀏覽器中開啟 YouTube 嗎？</sys:String>
+    <sys:String x:Key="Main.NeverClick.OpenVideo">開啟影片</sys:String>
     <sys:String x:Key="Main.Extra.ShutdownMinecraft.ToolTip">關閉 Minecraft</sys:String>
     <sys:String x:Key="Main.Extra.TaskManager.ToolTip">任務管理</sys:String>
     <sys:String x:Key="Main.Extra.UpdateRestart.ToolTip">重啟 PCL₃ 以應用軟體更新</sys:String>

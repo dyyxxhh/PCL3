@@ -24,13 +24,14 @@ internal static class Program
                 "login" when args is ["login", "offline", _] => await LoginOfflineAsync(args[2]).ConfigureAwait(false),
                 "login" when args is ["login", "authlib", _, _] => await LoginAuthlibAsync(args[2], args[3]).ConfigureAwait(false),
                 "logout" when args.Length == 1 => await LogoutAsync().ConfigureAwait(false),
+                "update" when args is ["update"] => await LinuxSelfUpdater.UpdateAsync().ConfigureAwait(false),
                 "instance" when args.Length >= 2 && args[1] == "list" => ListInstances(args.Skip(2).ToArray()),
                 "install" when args.Length >= 2 => await InstallAsync(args[1], args.Skip(2).ToArray()).ConfigureAwait(false),
                 "launch" when args.Length >= 2 => await LaunchAsync(args[1], args.Skip(2).ToArray()).ConfigureAwait(false),
                 _ => InvalidCommand()
             };
         }
-        catch (Exception ex) when (ex is HttpRequestException or IOException or InvalidOperationException or ArgumentException or System.Text.Json.JsonException or UnauthorizedAccessException or TimeoutException or NotSupportedException or System.Security.Cryptography.CryptographicException)
+        catch (Exception ex) when (ex is HttpRequestException or IOException or InvalidOperationException or InvalidDataException or ArgumentException or FormatException or System.Text.Json.JsonException or UnauthorizedAccessException or TimeoutException or NotSupportedException or System.Security.Cryptography.CryptographicException)
         {
             Console.Error.WriteLine($"Error: {ex.Message}");
             return 1;
@@ -48,6 +49,7 @@ internal static class Program
         Console.WriteLine("  pcl login offline <玩家名>");
         Console.WriteLine("  pcl login authlib <验证服务器URL> <用户名>");
         Console.WriteLine("  pcl logout");
+        Console.WriteLine("  pcl update");
         Console.WriteLine("  pcl instance list [--game-dir <path>]");
         Console.WriteLine("  pcl install <version|latest> [--game-dir <path>]");
         Console.WriteLine("  pcl launch <version> [--game-dir <path>] [--java <path>]");
@@ -94,6 +96,12 @@ internal static class Program
     {
         var gameDirectory = MinecraftInstanceService.ResolveGameDirectory();
         var installer = new MinecraftInstaller();
+        var existing = installer.FindInstalledJavaRuntime(majorVersion, gameDirectory);
+        if (existing is not null)
+        {
+            Console.WriteLine($"Using installed Java {majorVersion} runtime: {existing}");
+            return 0;
+        }
         Console.WriteLine($"Installing Mojang Java {majorVersion} runtime to {gameDirectory}");
         var path = await installer.InstallJavaRuntimeAsync(majorVersion, gameDirectory, new ConsoleDownloadProgress()).ConfigureAwait(false);
         Console.WriteLine($"Installed Java runtime: {path}");
@@ -178,7 +186,8 @@ internal static class Program
         var requiredMajor = await installer.GetRequiredJavaMajorAsync(version, gameDirectory).ConfigureAwait(false);
         var requestedJavaPath = options.GetValueOrDefault("java");
         var matchingJava = requestedJavaPath is null
-            ? JavaDiscovery.Scan().FirstOrDefault(runtime => JavaDiscovery.ParseMajorVersion(runtime.Version) == requiredMajor)
+            ? JavaDiscovery.Probe(installer.FindInstalledJavaRuntime(requiredMajor, gameDirectory) ?? string.Empty)
+              ?? JavaDiscovery.Scan().FirstOrDefault(runtime => JavaDiscovery.ParseMajorVersion(runtime.Version) == requiredMajor)
             : JavaDiscovery.Probe(requestedJavaPath);
         if (requestedJavaPath is not null && matchingJava is null)
         {

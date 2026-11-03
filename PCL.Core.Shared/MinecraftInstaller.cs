@@ -103,6 +103,12 @@ public sealed class MinecraftInstaller
         return metadata?["javaVersion"]?["majorVersion"]?.GetValue<int>() ?? 8;
     }
 
+    /// <summary>
+    /// Finds an already installed Mojang runtime without accessing the network.
+    /// </summary>
+    public string? FindInstalledJavaRuntime(int majorVersion, string gameDirectory)
+        => JavaDiscovery.FindRuntime(Path.Combine(gameDirectory, "runtime"), majorVersion)?.ExecutablePath;
+
     public async Task<string> InstallJavaRuntimeAsync(
         int majorVersion,
         string gameDirectory,
@@ -110,6 +116,9 @@ public sealed class MinecraftInstaller
         CancellationToken cancellationToken = default)
     {
         if (!OperatingSystem.IsLinux()) throw new PlatformNotSupportedException("Managed Java runtimes are currently supported on Linux only.");
+        var installedPath = FindInstalledJavaRuntime(majorVersion, gameDirectory);
+        if (installedPath is not null) return installedPath;
+
         var index = await GetJsonAsync("https://piston-meta.mojang.com/v1/products/java-runtime/2ec0cc96c44e5a76b9c8b7c39df7210883d12871/all.json", cancellationToken).ConfigureAwait(false);
         var components = index["linux"]?.AsObject() ?? throw new InvalidDataException("Mojang runtime index has no Linux profile.");
         var selected = components
@@ -162,7 +171,9 @@ public sealed class MinecraftInstaller
         }
 
         var javaPath = Path.Combine(runtimeDirectory, "bin", "java");
-        if (!File.Exists(javaPath)) throw new InvalidDataException($"Installed Java runtime does not contain {javaPath}.");
+        var installed = JavaDiscovery.Probe(javaPath);
+        if (installed is null || ParseMajor(installed.Version) != majorVersion)
+            throw new InvalidDataException($"Installed Java runtime is missing, unusable, or not Java {majorVersion}: {javaPath}.");
         return javaPath;
     }
 

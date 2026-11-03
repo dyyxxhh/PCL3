@@ -13,5 +13,6 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\PCL.Core.Shared\PCL.Core.Shared.csproj" />
+    <Compile Include="..\PCL.Linux.Cli\LinuxSelfUpdater.cs" Link="LinuxSelfUpdater.cs" />
   </ItemGroup>
 </Project>

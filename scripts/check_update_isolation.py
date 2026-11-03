@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Static regression checks: launcher updates must stay within this fork."""
 from pathlib import Path
+import json
 import re
 import xml.etree.ElementTree as ET
 
@@ -44,4 +45,15 @@ assert 'https://github.com/dyyxxhh/PCL3/releases/tag/v' in page_cs
 assert 'ComboSystemUpdateMode' in page.read_text(encoding='utf-8-sig')
 for path in (CORE / 'App/Localization/Languages').glob('*.xaml'):
     ET.parse(path)
+metadata = json.loads((APP / 'metadata.json').read_text(encoding='utf-8'))
+release_version = metadata['version']['base']
+assert re.fullmatch(r'\d+\.\d+\.\d+', release_version), release_version
+project = ET.parse(APP / 'Plain Craft Launcher 2.csproj').getroot()
+for name in ('AssemblyVersion', 'FileVersion'):
+    assert project.findtext(f'.//{name}') == release_version + '.0', name
+workflow = (ROOT / '.github/workflows/release-publish.yml').read_text(encoding='utf-8')
+linux_updater = (ROOT / 'PCL.Linux.Cli/LinuxSelfUpdater.cs').read_text(encoding='utf-8')
+assert '-p:PclReleaseVersion="${{ inputs.version }}"' in workflow
+assert 'PCL3_${{ inputs.configuration }}_linux-x64.tar.gz' in workflow
+assert 'PCL3_Release_linux-x64.tar.gz' in linux_updater
 print('GitHub-only update source / no channels or CDK: PASS')
