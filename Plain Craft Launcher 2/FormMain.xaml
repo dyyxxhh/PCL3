@@ -251,11 +251,6 @@
                                          ToolTip="{loc:Loc Main.Extra.TaskManager.ToolTip}"
                                          Visibility="Collapsed"
                                          SvgIcon="lucide/download" />
-                    <local:MyExtraButton x:Name="BtnExtraNeverClick" HorizontalAlignment="Right" VerticalAlignment="Center"
-                                         Click="BtnExtraNeverClick_Click"
-                                         ToolTip="{loc:Loc Main.Extra.NeverClick.ToolTip}"
-                                         Visibility="Collapsed"
-                                         SvgIcon="lucide/triangle-alert" />
                     <local:MyExtraButton x:Name="BtnExtraApril" HorizontalAlignment="Right" VerticalAlignment="Center"
                                          Click="BtnExtraApril_Click"
                                          ToolTip="{loc:Loc Main.Extra.GiveUp.ToolTip}"

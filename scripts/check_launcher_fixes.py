@@ -3,6 +3,7 @@
 from pathlib import Path
 import json
 import re
+import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[1]
 APP = ROOT / "Plain Craft Launcher 2"
@@ -34,6 +35,20 @@ assert "AnnouncementService.Load();" not in update_manager
 assert 'https://s3.pysio.online/pcl2-ce/apiv2/pages/announce.xaml' not in homepage
 assert 'case 14:' in homepage and 'content = "";' in homepage
 assert 'new UpdatesGithubReleaseModel()' in update_manager
+# The easter egg belongs to Tools only, without stale global-button references.
+assert "BtnExtraNeverClick" not in main_xaml
+assert "BtnExtraNeverClick" not in (APP / "FormMain.xaml.cs").read_text(encoding="utf-8")
+tools_xaml = ET.parse(APP / "Pages/PageTools/PageToolsTest.xaml").getroot()
+never_click_buttons = tools_xaml.findall(".//*[@{http://schemas.microsoft.com/winfx/2006/xaml}Name='BtnNeverClick']")
+assert len(never_click_buttons) == 1
+assert never_click_buttons[0].get("Text") == "{loc:Loc Main.Extra.NeverClick.ToolTip}"
+assert never_click_buttons[0].get("Click") == "BtnNeverClick_Click"
+button_parents = {child: parent for parent in tools_xaml.iter() for child in parent}
+launch_count_buttons = tools_xaml.findall(".//*[@Click='BtnLaunchCount_Click']")
+assert len(launch_count_buttons) == 1
+assert button_parents[never_click_buttons[0]] is button_parents[launch_count_buttons[0]]
+assert button_parents[never_click_buttons[0]].tag.endswith("}WrapPanel")
+assert "private void BtnNeverClick_Click(object sender, MouseButtonEventArgs e)" in (APP / "Pages/PageTools/PageToolsTest.xaml.cs").read_text(encoding="utf-8")
 assert 'Visibility="Collapsed"' in (APP / "Pages/PageTools/PageToolsLeft.xaml").read_text(encoding="utf-8")
 assert 'Visibility="Collapsed"' in (APP / "Pages/PageSetup/PageSetupLeft.xaml").read_text(encoding="utf-8")
 assert 'id == FormMain.PageSubType.ToolsGameLink' in (APP / "Pages/PageTools/PageToolsLeft.xaml.cs").read_text(encoding="utf-8")

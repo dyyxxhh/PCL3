@@ -26,7 +26,10 @@ internal static class Program
                 "logout" when args.Length == 1 => await LogoutAsync().ConfigureAwait(false),
                 "update" when args is ["update"] => await LinuxSelfUpdater.UpdateAsync().ConfigureAwait(false),
                 "instance" when args.Length >= 2 && args[1] == "list" => ListInstances(args.Skip(2).ToArray()),
-                "install" when args.Length >= 2 => await InstallAsync(args[1], args.Skip(2).ToArray()).ConfigureAwait(false),
+                "-Ss" => await PackageCommands.SearchAsync(args.Skip(1).ToArray()).ConfigureAwait(false),
+                "-S" => await PackageCommands.InstallAsync(args.Skip(1).ToArray()).ConfigureAwait(false),
+                "mod" => await PackageCommands.ManageModsAsync(args.Skip(1).ToArray()).ConfigureAwait(false),
+                "pack" => await PackageCommands.ManagePackAsync(args.Skip(1).ToArray()).ConfigureAwait(false),
                 "launch" when args.Length >= 2 => await LaunchAsync(args[1], args.Skip(2).ToArray()).ConfigureAwait(false),
                 _ => InvalidCommand()
             };
@@ -51,8 +54,11 @@ internal static class Program
         Console.WriteLine("  pcl logout");
         Console.WriteLine("  pcl update");
         Console.WriteLine("  pcl instance list [--game-dir <path>]");
-        Console.WriteLine("  pcl install <version|latest> [--game-dir <path>]");
-        Console.WriteLine("  pcl launch <version> [--game-dir <path>] [--java <path>]");
+        Console.WriteLine("  pcl -Ss <mod query> [--game-version <version>] [--loader <loader>] [--source modrinth|curseforge]");
+        Console.WriteLine("  pcl -S <Minecraft version|mod name> [--instance <name>] [--loader fabric|quilt|forge|neoforge] [--loader-version <version>] [--mod-version <version>] [--game-dir <path>]");
+        Console.WriteLine("  pcl mod <list|update|enable|disable|remove> [file.jar] --instance <name> [--game-dir <path>]");
+        Console.WriteLine("  pcl pack <import|export> <file.mrpack|file.zip> --instance <name> [--game-dir <path>]");
+        Console.WriteLine("  pcl launch <instance|version> [--game-dir <path>] [--java <path>]");
         Console.WriteLine("  pcl --help");
         Console.WriteLine();
         Console.WriteLine("Microsoft login requires PCL_MS_CLIENT_ID and stores its refresh token with owner-only file permissions.");
@@ -82,13 +88,17 @@ internal static class Program
     {
         if (!TryParseOptions(args, out var options)) return 2;
         var gameDirectory = MinecraftInstanceService.ResolveGameDirectory(options.GetValueOrDefault("game-dir"));
-        var instances = MinecraftInstanceService.List(gameDirectory);
-        if (instances.Count == 0)
+        var instances = ManagedInstanceService.List(gameDirectory);
+        var legacyInstances = MinecraftInstanceService.List(gameDirectory);
+        if (instances.Count == 0 && legacyInstances.Count == 0)
         {
-            Console.WriteLine($"No installed versions found in {Path.Combine(gameDirectory, "versions")}");
+            Console.WriteLine($"No installed instances found in {gameDirectory}");
             return 0;
         }
-        foreach (var instance in instances) Console.WriteLine(instance.Id);
+        foreach (var instance in instances)
+            Console.WriteLine($"{instance.Name}\t{instance.GameVersion}\t{instance.Loader ?? "vanilla"}");
+        foreach (var instance in legacyInstances)
+            Console.WriteLine($"{instance.Id}\tlegacy");
         return 0;
     }
 
@@ -160,23 +170,20 @@ internal static class Program
         return 0;
     }
 
-    private static async Task<int> InstallAsync(string version, string[] args)
-    {
-        if (!TryParseOptions(args, out var options)) return 2;
-        var gameDirectory = MinecraftInstanceService.ResolveGameDirectory(options.GetValueOrDefault("game-dir"));
-        var installer = new MinecraftInstaller();
-        Console.WriteLine($"Installing Minecraft {version} to {gameDirectory}");
-        var result = await installer.InstallAsync(version, gameDirectory, new ConsoleDownloadProgress()).ConfigureAwait(false);
-        Console.WriteLine($"Installed {result.VersionId}.");
-        return 0;
-    }
-
     private static async Task<int> LaunchAsync(string version, string[] args)
     {
         if (!TryParseOptions(args, out var options)) return 2;
         var gameDirectory = MinecraftInstanceService.ResolveGameDirectory(options.GetValueOrDefault("game-dir"));
+        var managed = ManagedInstanceService.Find(gameDirectory, version);
+        if (managed is not null)
+        {
+            gameDirectory = managed.DirectoryPath;
+            version = managed.LaunchVersion;
+        }
         var installer = new MinecraftInstaller();
         var installedPath = Path.Combine(gameDirectory, "versions", version, version + ".json");
+        if (managed is not null && !File.Exists(installedPath))
+            throw new InvalidDataException($"Instance '{managed.Name}' is incomplete. Reinstall it with pcl -S {managed.GameVersion} --instance {managed.Name}.");
         if (version.Equals("latest", StringComparison.OrdinalIgnoreCase) || !File.Exists(installedPath))
         {
             Console.WriteLine($"Minecraft {version} is not installed. Installing it now...");

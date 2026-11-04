@@ -10,5 +10,6 @@
   <ItemGroup>
     <AssemblyMetadata Include="PclReleaseVersion" Value="$(PclReleaseVersion)" />
     <ProjectReference Include="..\PCL.Core.Shared\PCL.Core.Shared.csproj" />
+    <ProjectReference Include="..\PCL.Core.SecretsGenerator\PCL.Core.SecretsGenerator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
 </Project>

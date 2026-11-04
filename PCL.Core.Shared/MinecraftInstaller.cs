@@ -76,7 +76,8 @@ public sealed class MinecraftInstaller
         var metadata = JsonNode.Parse(await File.ReadAllTextAsync(metadataPath, cancellationToken).ConfigureAwait(false))?.AsObject()
             ?? throw new InvalidDataException("Minecraft metadata is invalid.");
         var libraries = ResolveClasspath(metadata, options.GameDirectory);
-        var nativesDirectory = Path.Combine(versionDirectory, "natives");
+        var nativeVersion = metadata["jar"]?.GetValue<string>() ?? versionId;
+        var nativesDirectory = Path.Combine(options.GameDirectory, "versions", nativeVersion, "natives");
         var assetsDirectory = Path.Combine(options.GameDirectory, "assets");
         var assetIndexName = metadata["assetIndex"]?["id"]?.GetValue<string>() ?? metadata["assets"]?.GetValue<string>() ?? "legacy";
         var mainClass = metadata["mainClass"]?.GetValue<string>()
@@ -323,10 +324,17 @@ public sealed class MinecraftInstaller
         foreach (var library in metadata["libraries"]?.AsArray() ?? [])
         {
             if (!AllowedByRules(library?["rules"]?.AsArray(), "linux")) continue;
-            if (library?["downloads"]?["artifact"]?["path"]?.GetValue<string>() is { } path)
-                paths.Add(Path.Combine(gameDirectory, "libraries", path.Replace('/', Path.DirectorySeparatorChar)));
+            var libraryPath = library?["downloads"]?["artifact"]?["path"]?.GetValue<string>();
+            if (libraryPath is null && library?["name"]?.GetValue<string>() is { } coordinate)
+            {
+                var parts = coordinate.Split(':');
+                if (parts.Length is 3 or 4)
+                    libraryPath = $"{parts[0].Replace('.', '/')}/{parts[1]}/{parts[2]}/{parts[1]}-{parts[2]}{(parts.Length == 4 ? "-" + parts[3] : "")}.jar";
+            }
+            if (libraryPath is not null)
+                paths.Add(Path.Combine(gameDirectory, "libraries", libraryPath.Replace('/', Path.DirectorySeparatorChar)));
         }
-        var id = metadata["id"]?.GetValue<string>() ?? throw new InvalidDataException("Minecraft metadata does not contain id.");
+        var id = metadata["jar"]?.GetValue<string>() ?? metadata["id"]?.GetValue<string>() ?? throw new InvalidDataException("Minecraft metadata does not contain id.");
         paths.Add(Path.Combine(gameDirectory, "versions", id, id + ".jar"));
         return paths;
     }

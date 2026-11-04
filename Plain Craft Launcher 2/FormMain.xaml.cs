@@ -154,11 +154,9 @@ public partial class FormMain
         BtnExtraUpdateRestart.showCheck = BtnExtraUpdateRestart_ShowCheck;
         BtnExtraDownload.showCheck = BtnExtraDownload_ShowCheck;
         BtnExtraBack.showCheck = BtnExtraBack_ShowCheck;
-        BtnExtraNeverClick.showCheck = () => pageCurrent == PageType.Launch;
         BtnExtraApril.showCheck = BtnExtraApril_ShowCheck;
         BtnExtraShutdown.showCheck = BtnExtraShutdown_ShowCheck;
         BtnExtraLog.showCheck = BtnExtraLog_ShowCheck;
-        BtnExtraNeverClick.ShowRefresh();
         BtnExtraApril.ShowRefresh();
         // 初始化尺寸改变
         if (!Config.Preference.LockWindowSize)
@@ -1941,7 +1939,6 @@ public partial class FormMain
             #region 设置为最新状态
 
             BtnExtraDownload.ShowRefresh();
-            BtnExtraNeverClick.ShowRefresh();
             BtnExtraApril.ShowRefresh();
 
             #endregion
@@ -2192,28 +2189,6 @@ public partial class FormMain
     private bool BtnExtraDownload_ShowCheck()
     {
         return NetFacade.HasDownloadingTask() && !(pageCurrent == PageType.TaskManager);
-    }
-
-    // 千万别点：仅展示彩蛋，不修改游戏或启动器数据。
-    private void BtnExtraNeverClick_Click(object sender, MouseButtonEventArgs e)
-    {
-        var choice = RandomUtils.NextInt(1, 4);
-        if (choice == 4)
-        {
-            if (Launcher.MyMsgBox(Lang.Text("Main.NeverClick.VideoPrompt"),
-                    Lang.Text("Main.Extra.NeverClick.ToolTip"),
-                    Lang.Text("Main.NeverClick.OpenVideo"), Lang.Text("Common.Action.Cancel")) == 1)
-                Common.OpenWebsite("https://www.youtube.com/watch?v=dQw4w9WgXcQ");
-            return;
-        }
-
-        var message = choice switch
-        {
-            1 => Lang.Text("Main.NeverClick.Message1"),
-            2 => Lang.Text("Main.NeverClick.Message2"),
-            _ => Lang.Text("Main.NeverClick.Message3")
-        };
-        Launcher.MyMsgBox(message, Lang.Text("Main.Extra.NeverClick.ToolTip"));
     }
 
     // 投降

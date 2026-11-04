@@ -1,44 +1,43 @@
 # PCL Linux CLI
 
-PCL₃ 的 Linux CLI 与 Windows WPF 前端引用同一个 `PCL.Core.Shared` 项目。Linux 入口独立运行，不加载 WPF；Windows 页面和现有功能路径保持原样。
+PCL₃ Linux CLI 使用 `PCL.Core.Shared` 中可跨平台的 Minecraft、模组平台和实例服务。Windows 当前仅复用其中部分基础能力，尚未接入新增的模组和整合包服务。Linux 入口独立运行，不加载 WPF；它仍不是 Windows 桌面版的完整替代品。
 
 ## 使用
 
-发布包包含 self-contained 的 Linux x64 `pcl` 可执行文件，不需要单独安装 .NET Runtime。开发构建需要 .NET 10 SDK。首次登录还需要仓库维护者配置 `PCL_MS_CLIENT_ID`。
+发布包包含 self-contained 的 Linux x64 `pcl` 可执行文件，不需要单独安装 .NET Runtime。开发构建需要 .NET 10 SDK。首次 Microsoft 登录还需要已授权的 `PCL_MS_CLIENT_ID`。
 
 ```sh
-pcl login offline <玩家名>
-pcl login authlib <验证服务器URL> <用户名>
-pcl login microsoft
-pcl java scan
-pcl install latest
+pcl -S 1.21.1 --instance FabricTest --loader fabric
+pcl -Ss sodium --game-version 1.21.1 --loader fabric
+pcl -S sodium --instance FabricTest
+pcl mod list --instance FabricTest
+pcl mod update sodium.jar --instance FabricTest
+pcl mod disable sodium.jar --instance FabricTest
+pcl mod enable sodium.jar.disabled --instance FabricTest
+pcl mod remove sodium.jar --instance FabricTest
+pcl pack import ./pack.mrpack --instance MyPack
+pcl pack export ./MyPack.mrpack --instance MyPack
 pcl instance list
-pcl launch <version>
-pcl update
+pcl launch FabricTest
 ```
 
-第三方登录使用标准 Yggdrasil `/authserver`，在交互终端隐藏输入密码；不保存密码。选中角色和访问令牌保存到 `selected-profile.json`，仅限当前用户访问；启动时刷新令牌并下载、校验 authlib-injector。仅允许 HTTPS（本机测试可用 HTTP）。若服务器未指定角色而返回多个角色，当前选择第一个角色。
+`-S` 安装 Minecraft 版本或模组：Minecraft 版本参数创建原版实例；加 `--loader forge|neoforge|fabric|quilt` 会同时安装对应加载器。模组名称可先用 `-Ss` 搜索；默认安装目标版本/加载器兼容的最新文件，也可用 `--mod-version <版本号或文件 ID>` 固定版本。模组搜索默认查询 Modrinth 和 CurseForge；重名时终端会列出候选供选择，可用 `--source modrinth|curseforge` 限定来源。
 
-例如指定独立游戏目录：
+每个命名实例有单独的游戏目录，模组不会跨实例共享。安装模组时省略 `--instance` 会在交互终端选择已有实例；没有实例时会询问 Minecraft 版本、加载器和实例名。整合包导入省略实例名时也会询问。非交互运行必须提供需要选择的参数；CLI 不会静默猜选。
 
-```sh
-pcl install 1.20.1 --game-dir "$HOME/Games/Minecraft"
-pcl launch 1.20.1 --game-dir "$HOME/Games/Minecraft"
-```
+Modrinth `.mrpack`、CurseForge 标准 manifest ZIP、HMCL、MCBBS 和 MultiMC 格式可导入；`.mrpack` 可导出 Modrinth 格式，`.zip` 可导出 CurseForge manifest。导出只引用有跟踪来源、文件 ID/下载 URL 和校验和的模组，不会把未授权的第三方 JAR 塞进整合包。导入的远端文件要求 HTTPS 和 SHA-1 校验；覆盖文件会检查路径、大小并拒绝越界写入和符号链接。
 
-`launch` 会根据版本 JSON 中的 `javaVersion.majorVersion` 先检查当前游戏目录 `runtime` 下已安装且可运行的 Java，再检查系统 Java；都找不到时才从 Mojang 官方清单下载。完整安装后的本地 runtime 不需要联网即可复用。首次下载客户端、libraries、assets 和 natives；重复安装会校验 SHA-1 并跳过有效文件。下载最多 8 路并发，失败会有限次重试。离线启动仍需事先安装完整游戏并选择离线账户；Microsoft 和第三方账户的刷新需要联网。
+导出会保留 `config/`、`defaultconfigs/`、`kubejs/`、`scripts/`、`resourcepacks/`、`shaderpacks/` 与 `options.txt` 作为 overrides；其他自定义目录尚不自动导出。不会包含账户文件、存档、日志、运行时或符号链接，也不打包第三方 JAR。分享前仍应自行检查模组配置是否包含服务器密码等私密设置。
 
-`pcl update` 从本项目最新正式 Release 下载 Linux x64 归档并校验 SHA-256，仅替换当前单文件可执行程序，完成后再次运行即可。需要对可执行文件所在目录有写权限；开发构建和其他架构不支持自更新。校验文件与归档来自同一 Release，能检测下载损坏，但不是独立的签名验证。
-
-`pcl login` 使用 Microsoft device-code flow，终端显示验证网址和代码。刷新令牌保存在 `${XDG_CONFIG_HOME:-$HOME/.config}/pcl-linux/microsoft-account.json`，文件权限为仅当前用户可读写；短期 access token 不落盘。`pcl logout` 删除本地账户令牌。
+Release 的应用级 CurseForge key 由 Actions Secret `CURSEFORGE_API_KEY` 注入到带 `PCL_WRITE_SECRET=1` 的发布构建。Linux 生成器只允许读取此 key，以编码字节编译进二进制以降低明文误泄漏；不枚举其他环境变量，也不提供运行时环境回退。不将 key 写入源码、配置、日志或发布说明。普通本地构建不带 key；缺少 key 时 Modrinth 仍可使用，显式请求 CurseForge 会给出配置错误。编码不是加密，随客户端分发的应用 key 仍可被逆向提取，不能用于存放用户凭据。
 
 ## 当前范围
 
-已实现官方原版 Minecraft 版本元数据获取、文件下载/校验、assets/native 安装、Java runtime 自动安装、Microsoft/Xbox/Minecraft 认证、账号刷新及原版启动。
+Linux CLI 支持原版 Minecraft 元数据、文件校验和启动；Forge、NeoForge、Fabric、Quilt 客户端加载器安装；Modrinth/CurseForge 模组搜索、兼容版本安装及本地模组更新、启用、禁用和删除；Modrinth `.mrpack` 与 CurseForge 标准 manifest 的导入/导出，以及 HMCL、MCBBS、MultiMC 基础清单和覆盖文件导入。
 
-暂不支持 Forge/Fabric/NeoForge 等加载器、整合包导入、Yggdrasil Connect（统一通行证）、TUI，以及 Windows 桌面功能的 Linux 等价实现。Linux 首期是 CLI，不会显示 PCL 桌面 UI；Minecraft 游戏窗口由游戏进程直接创建。
+当前不支持 Windows 桌面 UI/TUI、OptiFine、旧版/变体加载器、整合包在线搜索、MultiMC JSON patch 的完整迁移、传统包内启动参数/实例设置迁移，以及 CurseForge 未提供下载 URL 的文件。`-S` 模组安装与 `mod update` 会解析必需模组依赖；整合包按清单下载文件，不递归改写包的固定依赖。远端 CurseForge 模组保留项目和文件 ID，Modrinth 模组按 SHA-1 查询来源；可识别来源的导入模组可继续更新和导出，未识别或包内自带的 JAR 仅支持本地维护（导出需要来源元数据）。Linux CLI 仍不等同 Windows 桌面端全部功能，也不支持 Yggdrasil Connect。
 
-Microsoft 登录依赖已授权的 client ID。没有 client ID 时，`pcl login` 会明确报错，不会退回伪造的离线玩家身份。当前启动参数和文件规则已用 Minecraft 1.20.1 验证到 Java 初始化与 GLFW 窗口创建阶段；实际可玩性仍需在具备可用图形会话、显卡驱动和已授权账号的 Linux 桌面环境验收。
+`pcl launch` 使用所选账户启动实例。离线账户、Microsoft device-code flow 和传统 Yggdrasil/authlib-injector 已支持。第三方登录密码仅在交互终端隐藏输入；访问令牌保存在用户配置目录并限制权限。首次下载后会校验内容；Java 版本不足时才从 Mojang 官方清单下载 Linux runtime。需要可用图形会话、显卡驱动和已授权账号才能验收实际游戏画面。
 
 ## 本地开发
 

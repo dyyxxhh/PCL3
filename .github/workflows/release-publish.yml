@@ -140,10 +140,18 @@ jobs:
       - name: Test shared core
         run: dotnet test PCL.Core.Shared.Tests/PCL.Core.Shared.Tests.csproj --configuration Release
       - name: Publish Linux CLI
+        env:
+          PCL_WRITE_SECRET: '1'
+          PCL_CURSEFORGE_API_KEY: ${{ secrets.CURSEFORGE_API_KEY }}
         run: |
+          if [ -z "$PCL_CURSEFORGE_API_KEY" ]; then
+            echo '::error::Configure the CURSEFORGE_API_KEY Actions Secret before releasing.'
+            exit 1
+          fi
           dotnet publish PCL.Linux.Cli/PCL.Linux.Cli.csproj \
             --configuration Release --runtime linux-x64 --self-contained true \
             -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true \
+            -p:UseSharedCompilation=false \
             -p:PclReleaseVersion="${{ inputs.version }}" \
             -o ./linux-artifact
           test -x ./linux-artifact/pcl
