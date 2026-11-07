@@ -113,7 +113,9 @@ internal static class Program
             return 0;
         }
         Console.WriteLine($"Installing Mojang Java {majorVersion} runtime to {gameDirectory}");
-        var path = await installer.InstallJavaRuntimeAsync(majorVersion, gameDirectory, new ConsoleDownloadProgress()).ConfigureAwait(false);
+        string path;
+        using (var progress = new ConsoleInstallProgress($"Preparing Java {majorVersion} installation"))
+            path = await installer.InstallJavaRuntimeAsync(majorVersion, gameDirectory, progress).ConfigureAwait(false);
         Console.WriteLine($"Installed Java runtime: {path}");
         return 0;
     }
@@ -187,7 +189,8 @@ internal static class Program
         if (version.Equals("latest", StringComparison.OrdinalIgnoreCase) || !File.Exists(installedPath))
         {
             Console.WriteLine($"Minecraft {version} is not installed. Installing it now...");
-            var installed = await installer.InstallAsync(version, gameDirectory, new ConsoleDownloadProgress()).ConfigureAwait(false);
+            using var progress = new ConsoleInstallProgress("Preparing Minecraft installation");
+            var installed = await installer.InstallAsync(version, gameDirectory, progress).ConfigureAwait(false);
             version = installed.VersionId;
         }
         var requiredMajor = await installer.GetRequiredJavaMajorAsync(version, gameDirectory).ConfigureAwait(false);
@@ -211,7 +214,8 @@ internal static class Program
         if (javaPath is null)
         {
             Console.WriteLine($"No Java {requiredMajor} runtime found. Installing Mojang's Linux runtime...");
-            javaPath = await installer.InstallJavaRuntimeAsync(requiredMajor, gameDirectory, new ConsoleDownloadProgress()).ConfigureAwait(false);
+            using var progress = new ConsoleInstallProgress($"Preparing Java {requiredMajor} installation");
+            javaPath = await installer.InstallJavaRuntimeAsync(requiredMajor, gameDirectory, progress).ConfigureAwait(false);
         }
 
         var profile = await LauncherProfileStore.LoadAsync().ConfigureAwait(false);
@@ -263,18 +267,5 @@ internal static class Program
             }
         }
         return true;
-    }
-
-    private sealed class ConsoleDownloadProgress : IProgress<DownloadProgress>
-    {
-        private int _lastPercent = -1;
-        public void Report(DownloadProgress value)
-        {
-            if (value.Total == 0) return;
-            var percent = value.Completed * 100 / value.Total;
-            if (percent / 5 <= _lastPercent / 5 && percent != 100) return;
-            _lastPercent = percent;
-            Console.WriteLine($"Download {percent,3}% ({value.Completed}/{value.Total})");
-        }
     }
 }

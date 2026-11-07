@@ -52,17 +52,25 @@ internal static class PackageCommands
             return Usage("--loader must be forge, neoforge, fabric, or quilt.");
         Console.WriteLine($"Installing Minecraft {version} to instance '{name}'...");
         var installer = new MinecraftInstaller();
-        var result = await installer.InstallAsync(version, directory).ConfigureAwait(false);
-        string launchVersion = result.VersionId;
+        MinecraftInstallResult result;
+        string launchVersion;
         string? loaderVersion = null;
-        if (loader is not null)
+        using (var progress = new ConsoleInstallProgress("Preparing Minecraft installation"))
         {
-            var installed = await new ModLoaderInstaller().InstallAsync(result.VersionId, loader,
-                options.GetValueOrDefault("loader-version"), directory).ConfigureAwait(false);
-            launchVersion = installed.LaunchVersion;
-            loaderVersion = installed.LoaderVersion;
+            result = await installer.InstallAsync(version, directory, progress).ConfigureAwait(false);
+            launchVersion = result.VersionId;
+            if (loader is not null)
+            {
+                progress.SetStage($"Installing {loader} loader (downloading libraries / running installer)",
+                    inline: loader is not ("forge" or "neoforge"));
+                var installed = await new ModLoaderInstaller().InstallAsync(result.VersionId, loader,
+                    options.GetValueOrDefault("loader-version"), directory).ConfigureAwait(false);
+                launchVersion = installed.LaunchVersion;
+                loaderVersion = installed.LoaderVersion;
+            }
+            progress.SetStage("Saving instance");
+            await ManagedInstanceService.SaveAsync(new ManagedMinecraftInstance(name, result.VersionId, loader, loaderVersion, directory, launchVersion)).ConfigureAwait(false);
         }
-        await ManagedInstanceService.SaveAsync(new ManagedMinecraftInstance(name, result.VersionId, loader, loaderVersion, directory, launchVersion)).ConfigureAwait(false);
         Console.WriteLine($"Installed '{name}' ({result.VersionId}{(loader is null ? "" : $" + {loader} {loaderVersion}")}).");
         return 0;
     }
@@ -98,8 +106,10 @@ internal static class PackageCommands
         if (source == ModSource.CurseForge && string.IsNullOrWhiteSpace(LinuxSecrets.CurseForgeApiKey))
             return Usage("CurseForge requires PCL_CURSEFORGE_API_KEY configured at build time.");
         var platform = new ModPlatformService(Http, LinuxSecrets.CurseForgeApiKey);
-        var matches = (await platform.SearchModsAsync(query, instance.GameVersion, instance.Loader).ConfigureAwait(false))
-            .Where(item => source is null || item.Source == source).ToArray();
+        ModProject[] matches;
+        using (var progress = new ConsoleInstallProgress($"Searching compatible mods for {query}"))
+            matches = (await platform.SearchModsAsync(query, instance.GameVersion, instance.Loader).ConfigureAwait(false))
+                .Where(item => source is null || item.Source == source).ToArray();
         var exact = matches.Where(item => item.Id.Equals(query, StringComparison.OrdinalIgnoreCase)
             || item.Slug.Equals(query, StringComparison.OrdinalIgnoreCase)
             || item.Name.Equals(query, StringComparison.OrdinalIgnoreCase)).ToArray();
@@ -118,8 +128,10 @@ internal static class PackageCommands
         if (depth > 16) throw new InvalidDataException("Mod dependency graph is too deep.");
         var key = project.Source + ":" + project.Id;
         if (!visited.Add(key)) return;
-        var release = await platform.GetLatestCompatibleReleaseAsync(project, instance.GameVersion, instance.Loader!,
-            requestedVersion: requestedVersion).ConfigureAwait(false);
+        ModRelease release;
+        using (var progress = new ConsoleInstallProgress($"Resolving compatible release for {project.Name}"))
+            release = await platform.GetLatestCompatibleReleaseAsync(project, instance.GameVersion, instance.Loader!,
+                requestedVersion: requestedVersion).ConfigureAwait(false);
         foreach (var dependency in release.RequiredDependencies ?? [])
         {
             var currentDependency = InstalledModService.List(instance.DirectoryPath)
@@ -130,7 +142,8 @@ internal static class PackageCommands
                 dependency.ProjectId, "Required dependency", 0, null);
             await InstallModTreeAsync(dependencyProject, dependency.VersionId, instance, platform, visited, depth + 1).ConfigureAwait(false);
         }
-        await InstalledModService.InstallReleaseAsync(instance.DirectoryPath, release, project.Name, platform).ConfigureAwait(false);
+        using (var progress = new ConsoleInstallProgress($"Downloading and verifying {project.Name}"))
+            await InstalledModService.InstallReleaseAsync(instance.DirectoryPath, release, project.Name, platform).ConfigureAwait(false);
     }
 
     internal static async Task<int> ManagePackAsync(string[] arguments)
@@ -171,17 +184,24 @@ internal static class PackageCommands
             return Usage($"This pack requires an unsupported loader: {plan.Loader}");
         if (plan.Files.Any(file => file.CurseForgeProject is not null) && string.IsNullOrWhiteSpace(LinuxSecrets.CurseForgeApiKey))
             return Usage("CurseForge pack import requires a release built with PCL_CURSEFORGE_API_KEY.");
-        var minecraft = await new MinecraftInstaller().InstallAsync(plan.MinecraftVersion, directory).ConfigureAwait(false);
-        string launchVersion = minecraft.VersionId;
-        string? loaderVersion = null;
-        if (plan.Loader is not null)
+        using (var progress = new ConsoleInstallProgress("Preparing modpack installation"))
         {
-            var result = await new ModLoaderInstaller().InstallAsync(minecraft.VersionId, plan.Loader, plan.LoaderVersion, directory).ConfigureAwait(false);
-            launchVersion = result.LaunchVersion;
-            loaderVersion = result.LoaderVersion;
+            var minecraft = await new MinecraftInstaller().InstallAsync(plan.MinecraftVersion, directory, progress).ConfigureAwait(false);
+            string launchVersion = minecraft.VersionId;
+            string? loaderVersion = null;
+            if (plan.Loader is not null)
+            {
+                progress.SetStage($"Installing {plan.Loader} loader (downloading libraries / running installer)",
+                    inline: plan.Loader is not ("forge" or "neoforge"));
+                var result = await new ModLoaderInstaller().InstallAsync(minecraft.VersionId, plan.Loader, plan.LoaderVersion, directory).ConfigureAwait(false);
+                launchVersion = result.LaunchVersion;
+                loaderVersion = result.LoaderVersion;
+            }
+            progress.SetStage("Downloading modpack files and extracting overrides");
+            await service.InstallFilesAsync(path, plan, directory).ConfigureAwait(false);
+            progress.SetStage("Saving instance");
+            await ManagedInstanceService.SaveAsync(new ManagedMinecraftInstance(name, minecraft.VersionId, plan.Loader, loaderVersion, directory, launchVersion)).ConfigureAwait(false);
         }
-        await service.InstallFilesAsync(path, plan, directory).ConfigureAwait(false);
-        await ManagedInstanceService.SaveAsync(new ManagedMinecraftInstance(name, minecraft.VersionId, plan.Loader, loaderVersion, directory, launchVersion)).ConfigureAwait(false);
         Console.WriteLine($"Imported '{plan.Name}' as instance '{name}'.");
         return 0;
     }

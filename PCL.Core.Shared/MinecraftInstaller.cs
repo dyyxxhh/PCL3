@@ -34,6 +34,7 @@ public sealed class MinecraftInstaller
     {
         if (string.IsNullOrWhiteSpace(versionId)) throw new ArgumentException("Version is required.", nameof(versionId));
         Directory.CreateDirectory(gameDirectory);
+        progress?.Report(new DownloadProgress(0, 0, "") { Stage = "Fetching Minecraft version manifest" });
         var manifest = await GetJsonAsync(VersionManifestUrl, cancellationToken).ConfigureAwait(false);
         var latest = manifest["latest"]?["release"]?.GetValue<string>();
         if (versionId.Equals("latest", StringComparison.OrdinalIgnoreCase))
@@ -43,6 +44,7 @@ public sealed class MinecraftInstaller
         if (version?["url"]?.GetValue<string>() is not { } versionUrl)
             throw new InvalidOperationException($"Minecraft version '{versionId}' was not found.");
 
+        progress?.Report(new DownloadProgress(0, 0, "") { Stage = $"Fetching Minecraft {versionId} metadata" });
         var metadata = await GetJsonAsync(versionUrl, cancellationToken).ConfigureAwait(false);
         var versionDirectory = Path.Combine(gameDirectory, "versions", versionId);
         Directory.CreateDirectory(versionDirectory);
@@ -57,6 +59,7 @@ public sealed class MinecraftInstaller
         await DownloadAllAsync(downloads, progress, cancellationToken).ConfigureAwait(false);
 
         var nativesDirectory = Path.Combine(versionDirectory, "natives");
+        progress?.Report(new DownloadProgress(0, 0, "") { Stage = "Extracting native libraries" });
         await ExtractNativesAsync(metadata, gameDirectory, nativesDirectory, cancellationToken).ConfigureAwait(false);
         var mainClass = metadata["mainClass"]?.GetValue<string>()
             ?? throw new InvalidDataException("Minecraft metadata does not contain mainClass.");
@@ -120,6 +123,7 @@ public sealed class MinecraftInstaller
         var installedPath = FindInstalledJavaRuntime(majorVersion, gameDirectory);
         if (installedPath is not null) return installedPath;
 
+        progress?.Report(new DownloadProgress(0, 0, "") { Stage = $"Fetching Java {majorVersion} runtime manifest" });
         var index = await GetJsonAsync("https://piston-meta.mojang.com/v1/products/java-runtime/2ec0cc96c44e5a76b9c8b7c39df7210883d12871/all.json", cancellationToken).ConfigureAwait(false);
         var components = index["linux"]?.AsObject() ?? throw new InvalidDataException("Mojang runtime index has no Linux profile.");
         var selected = components
@@ -160,6 +164,7 @@ public sealed class MinecraftInstaller
 
         foreach (var directory in directories) Directory.CreateDirectory(directory);
         await DownloadAllAsync(downloads.Select(item => item.Item), progress, cancellationToken).ConfigureAwait(false);
+        progress?.Report(new DownloadProgress(0, 0, "") { Stage = $"Configuring and verifying Java {majorVersion}" });
         foreach (var (item, executable) in downloads)
             if (executable && File.Exists(item.Path)) File.SetUnixFileMode(item.Path, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute | UnixFileMode.GroupRead | UnixFileMode.GroupExecute | UnixFileMode.OtherRead | UnixFileMode.OtherExecute);
         foreach (var (linkPath, target) in links)
@@ -231,7 +236,9 @@ public sealed class MinecraftInstaller
         if (index?["url"]?.GetValue<string>() is not { } url || index["id"]?.GetValue<string>() is not { } id) return null;
         var path = Path.Combine(gameDirectory, "assets", "indexes", id + ".json");
         var item = new DownloadItem(url, path, index["sha1"]?.GetValue<string>());
+        progress?.Report(new DownloadProgress(0, 1, item.Path) { Stage = "Downloading asset index" });
         await DownloadAsync(item, progress, cancellationToken).ConfigureAwait(false);
+        progress?.Report(new DownloadProgress(1, 1, item.Path) { Stage = "Downloading asset index" });
         return JsonNode.Parse(await File.ReadAllTextAsync(path, cancellationToken).ConfigureAwait(false))?.AsObject();
     }
 
@@ -251,11 +258,18 @@ public sealed class MinecraftInstaller
         var pathComparer = OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
         var items = downloads.DistinctBy(item => item.Path, pathComparer).ToArray();
         var completed = 0;
+        var progressLock = new object();
+        progress?.Report(new DownloadProgress(0, items.Length, ""));
         await Parallel.ForEachAsync(items, new ParallelOptions { MaxDegreeOfParallelism = 8, CancellationToken = cancellationToken }, async (item, token) =>
         {
+            lock (progressLock)
+                progress?.Report(new DownloadProgress(completed, items.Length, item.Path));
             await DownloadAsync(item, progress, token).ConfigureAwait(false);
-            Interlocked.Increment(ref completed);
-            progress?.Report(new DownloadProgress(completed, items.Length, item.Path));
+            lock (progressLock)
+            {
+                completed++;
+                progress?.Report(new DownloadProgress(completed, items.Length, item.Path));
+            }
         }).ConfigureAwait(false);
     }
 
@@ -438,4 +452,7 @@ public sealed class MinecraftInstaller
     private sealed record DownloadItem(string Url, string Path, string? Sha1);
 }
 
-public sealed record DownloadProgress(int Completed, int Total, string CurrentPath);
+public sealed record DownloadProgress(int Completed, int Total, string CurrentPath)
+{
+    public string Stage { get; init; } = "Downloading files";
+}

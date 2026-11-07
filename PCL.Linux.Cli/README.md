@@ -23,6 +23,8 @@ pcl launch FabricTest
 
 `-S` 安装 Minecraft 版本或模组：Minecraft 版本参数创建原版实例；加 `--loader forge|neoforge|fabric|quilt` 会同时安装对应加载器。模组名称可先用 `-Ss` 搜索；默认安装目标版本/加载器兼容的最新文件，也可用 `--mod-version <版本号或文件 ID>` 固定版本。模组搜索默认查询 Modrinth 和 CurseForge；重名时终端会列出候选供选择，可用 `--source modrinth|curseforge` 限定来源。
 
+安装 Minecraft、Java、加载器、模组和导入整合包时，CLI 会在标准错误流显示当前阶段和已用时间；Minecraft/Java 文件下载还会显示进度条、文件完成数和当前文件名（百分比按文件数计算）。交互终端约每 0.1 秒刷新等待动画，即使单个大文件仍在下载也有反馈；重定向标准错误流、使用 `TERM=dumb` 或运行 Forge/NeoForge 外部安装器时改为每隔约 5 秒输出普通文本状态，阶段切换和下载完成立即输出。加载器外部安装、模组下载和整合包文件导入暂时显示阶段与等待动画，不估算百分比。
+
 每个命名实例有单独的游戏目录，模组不会跨实例共享。安装模组时省略 `--instance` 会在交互终端选择已有实例；没有实例时会询问 Minecraft 版本、加载器和实例名。整合包导入省略实例名时也会询问。非交互运行必须提供需要选择的参数；CLI 不会静默猜选。
 
 Modrinth `.mrpack`、CurseForge 标准 manifest ZIP、HMCL、MCBBS 和 MultiMC 格式可导入；`.mrpack` 可导出 Modrinth 格式，`.zip` 可导出 CurseForge manifest。导出只引用有跟踪来源、文件 ID/下载 URL 和校验和的模组，不会把未授权的第三方 JAR 塞进整合包。导入的远端文件要求 HTTPS 和 SHA-1 校验；覆盖文件会检查路径、大小并拒绝越界写入和符号链接。

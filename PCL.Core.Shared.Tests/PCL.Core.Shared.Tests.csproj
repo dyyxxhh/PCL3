@@ -14,5 +14,6 @@
   <ItemGroup>
     <ProjectReference Include="..\PCL.Core.Shared\PCL.Core.Shared.csproj" />
     <Compile Include="..\PCL.Linux.Cli\LinuxSelfUpdater.cs" Link="LinuxSelfUpdater.cs" />
+    <Compile Include="..\PCL.Linux.Cli\ConsoleInstallProgress.cs" Link="ConsoleInstallProgress.cs" />
   </ItemGroup>
 </Project>
