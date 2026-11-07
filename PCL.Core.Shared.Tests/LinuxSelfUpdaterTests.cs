@@ -30,6 +30,17 @@ public sealed class LinuxSelfUpdaterTests
     }
 
     [TestMethod]
+    public void Version201IsNewerThanPreviousReleaseAndAcceptsReleaseTag()
+    {
+        Assert.IsTrue(LinuxSelfUpdater.TryParseReleaseVersion("v2.0.1", out var released));
+        Assert.IsTrue(LinuxSelfUpdater.TryParseReleaseVersion("0.2.0", out var previous));
+        Assert.IsTrue(released > previous);
+        Assert.AreEqual(new Version(2, 0, 1, 0), released);
+        Assert.AreEqual("v2.0.1", LinuxSelfUpdater.ParseReleaseTag(
+            "<link rel=\"canonical\" href=\"https://github.com/dyyxxhh/PCL3/releases/tag/v2.0.1\">"));
+    }
+
+    [TestMethod]
     public async Task UpdateReplacesExecutableOnlyAfterVerification()
     {
         if (!OperatingSystem.IsLinux()) return;

@@ -49,6 +49,25 @@ Test("release asset checksum is validated", () =>
     try { new UpdatesGithubReleaseModel().GetLatestVersion(UpdateChannel.stable, UpdateArch.x64); throw new Exception("accepted invalid hash"); }
     catch (Exception ex) when (ex.Message != "accepted invalid hash") { }
 });
+Test("2.0.1 release upgrades previous versions and keeps official asset names", () =>
+{
+    var originalHtml = Requester.LatestHtml;
+    try
+    {
+        Requester.LatestHtml = "<link rel=\"canonical\" href=\"https://github.com/dyyxxhh/PCL3/releases/tag/v2.0.1\">";
+        Requester.Sha256 = new string('b', 64);
+        Assert(!new UpdatesGithubReleaseModel().IsLatest(UpdateChannel.stable, UpdateArch.x64, SemVer.Parse("0.2.0"), 200), "2.0.1 update missing");
+        Assert(new UpdatesGithubReleaseModel().IsLatest(UpdateChannel.stable, UpdateArch.x64, SemVer.Parse("2.0.1"), 20001), "2.0.1 not recognized as current");
+        foreach (var architecture in new[] { UpdateArch.x64, UpdateArch.arm64 })
+        {
+            var release = new UpdatesGithubReleaseModel().GetLatestVersion(UpdateChannel.stable, architecture);
+            var assetArchitecture = architecture == UpdateArch.arm64 ? "ARM64" : "x64";
+            Assert(Requester.LastAssetUrl == $"https://github.com/dyyxxhh/PCL3/releases/download/v2.0.1/PCL3_Release_{assetArchitecture}.sha256", "release asset name changed");
+            Assert(release.Sha256 == Requester.Sha256, "2.0.1 checksum missing");
+        }
+    }
+    finally { Requester.LatestHtml = originalHtml; }
+});
 Environment.ExitCode = failed == 0 ? 0 : 1;
 
 namespace PCL.Core.App { }
@@ -82,6 +101,7 @@ namespace PCL.Network
         public static string Sha256 = "";
         public static int AssetRequests;
         public static int FetchJsonRequests;
+        public static string LastAssetUrl = "";
         public static string FetchString(string url, RequestParam param)
         {
             if (url == "https://github.com/dyyxxhh/PCL3/releases/latest")
@@ -91,6 +111,7 @@ namespace PCL.Network
                 return LatestHtml;
             }
             AssetRequests++;
+            LastAssetUrl = url;
             return Sha256;
         }
         public static System.Text.Json.Nodes.JsonNode FetchJson(string url, RequestParam param)
