@@ -116,7 +116,7 @@ public sealed class MinecraftInstaller(HttpClient? httpClient = null)
         var mainClass = metadata["mainClass"]?.GetValue<string>()
             ?? throw new InvalidDataException("Minecraft metadata does not contain mainClass.");
 
-        var arguments = BuildArguments(metadata, versionId, options, nativesDirectory, libraries, assetsDirectory, assetIndexName);
+        var arguments = BuildArguments(metadata, versionId, nativeVersion, options, nativesDirectory, libraries, assetsDirectory, assetIndexName);
         var startInfo = new ProcessStartInfo { FileName = options.JavaPath, WorkingDirectory = options.GameDirectory, UseShellExecute = false };
         if (options.AuthServer is not null)
         {
@@ -383,7 +383,7 @@ public sealed class MinecraftInstaller(HttpClient? httpClient = null)
         return paths;
     }
 
-    private static IEnumerable<string> BuildArguments(JsonObject metadata, string versionId, MinecraftLaunchOptions options, string nativesDirectory, IReadOnlyList<string> libraries, string assetsDirectory, string assetIndexName)
+    private static IEnumerable<string> BuildArguments(JsonObject metadata, string versionId, string clientVersion, MinecraftLaunchOptions options, string nativesDirectory, IReadOnlyList<string> libraries, string assetsDirectory, string assetIndexName)
     {
         var replacements = new Dictionary<string, string>(StringComparer.Ordinal)
         {
@@ -416,7 +416,7 @@ public sealed class MinecraftInstaller(HttpClient? httpClient = null)
         else
         {
             foreach (var argument in jvmArguments)
-                AppendArgument(argument, result, replacements);
+                AppendArgument(argument, result, replacements, clientVersion);
         }
 
         var mainClass = metadata["mainClass"]?.GetValue<string>()
@@ -426,7 +426,7 @@ public sealed class MinecraftInstaller(HttpClient? httpClient = null)
         if (gameArguments is not null)
         {
             foreach (var argument in gameArguments)
-                AppendArgument(argument, result, replacements);
+                AppendArgument(argument, result, replacements, clientVersion);
         }
         else if (metadata["minecraftArguments"]?.GetValue<string>() is { } legacyArguments)
         {
@@ -440,21 +440,28 @@ public sealed class MinecraftInstaller(HttpClient? httpClient = null)
         return result;
     }
 
-    private static void AppendArgument(JsonNode? node, ICollection<string> target, IReadOnlyDictionary<string, string> replacements)
+    private static void AppendArgument(JsonNode? node, ICollection<string> target, IReadOnlyDictionary<string, string> replacements, string clientVersion)
     {
         if (node is JsonValue value && value.TryGetValue<string>(out var text))
         {
-            target.Add(Replace(text, replacements));
+            target.Add(Replace(ReplaceClientJarIgnoreList(text, clientVersion), replacements));
             return;
         }
 
         if (node is not JsonObject conditional || !AllowedByRules(conditional["rules"]?.AsArray(), "linux")) return;
         if (conditional["value"] is JsonValue conditionalValue && conditionalValue.TryGetValue<string>(out var conditionalText))
-            target.Add(Replace(conditionalText, replacements));
+            target.Add(Replace(ReplaceClientJarIgnoreList(conditionalText, clientVersion), replacements));
         else if (conditional["value"] is JsonArray conditionalValues)
             foreach (var item in conditionalValues)
-                if (item is JsonValue itemValue && itemValue.TryGetValue<string>(out var itemText)) target.Add(Replace(itemText, replacements));
+                if (item is JsonValue itemValue && itemValue.TryGetValue<string>(out var itemText))
+                    target.Add(Replace(ReplaceClientJarIgnoreList(itemText, clientVersion), replacements));
     }
+
+    // NeoForge's ignoreList placeholder otherwise names the loader profile JAR, while classpath uses metadata.jar.
+    private static string ReplaceClientJarIgnoreList(string argument, string clientVersion)
+        => argument.StartsWith("-DignoreList=", StringComparison.Ordinal)
+            ? argument.Replace("${version_name}.jar", clientVersion + ".jar", StringComparison.Ordinal)
+            : argument;
 
     private static string Replace(string value, IReadOnlyDictionary<string, string> replacements)
     {

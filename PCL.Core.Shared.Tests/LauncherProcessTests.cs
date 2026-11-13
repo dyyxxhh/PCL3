@@ -47,6 +47,61 @@ public sealed class LauncherProcessTests
     }
 
     [TestMethod]
+    [DataRow("neoforge-21.1.266", "1.21.1", false)]
+    [DataRow("custom-neoforge-profile", "1.21.1", true)]
+    [DataRow("1.21.1", "1.21.1", false)]
+    public async Task BootstrapIgnoreListUsesTheInheritedClientJar(string versionId, string jarId, bool conditional)
+    {
+        if (!OperatingSystem.IsLinux()) return;
+        var root = Path.Combine(Path.GetTempPath(), "pcl-bootstrap-test-" + Guid.NewGuid().ToString("N"), "game with spaces");
+        var fixtureRoot = Path.GetDirectoryName(root)!;
+        try
+        {
+            Directory.CreateDirectory(Path.Combine(root, "versions", versionId));
+            var java = Path.Combine(root, "java");
+            var capture = Path.Combine(root, "args.txt");
+            await File.WriteAllTextAsync(java, "#!/bin/sh\nprintf '%s\\n' \"$@\" > '" + capture + "'\n");
+            File.SetUnixFileMode(java, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+            JsonNode ignoreArgument = JsonValue.Create("-DignoreList=client-extra,${version_name}.jar")!;
+            if (conditional)
+                ignoreArgument = new JsonObject
+                {
+                    ["rules"] = new JsonArray(new JsonObject { ["action"] = "allow", ["os"] = new JsonObject { ["name"] = "linux" } }),
+                    ["value"] = new JsonArray(ignoreArgument)
+                };
+            var metadata = new JsonObject
+            {
+                ["id"] = versionId,
+                ["jar"] = jarId,
+                ["mainClass"] = "cpw.mods.bootstraplauncher.BootstrapLauncher",
+                ["libraries"] = new JsonArray(),
+                ["arguments"] = new JsonObject
+                {
+                    ["jvm"] = new JsonArray("-cp", "${classpath}", ignoreArgument, "-DlibraryDirectory=${library_directory}"),
+                    ["game"] = new JsonArray("--version", "${version_name}", "--launchTarget", "forgeclient")
+                }
+            };
+            var metadataPath = Path.Combine(root, "versions", versionId, versionId + ".json");
+            var originalMetadata = metadata.ToJsonString();
+            await File.WriteAllTextAsync(metadataPath, originalMetadata);
+
+            using var process = await new MinecraftInstaller().LaunchAsync(versionId, new MinecraftLaunchOptions(root, java));
+            await process.WaitForExitAsync();
+            Assert.AreEqual(0, process.ExitCode);
+            var args = await File.ReadAllLinesAsync(capture);
+            var actualIgnoreList = args.Single(argument => argument.StartsWith("-DignoreList=", StringComparison.Ordinal));
+            Assert.AreEqual("-DignoreList=client-extra," + jarId + ".jar", actualIgnoreList, "Ignore the client JAR selected by metadata.jar, not the loader profile JAR.");
+            Assert.AreEqual(versionId, args[Array.IndexOf(args, "--version") + 1], "The game's version name must remain the launch profile ID.");
+            Assert.AreEqual(Path.Combine(root, "versions", jarId, jarId + ".jar"), args[Array.IndexOf(args, "-cp") + 1]);
+            CollectionAssert.Contains(args, "-DlibraryDirectory=" + Path.Combine(root, "libraries"));
+            CollectionAssert.Contains(args, "forgeclient");
+            Assert.IsTrue(Array.FindIndex(args, argument => argument.StartsWith("-DignoreList=", StringComparison.Ordinal)) < Array.IndexOf(args, "cpw.mods.bootstraplauncher.BootstrapLauncher"));
+            Assert.AreEqual(originalMetadata, await File.ReadAllTextAsync(metadataPath), "Launching must not rewrite installed metadata.");
+        }
+        finally { if (Directory.Exists(fixtureRoot)) Directory.Delete(fixtureRoot, true); }
+    }
+
+    [TestMethod]
     public async Task ThirdPartyAgentIsPassedBeforeMainClass()
     {
         if (!OperatingSystem.IsLinux()) return;

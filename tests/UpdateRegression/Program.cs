@@ -49,21 +49,21 @@ Test("release asset checksum is validated", () =>
     try { new UpdatesGithubReleaseModel().GetLatestVersion(UpdateChannel.stable, UpdateArch.x64); throw new Exception("accepted invalid hash"); }
     catch (Exception ex) when (ex.Message != "accepted invalid hash") { }
 });
-Test("0.2.2 release upgrades previous versions and keeps official asset names", () =>
+Test("0.2.3 release upgrades previous versions and keeps official asset names", () =>
 {
     var originalHtml = Requester.LatestHtml;
     try
     {
-        Requester.LatestHtml = "<link rel=\"canonical\" href=\"https://github.com/dyyxxhh/PCL3/releases/tag/v0.2.2\">";
+        Requester.LatestHtml = "<link rel=\"canonical\" href=\"https://github.com/dyyxxhh/PCL3/releases/tag/v0.2.3\">";
         Requester.Sha256 = new string('b', 64);
-        Assert(!new UpdatesGithubReleaseModel().IsLatest(UpdateChannel.stable, UpdateArch.x64, SemVer.Parse("0.2.1"), 201), "0.2.2 update missing");
-        Assert(new UpdatesGithubReleaseModel().IsLatest(UpdateChannel.stable, UpdateArch.x64, SemVer.Parse("0.2.2"), 202), "0.2.2 not recognized as current");
+        Assert(!new UpdatesGithubReleaseModel().IsLatest(UpdateChannel.stable, UpdateArch.x64, SemVer.Parse("0.2.2"), 202), "0.2.3 update missing");
+        Assert(new UpdatesGithubReleaseModel().IsLatest(UpdateChannel.stable, UpdateArch.x64, SemVer.Parse("0.2.3"), 203), "0.2.3 not recognized as current");
         foreach (var architecture in new[] { UpdateArch.x64, UpdateArch.arm64 })
         {
             var release = new UpdatesGithubReleaseModel().GetLatestVersion(UpdateChannel.stable, architecture);
             var assetArchitecture = architecture == UpdateArch.arm64 ? "ARM64" : "x64";
-            Assert(Requester.LastAssetUrl == $"https://github.com/dyyxxhh/PCL3/releases/download/v0.2.2/PCL3_Release_{assetArchitecture}.sha256", "release asset name changed");
-            Assert(release.Sha256 == Requester.Sha256, "0.2.2 checksum missing");
+            Assert(Requester.LastAssetUrl == $"https://github.com/dyyxxhh/PCL3/releases/download/v0.2.3/PCL3_Release_{assetArchitecture}.sha256", "release asset name changed");
+            Assert(release.Sha256 == Requester.Sha256, "0.2.3 checksum missing");
         }
     }
     finally { Requester.LatestHtml = originalHtml; }
