@@ -3,7 +3,7 @@ using System.Text.RegularExpressions;
 
 namespace PCL.Core.Shared.Minecraft;
 
-public sealed record ManagedMinecraftInstance(string Name, string GameVersion, string? Loader, string? LoaderVersion, string DirectoryPath, string LaunchVersion);
+public sealed record ManagedMinecraftInstance(string Name, string GameVersion, string? Loader, string? LoaderVersion, string DirectoryPath, string LaunchVersion, bool Imported = false);
 
 public static class ManagedInstanceService
 {
@@ -22,6 +22,7 @@ public static class ManagedInstanceService
         var root = Path.Combine(gameDirectory, "instances");
         if (!Directory.Exists(root)) return [];
         return Directory.EnumerateDirectories(root)
+            .Where(path => !Path.GetFileName(path).StartsWith(".migration-", StringComparison.Ordinal))
             .Select(path => ReadFromDirectory(path))
             .OfType<ManagedMinecraftInstance>()
             .OrderBy(instance => instance.Name, StringComparer.Ordinal)
@@ -29,7 +30,7 @@ public static class ManagedInstanceService
     }
 
     public static ManagedMinecraftInstance? Find(string gameDirectory, string name)
-        => ReadFromDirectory(GetInstanceDirectory(gameDirectory, name));
+        => SafeName.IsMatch(name) ? ReadFromDirectory(GetInstanceDirectory(gameDirectory, name)) : null;
 
     public static async Task SaveAsync(ManagedMinecraftInstance instance, CancellationToken cancellationToken = default)
     {
@@ -37,7 +38,12 @@ public static class ManagedInstanceService
         if (!string.Equals(Path.GetFullPath(directory), Path.GetFullPath(instance.DirectoryPath), StringComparison.Ordinal))
             throw new InvalidDataException("Instance directory does not match its name.");
         Directory.CreateDirectory(directory);
-        var metadata = new InstanceMetadata(instance.Name, instance.GameVersion, instance.Loader, instance.LoaderVersion, instance.LaunchVersion);
+        await WriteMetadataAsync(directory, instance, cancellationToken).ConfigureAwait(false);
+    }
+
+    internal static async Task WriteMetadataAsync(string directory, ManagedMinecraftInstance instance, CancellationToken cancellationToken)
+    {
+        var metadata = new InstanceMetadata(instance.Name, instance.GameVersion, instance.Loader, instance.LoaderVersion, instance.LaunchVersion, instance.Imported);
         var path = Path.Combine(directory, MetadataFileName);
         var temporary = path + ".tmp";
         try
@@ -59,8 +65,8 @@ public static class ManagedInstanceService
             ?? throw new InvalidDataException($"Invalid instance metadata: {path}");
         if (metadata.Name != Path.GetFileName(directory) || string.IsNullOrWhiteSpace(metadata.GameVersion) || string.IsNullOrWhiteSpace(metadata.LaunchVersion))
             throw new InvalidDataException($"Invalid instance metadata: {path}");
-        return new ManagedMinecraftInstance(metadata.Name, metadata.GameVersion, metadata.Loader, metadata.LoaderVersion, directory, metadata.LaunchVersion);
+        return new ManagedMinecraftInstance(metadata.Name, metadata.GameVersion, metadata.Loader, metadata.LoaderVersion, directory, metadata.LaunchVersion, metadata.Imported);
     }
 
-    private sealed record InstanceMetadata(string Name, string GameVersion, string? Loader, string? LoaderVersion, string LaunchVersion);
+    private sealed record InstanceMetadata(string Name, string GameVersion, string? Loader, string? LoaderVersion, string LaunchVersion, bool Imported = false);
 }

@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
@@ -71,6 +72,7 @@ public sealed class ForgeLikeLoaderInstaller(HttpClient http)
         processInfo.ArgumentList.Add(installerPath);
         processInfo.ArgumentList.Add("--installClient");
         processInfo.ArgumentList.Add(gameDirectory);
+        await PrepareLauncherProfilesAsync(gameDirectory, cancellationToken).ConfigureAwait(false);
         using var process = Process.Start(processInfo) ?? throw new InvalidOperationException("Could not start the Forge-like installer.");
         await process.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
         if (process.ExitCode != 0)
@@ -109,6 +111,47 @@ public sealed class ForgeLikeLoaderInstaller(HttpClient http)
             if (File.Exists(outputTemp)) File.Delete(outputTemp);
         }
         return new ModLoaderInstallResult(launchId, shortVersion);
+    }
+
+    private static async Task PrepareLauncherProfilesAsync(string gameDirectory, CancellationToken cancellationToken)
+    {
+        // Like PCL's McFolderLauncherProfilesJsonCreate, supply the official launcher's
+        // marker before installing. Forge/NeoForge treat its absence as "run Minecraft first".
+        var path = Path.Combine(gameDirectory, "launcher_profiles.json");
+        if (File.Exists(path)) return;
+        var profiles = new JsonObject
+        {
+            ["profiles"] = new JsonObject
+            {
+                ["PCL"] = new JsonObject
+                {
+                    ["icon"] = "Grass",
+                    ["name"] = "PCL",
+                    ["lastVersionId"] = "latest-release",
+                    ["type"] = "latest-release",
+                    ["lastUsed"] = DateTime.UtcNow.ToString("yyyy-MM-dd'T'HH:mm:ss'.0000Z'", CultureInfo.InvariantCulture)
+                }
+            },
+            ["selectedProfile"] = "PCL",
+            ["clientToken"] = "23323323323323323323323323323333"
+        };
+        var temporary = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        try
+        {
+            await File.WriteAllTextAsync(temporary, profiles.ToJsonString(), cancellationToken).ConfigureAwait(false);
+            try
+            {
+                File.Move(temporary, path);
+            }
+            catch (IOException) when (File.Exists(path))
+            {
+                // Another installer/launcher created the file; keep its settings.
+            }
+        }
+        finally
+        {
+            if (File.Exists(temporary)) File.Delete(temporary);
+        }
     }
 
     public static string SelectMavenVersion(IEnumerable<string> versions, string gameVersion, string loader, string? requestedVersion = null)

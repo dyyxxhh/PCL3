@@ -25,6 +25,7 @@ internal static class Program
                 "login" when args is ["login", "authlib", _, _] => await LoginAuthlibAsync(args[2], args[3]).ConfigureAwait(false),
                 "logout" when args.Length == 1 => await LogoutAsync().ConfigureAwait(false),
                 "update" when args is ["update"] => await LinuxSelfUpdater.UpdateAsync().ConfigureAwait(false),
+                "scan" => await InstanceCommands.ScanAsync(args.Skip(1).ToArray()).ConfigureAwait(false),
                 "instance" when args.Length >= 2 && args[1] == "list" => ListInstances(args.Skip(2).ToArray()),
                 "-Ss" => await PackageCommands.SearchAsync(args.Skip(1).ToArray()).ConfigureAwait(false),
                 "-S" => await PackageCommands.InstallAsync(args.Skip(1).ToArray()).ConfigureAwait(false),
@@ -53,6 +54,7 @@ internal static class Program
         Console.WriteLine("  pcl login authlib <验证服务器URL> <用户名>");
         Console.WriteLine("  pcl logout");
         Console.WriteLine("  pcl update");
+        Console.WriteLine("  pcl scan [path] [--migrate] [--version <id>] [--instance <name>] [--data-dir <path>] [--game-dir <destination>]");
         Console.WriteLine("  pcl instance list [--game-dir <path>]");
         Console.WriteLine("  pcl -Ss <mod query> [--game-version <version>] [--loader <loader>] [--source modrinth|curseforge]");
         Console.WriteLine("  pcl -S <Minecraft version|mod name> [--instance <name>] [--loader fabric|quilt|forge|neoforge] [--loader-version <version>] [--mod-version <version>] [--game-dir <path>]");
@@ -184,6 +186,12 @@ internal static class Program
         }
         var installer = new MinecraftInstaller();
         var installedPath = Path.Combine(gameDirectory, "versions", version, version + ".json");
+        if (managed is null && InstanceCommands.RequiresLegacyMigration(gameDirectory, version))
+        {
+            Console.Error.WriteLine("This legacy PCL version was found but requires migration before Linux CLI can launch it.");
+            Console.Error.WriteLine($"Run: pcl scan \"{gameDirectory}\" --migrate --version \"{version}\" --instance ImportedGame --game-dir \"{gameDirectory}\"");
+            return 2;
+        }
         if (managed is not null && !File.Exists(installedPath))
             throw new InvalidDataException($"Instance '{managed.Name}' is incomplete. Reinstall it with pcl -S {managed.GameVersion} --instance {managed.Name}.");
         if (version.Equals("latest", StringComparison.OrdinalIgnoreCase) || !File.Exists(installedPath))
@@ -192,6 +200,11 @@ internal static class Program
             using var progress = new ConsoleInstallProgress("Preparing Minecraft installation");
             var installed = await installer.InstallAsync(version, gameDirectory, progress).ConfigureAwait(false);
             version = installed.VersionId;
+        }
+        if (managed?.Imported == true)
+        {
+            using var progress = new ConsoleInstallProgress("Checking imported instance libraries for Linux");
+            await installer.PrepareForLaunchAsync(version, gameDirectory, progress).ConfigureAwait(false);
         }
         var requiredMajor = await installer.GetRequiredJavaMajorAsync(version, gameDirectory).ConfigureAwait(false);
         var requestedJavaPath = options.GetValueOrDefault("java");

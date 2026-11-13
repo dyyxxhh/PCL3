@@ -14,10 +14,36 @@ public static class MinecraftInstanceService
             return Path.GetFullPath(configured);
 
         var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        return string.IsNullOrEmpty(home)
-            ? throw new InvalidOperationException("Unable to resolve the user home directory.")
-            : Path.Combine(home, ".minecraft");
+        return ResolveDefaultGameDirectory(home, AppContext.BaseDirectory);
     }
+
+    public static string ResolveDefaultGameDirectory(string homeDirectory, string executableDirectory)
+    {
+        var defaults = GetDefaultGameDirectories(homeDirectory, executableDirectory);
+        return defaults.FirstOrDefault(Directory.Exists) ?? defaults[0];
+    }
+
+    public static IReadOnlyList<string> GetDefaultGameDirectories(string homeDirectory, string executableDirectory)
+    {
+        if (string.IsNullOrWhiteSpace(homeDirectory))
+            throw new InvalidOperationException("Unable to resolve the user home directory.");
+        return new[] { Path.Combine(Path.GetFullPath(homeDirectory), ".minecraft"),
+                Path.Combine(Path.GetFullPath(executableDirectory), ".minecraft") }
+            .Distinct(StringComparer.Ordinal).ToArray();
+    }
+
+    internal static string? FindVersionMetadata(string versionDirectory)
+    {
+        var exact = Path.Combine(versionDirectory, Path.GetFileName(versionDirectory) + ".json");
+        if (File.Exists(exact)) return exact;
+        var candidates = Directory.EnumerateFiles(versionDirectory)
+            .Where(path => Path.GetExtension(path).Equals(".json", StringComparison.OrdinalIgnoreCase)).Take(2).ToArray();
+        return candidates.Length == 1 ? candidates[0] : null;
+    }
+
+    internal static bool IsReservedNonVersionDirectory(string path)
+        => Path.GetFileName(path) is "PCL" or "cache" or "BLClient"
+           && !File.Exists(Path.Combine(path, Path.GetFileName(path) + ".json"));
 
     public static IReadOnlyList<MinecraftInstance> List(string gameDirectory)
     {
@@ -25,7 +51,8 @@ public static class MinecraftInstanceService
         if (!Directory.Exists(versionsDirectory)) return [];
 
         return Directory.EnumerateDirectories(versionsDirectory)
-            .Where(path => File.Exists(Path.Combine(path, Path.GetFileName(path) + ".json")))
+            .Where(path => !IsReservedNonVersionDirectory(path))
+            .Where(path => FindVersionMetadata(path) is not null)
             .Select(path => new MinecraftInstance(Path.GetFileName(path), path))
             .OrderBy(instance => instance.Id, StringComparer.Ordinal)
             .ToArray();

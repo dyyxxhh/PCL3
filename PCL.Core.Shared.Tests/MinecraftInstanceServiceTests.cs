@@ -29,6 +29,25 @@ public sealed class MinecraftInstanceServiceTests
     }
 
     [TestMethod]
+    public void ListRecognizesPclVersionWithSingleDifferentlyNamedJson()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "pcl-legacy-list-" + Guid.NewGuid().ToString("N"));
+        var version = Path.Combine(root, "versions", "我的整合包");
+        Directory.CreateDirectory(version);
+        File.WriteAllText(Path.Combine(version, "1.21.1.json"), "{\"id\":\"1.21.1\"}");
+        var cache = Path.Combine(root, "versions", "PCL");
+        Directory.CreateDirectory(cache);
+        File.WriteAllText(Path.Combine(cache, "config.v1.json"), "{}");
+        try
+        {
+            var instances = MinecraftInstanceService.List(root);
+            Assert.AreEqual(1, instances.Count, "PCL accepts the sole JSON even when the version directory was renamed.");
+            Assert.AreEqual("我的整合包", instances[0].Id);
+        }
+        finally { Directory.Delete(root, true); }
+    }
+
+    [TestMethod]
     public void FindRuntimeReturnsMatchingExecutableFromGameDirectory()
     {
         if (!OperatingSystem.IsLinux()) return;

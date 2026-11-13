@@ -21,8 +21,9 @@ public sealed record MinecraftLaunchOptions(
     string? AuthlibInjectorPath = null,
     string? AuthServer = null);
 
-public sealed class MinecraftInstaller
+public sealed class MinecraftInstaller(HttpClient? httpClient = null)
 {
+    private readonly HttpClient _http = httpClient ?? Http;
     private const string VersionManifestUrl = "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json";
     private static readonly HttpClient Http = CreateHttpClient();
 
@@ -64,6 +65,35 @@ public sealed class MinecraftInstaller
         var mainClass = metadata["mainClass"]?.GetValue<string>()
             ?? throw new InvalidDataException("Minecraft metadata does not contain mainClass.");
         return new MinecraftInstallResult(versionId, versionDirectory, mainClass);
+    }
+
+    /// <summary>Completes Linux libraries after importing a Windows installation, without reinstalling its version JSON.</summary>
+    public async Task PrepareForLaunchAsync(string versionId, string gameDirectory,
+        IProgress<DownloadProgress>? progress = null, CancellationToken cancellationToken = default)
+    {
+        var versionDirectory = GetSafePath(Path.Combine(gameDirectory, "versions"), versionId);
+        var metadata = JsonNode.Parse(await File.ReadAllTextAsync(Path.Combine(versionDirectory, versionId + ".json"), cancellationToken).ConfigureAwait(false))?.AsObject()
+            ?? throw new InvalidDataException("Minecraft metadata is invalid.");
+        var downloads = new List<DownloadItem>();
+        AddLibraryDownloads(metadata, gameDirectory, downloads);
+        var librariesRoot = Path.Combine(gameDirectory, "libraries");
+        var requiredDownloads = new List<DownloadItem>();
+        foreach (var item in downloads)
+        {
+            EnsureWithinDirectory(librariesRoot, item.Path);
+            if (File.Exists(item.Path) && (item.Sha1 is null
+                || await VerifySha1Async(item.Path, item.Sha1, cancellationToken).ConfigureAwait(false))) continue;
+            if (!Uri.TryCreate(item.Url, UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttps)
+                throw new InvalidDataException("Missing imported libraries must have an HTTPS download URL.");
+            if (item.Sha1 is null || !Regex.IsMatch(item.Sha1, "^[a-fA-F0-9]{40}$"))
+                throw new InvalidDataException("Missing imported libraries must have a valid SHA-1 checksum.");
+            requiredDownloads.Add(item);
+        }
+        progress?.Report(new DownloadProgress(0, requiredDownloads.Count, "") { Stage = "Checking Linux libraries for imported instance" });
+        await DownloadAllAsync(requiredDownloads, progress, cancellationToken, _http).ConfigureAwait(false);
+        var nativeId = metadata["jar"]?.GetValue<string>() ?? versionId;
+        var nativesDirectory = GetSafePath(Path.Combine(gameDirectory, "versions"), nativeId);
+        await ExtractNativesAsync(metadata, gameDirectory, Path.Combine(nativesDirectory, "natives"), cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<Process> LaunchAsync(
@@ -253,7 +283,7 @@ public sealed class MinecraftInstaller
         }
     }
 
-    private static async Task DownloadAllAsync(IEnumerable<DownloadItem> downloads, IProgress<DownloadProgress>? progress, CancellationToken cancellationToken)
+    private static async Task DownloadAllAsync(IEnumerable<DownloadItem> downloads, IProgress<DownloadProgress>? progress, CancellationToken cancellationToken, HttpClient? client = null)
     {
         var pathComparer = OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
         var items = downloads.DistinctBy(item => item.Path, pathComparer).ToArray();
@@ -264,7 +294,7 @@ public sealed class MinecraftInstaller
         {
             lock (progressLock)
                 progress?.Report(new DownloadProgress(completed, items.Length, item.Path));
-            await DownloadAsync(item, progress, token).ConfigureAwait(false);
+            await DownloadAsync(item, progress, token, client).ConfigureAwait(false);
             lock (progressLock)
             {
                 completed++;
@@ -273,7 +303,7 @@ public sealed class MinecraftInstaller
         }).ConfigureAwait(false);
     }
 
-    private static async Task DownloadAsync(DownloadItem item, IProgress<DownloadProgress>? progress, CancellationToken cancellationToken)
+    private static async Task DownloadAsync(DownloadItem item, IProgress<DownloadProgress>? progress, CancellationToken cancellationToken, HttpClient? client = null)
     {
         if (File.Exists(item.Path) && (item.Sha1 is null || await VerifySha1Async(item.Path, item.Sha1, cancellationToken).ConfigureAwait(false))) return;
         Directory.CreateDirectory(Path.GetDirectoryName(item.Path)!);
@@ -283,7 +313,7 @@ public sealed class MinecraftInstaller
         {
             try
             {
-                await using (var source = await Http.GetStreamAsync(item.Url, cancellationToken).ConfigureAwait(false))
+                await using (var source = await (client ?? Http).GetStreamAsync(item.Url, cancellationToken).ConfigureAwait(false))
                 await using (var target = File.Create(temporary))
                     await source.CopyToAsync(target, cancellationToken).ConfigureAwait(false);
                 if (item.Sha1 is not null && !await VerifySha1Async(temporary, item.Sha1, cancellationToken).ConfigureAwait(false))
@@ -318,7 +348,7 @@ public sealed class MinecraftInstaller
             if (nativesKey is null) continue;
             var classifier = library?["downloads"]?["classifiers"]?[nativesKey]?.AsObject();
             if (classifier?["path"]?.GetValue<string>() is not { } path) continue;
-            var archive = Path.Combine(gameDirectory, "libraries", path.Replace('/', Path.DirectorySeparatorChar));
+            var archive = GetSafePath(Path.Combine(gameDirectory, "libraries"), path.Replace('/', Path.DirectorySeparatorChar));
             if (!File.Exists(archive)) continue;
             using var zip = ZipFile.OpenRead(archive);
             foreach (var entry in zip.Entries)

@@ -18,6 +18,9 @@ pcl mod remove sodium.jar --instance FabricTest
 pcl pack import ./pack.mrpack --instance MyPack
 pcl pack export ./MyPack.mrpack --instance MyPack
 pcl instance list
+pcl scan
+pcl scan /path/to/PCL/.minecraft
+pcl scan /path/to/PCL/.minecraft --migrate --version "旧版本目录名" --instance ImportedPack
 pcl launch FabricTest
 ```
 
@@ -32,6 +35,22 @@ Modrinth `.mrpack`、CurseForge 标准 manifest ZIP、HMCL、MCBBS 和 MultiMC �
 导出会保留 `config/`、`defaultconfigs/`、`kubejs/`、`scripts/`、`resourcepacks/`、`shaderpacks/` 与 `options.txt` 作为 overrides；其他自定义目录尚不自动导出。不会包含账户文件、存档、日志、运行时或符号链接，也不打包第三方 JAR。分享前仍应自行检查模组配置是否包含服务器密码等私密设置。
 
 Release 的应用级 CurseForge key 由 Actions Secret `CURSEFORGE_API_KEY` 注入到带 `PCL_WRITE_SECRET=1` 的发布构建。Linux 生成器只允许读取此 key，以编码字节编译进二进制以降低明文误泄漏；不枚举其他环境变量，也不提供运行时环境回退。不将 key 写入源码、配置、日志或发布说明。普通本地构建不带 key；缺少 key 时 Modrinth 仍可使用，显式请求 CurseForge 会给出配置错误。编码不是加密，随客户端分发的应用 key 仍可被逆向提取，不能用于存放用户凭据。
+
+## 目录扫描与旧 PCL 迁移
+
+游戏根目录按 `--game-dir`、环境变量 `PCL_GAME_DIR`、用户主目录的 `~/.minecraft`、可执行文件旁的 `.minecraft` 依次选择。最后两个位置取第一个已存在的目录；两者都不存在时以 `~/.minecraft` 作为新安装目录。这里的“可执行文件旁”不是终端当前工作目录。主目录中的 `.minecraft` 即使没有版本，仍优先于同级目录。
+
+`pcl scan` 会检查选定游戏根目录和两个默认位置，并显示版本、原版 Minecraft 版本、加载器和游戏数据位置。可传入旧 `.minecraft`、它的父目录、`versions` 或某个版本目录；扫描会定位到游戏根目录。支持原版 PCL 的 `versions/<目录名>/<目录名>.json`，以及同名 JSON 缺失但版本目录中只有一个 JSON 的情况。损坏 JSON、缺失父版本、循环继承、客户端 JAR 缺失等会显示跳过原因，而不是把它们当作空列表。
+
+`instance list` 也会显示仅有一个非同名 JSON 的旧版本；直接启动此类版本或需要继承合并的旧版本时，会提示先迁移，不会误把旧实例名当作 Mojang 版本重新下载。
+
+在交互终端中，扫描后可以选择一个版本迁移，并输入新的 PCL3 实例名。非交互调用需加 `--migrate --version <旧版本目录名> --instance <新实例名>`；只有一个扫描结果时可省略 `--version`。`--game-dir <目录>` 指定迁移目标游戏根；位置参数指定扫描来源。
+
+迁移通过复制创建 `instances/<新实例名>/`，保留原目录，拒绝覆盖已有实例。会平铺版本继承、保存独立实例元数据，并复制公共 `assets/`、`libraries/`、客户端 JAR，以及选定数据目录中的模组、配置、存档、资源包、光影、脚本、截图和常用游戏选项。不复制启动器账户、令牌、PCL 设置或 Java 运行时；未知自定义目录尚不自动复制。公共资源会复制到每个新实例，需预留相应磁盘空间。
+
+版本隔离只影响游戏数据来源，不影响版本 JSON 的发现。迁移优先读取版本自己的 PCL 隔离设置（新 YAML/JSON 配置文件优先，兼容旧 `PCL/Setup.ini`）；没有明确设置时，根据根目录和版本目录中的实际数据判断。两处都有数据且无法确认时会要求选择，也可用 `--data-dir <旧游戏根或旧版本目录>` 明确指定，避免混合两组模组或存档。不会修改旧 PCL 的设置，也不根据可能已失效的全局设置猜选。
+
+迁移后的命名实例在启动时会按原版元数据补齐并校验 Linux 依赖、解压 Linux natives；可能需要网络和对应 Java。Windows 专用模组或本地库不会自动转换成 Linux 版本。迁移复制不跟随符号链接，遇到链接会报出路径；请使用普通目录副本。尚不导入旧启动器的 JVM/内存等实例设置。
 
 ## 当前范围
 
