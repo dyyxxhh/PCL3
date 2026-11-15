@@ -155,7 +155,7 @@ jobs:
             -p:McmReleaseVersion="${{ inputs.version }}" \
             -o ./linux-artifact
           test -x ./linux-artifact/mcm
-          python3 scripts/check_mcm_cli.py ./linux-artifact/mcm
+          python3 scripts/check_mcm_cli.py ./linux-artifact/mcm "${{ inputs.version }}"
           python3 scripts/check_mcm_offline.py ./linux-artifact/mcm
           cp PCL.Linux.Cli/README.md ./linux-artifact/README.md
           cp LICENSE ./linux-artifact/LICENSE

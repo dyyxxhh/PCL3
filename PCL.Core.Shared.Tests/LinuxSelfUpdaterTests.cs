@@ -80,6 +80,105 @@ public sealed class LinuxSelfUpdaterTests
         }
     }
 
+    [TestMethod]
+    [DataRow(true)]
+    [DataRow(false)]
+    public async Task StreamingUpdateReportsProgressWithOrWithoutContentLength(bool knownLength)
+    {
+        if (!OperatingSystem.IsLinux()) return;
+        var root = Path.Combine(Path.GetTempPath(), "mcm-update-progress-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        var target = Path.Combine(root, "mcm");
+        await File.WriteAllTextAsync(target, "old executable");
+        try
+        {
+            var archive = CreateArchive("mcm", TarEntryType.RegularFile, "new executable");
+            using var client = new HttpClient(new ReleaseHandler(archive, Convert.ToHexString(SHA256.HashData(archive)), knownLength));
+            using var output = new StringWriter();
+            Assert.AreEqual(0, await LinuxSelfUpdater.UpdateTargetAsync(client, target, "0.1.0", new Version(0, 1, 0, 0), progressOutput: output));
+            Assert.AreEqual("new executable", await File.ReadAllTextAsync(target));
+            StringAssert.Contains(output.ToString(), "MiB/s");
+            StringAssert.Contains(output.ToString(), knownLength ? "100%" : "total unknown");
+            Assert.IsFalse(output.ToString().Contains('\u001b'));
+            Assert.AreEqual(1, Directory.GetFiles(root).Length);
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
+    [TestMethod]
+    [DataRow(1)]
+    [DataRow(-1)]
+    public async Task IncorrectContentLengthPreservesExecutableAndCleansStaging(int extraLength)
+    {
+        if (!OperatingSystem.IsLinux()) return;
+        var root = Path.Combine(Path.GetTempPath(), "mcm-update-truncated-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        var target = Path.Combine(root, "mcm");
+        await File.WriteAllTextAsync(target, "old executable");
+        try
+        {
+            var archive = CreateArchive("mcm", TarEntryType.RegularFile, "new executable");
+            using var client = new HttpClient(new ReleaseHandler(archive, Convert.ToHexString(SHA256.HashData(archive)), extraLength: extraLength));
+            using var output = new StringWriter();
+            await Assert.ThrowsExactlyAsync<InvalidDataException>(() => LinuxSelfUpdater.UpdateTargetAsync(client, target, "0.1.0", new Version(0, 1, 0, 0), progressOutput: output));
+            Assert.AreEqual("old executable", await File.ReadAllTextAsync(target));
+            Assert.AreEqual(1, Directory.GetFiles(root).Length);
+            Assert.IsFalse(output.ToString().Contains("100%"));
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
+    [TestMethod]
+    public async Task CancellationDuringStreamedBodyPreservesExecutableAndCleansStaging()
+    {
+        if (!OperatingSystem.IsLinux()) return;
+        var root = Path.Combine(Path.GetTempPath(), "mcm-update-cancel-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        var target = Path.Combine(root, "mcm");
+        await File.WriteAllTextAsync(target, "old executable");
+        try
+        {
+            var archive = CreateArchive("mcm", TarEntryType.RegularFile, "new executable");
+            using var cancel = new CancellationTokenSource();
+            using var client = new HttpClient(new ReleaseHandler(archive, Convert.ToHexString(SHA256.HashData(archive)), bodyCancellation: cancel));
+            using var output = new StringWriter();
+            await Assert.ThrowsAsync<OperationCanceledException>(() => LinuxSelfUpdater.UpdateTargetAsync(client, target, "0.1.0", new Version(0, 1, 0, 0), cancel.Token, output));
+            Assert.AreEqual("old executable", await File.ReadAllTextAsync(target));
+            Assert.AreEqual(1, Directory.GetFiles(root).Length);
+            Assert.IsFalse(output.ToString().Contains("100%"));
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
+    // Non-seekable input ensures that ResponseHeadersRead really streams the body. Buffering it would
+    // make HttpContent attempt the unsupported synchronous Read, or lose the no-length test case.
+    private sealed class StreamingBody(byte[] bytes, CancellationTokenSource? cancellation) : Stream
+    {
+        private int _position;
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => _position; set => throw new NotSupportedException(); }
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            if (cancellation is not null)
+            {
+                cancellation.Cancel();
+                await Task.Delay(Timeout.Infinite, cancellationToken);
+            }
+            var count = Math.Min(Math.Min(buffer.Length, 31), bytes.Length - _position);
+            bytes.AsMemory(_position, count).CopyTo(buffer);
+            _position += count;
+            return count;
+        }
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException("Update body must be streamed asynchronously.");
+        public override void Flush() => throw new NotSupportedException();
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    }
+
     private static byte[] CreateArchive(string name, TarEntryType type, string content)
     {
         using var buffer = new MemoryStream();
@@ -97,7 +196,7 @@ public sealed class LinuxSelfUpdaterTests
     private static HttpClient CreateClient(byte[] archive, string checksum)
         => new(new ReleaseHandler(archive, checksum));
 
-    private sealed class ReleaseHandler(byte[] archive, string checksum) : HttpMessageHandler
+    private sealed class ReleaseHandler(byte[] archive, string checksum, bool knownLength = true, int extraLength = 0, CancellationTokenSource? bodyCancellation = null) : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
@@ -107,9 +206,15 @@ public sealed class LinuxSelfUpdaterTests
             {
                 "https://github.com/dyyxxhh/PCL3/releases/latest" => new StringContent("<a href=\"https://github.com/dyyxxhh/PCL3/releases/tag/v0.2.0\">release</a>"),
                 assetUrl + ".sha256" => new StringContent(checksum),
-                assetUrl => new ByteArrayContent(archive),
+                assetUrl => ArchiveContent(),
                 _ => throw new AssertFailedException("Unexpected update URL: " + url)
             };
+            HttpContent ArchiveContent()
+            {
+                var body = new StreamContent(new StreamingBody(archive, bodyCancellation));
+                if (knownLength) body.Headers.ContentLength = archive.Length + extraLength;
+                return body;
+            }
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = content });
         }
     }

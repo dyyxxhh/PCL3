@@ -1,7 +1,5 @@
-using System.Diagnostics;
 using System.Formats.Tar;
 using System.IO.Compression;
-using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text.RegularExpressions;
@@ -10,7 +8,7 @@ namespace PCL.Linux.Cli;
 
 internal static class LinuxSelfUpdater
 {
-    private const string RepositoryUrl = "https://github.com/dyyxxhh/PCL3";
+    private const string RepositoryUrl = McmInfo.RepositoryUrl;
     private const string ExecutableName = "mcm";
     private const string AssetName = "MCM_Release_linux-x64.tar.gz";
     private static readonly HttpClient Http = CreateHttpClient();
@@ -21,19 +19,26 @@ internal static class LinuxSelfUpdater
             !string.IsNullOrEmpty(AppContext.GetData("APP_CONTEXT_DEPS_FILES") as string))
             throw new NotSupportedException("Self-update requires the published single-file Linux x64 mcm executable.");
 
-        var localVersionText = Assembly.GetEntryAssembly()?.GetCustomAttributes<AssemblyMetadataAttribute>()
-            .FirstOrDefault(attribute => attribute.Key == "McmReleaseVersion")?.Value;
+        var localVersionText = McmInfo.ReleaseVersion;
         if (!TryParseReleaseVersion(localVersionText, out var localVersion))
             throw new NotSupportedException("Self-update requires a versioned official release build.");
         var processPath = Environment.ProcessPath ?? throw new InvalidOperationException("The executable path is unavailable.");
         var target = File.ResolveLinkTarget(processPath, returnFinalTarget: true)?.FullName ?? Path.GetFullPath(processPath);
-        return await UpdateTargetAsync(Http, target, localVersionText!, localVersion, cancellationToken).ConfigureAwait(false);
+        try
+        {
+            return await UpdateTargetAsync(Http, target, localVersionText, localVersion, cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            throw new TimeoutException("MCM update timed out; the original executable was preserved. Please retry.");
+        }
     }
 
-    internal static async Task<int> UpdateTargetAsync(HttpClient http, string target, string localVersionText, Version localVersion, CancellationToken cancellationToken = default)
+    internal static async Task<int> UpdateTargetAsync(HttpClient http, string target, string localVersionText, Version localVersion, CancellationToken cancellationToken = default, TextWriter? progressOutput = null)
     {
         if (!OperatingSystem.IsLinux()) throw new PlatformNotSupportedException("Self-update is supported on Linux only.");
         var targetDirectory = Path.GetDirectoryName(target) ?? throw new InvalidOperationException("The executable directory is unavailable.");
+        Console.WriteLine("Checking MCM updates...");
         var html = await http.GetStringAsync(RepositoryUrl + "/releases/latest", cancellationToken).ConfigureAwait(false);
         var tag = ParseReleaseTag(html);
         if (!TryParseReleaseVersion(tag, out var remoteVersion))
@@ -44,19 +49,20 @@ internal static class LinuxSelfUpdater
             return 0;
         }
         var assetUrl = $"{RepositoryUrl}/releases/download/{Uri.EscapeDataString(tag)}/{AssetName}";
+        Console.WriteLine("Fetching release SHA-256...");
         var expectedHash = ParseSha256(await http.GetStringAsync(assetUrl + ".sha256", cancellationToken).ConfigureAwait(false));
         var archivePath = Path.Combine(Path.GetTempPath(), "mcm-update-" + Guid.NewGuid().ToString("N") + ".tar.gz");
         var stagedPath = Path.Combine(targetDirectory, ".mcm-update-" + Guid.NewGuid().ToString("N"));
         try
         {
             Console.WriteLine($"Downloading MCM Linux {tag}...");
-            await using (var source = await http.GetStreamAsync(assetUrl, cancellationToken).ConfigureAwait(false))
-            await using (var archive = new FileStream(archivePath, FileMode.CreateNew, FileAccess.Write, FileShare.None, 131072, true))
-                await source.CopyToAsync(archive, cancellationToken).ConfigureAwait(false);
+            await DownloadArchiveAsync(http, assetUrl, archivePath, progressOutput, cancellationToken).ConfigureAwait(false);
+            Console.WriteLine("Verifying update SHA-256...");
             var actualHash = await ComputeSha256Async(archivePath, cancellationToken).ConfigureAwait(false);
             if (!actualHash.Equals(expectedHash, StringComparison.OrdinalIgnoreCase))
                 throw new InvalidDataException("Update archive SHA-256 verification failed.");
 
+            Console.WriteLine("Extracting verified MCM update...");
             await using (var archive = File.OpenRead(archivePath))
             await using (var gzip = new GZipStream(archive, CompressionMode.Decompress))
             using (var reader = new TarReader(gzip))
@@ -91,6 +97,36 @@ internal static class LinuxSelfUpdater
             if (File.Exists(archivePath)) File.Delete(archivePath);
             if (File.Exists(stagedPath)) File.Delete(stagedPath);
         }
+    }
+
+    internal static async Task DownloadArchiveAsync(HttpClient http, string url, string path,
+        TextWriter? progressOutput, CancellationToken cancellationToken)
+    {
+        // ResponseHeadersRead stops HttpClient's timeout after the headers. Keep its deadline for the body too.
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        if (http.Timeout != Timeout.InfiniteTimeSpan) timeout.CancelAfter(http.Timeout);
+        var token = timeout.Token;
+        using var response = await http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, token).ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+        var total = response.Content.Headers.ContentLength;
+        using var progress = new ConsoleDownloadProgress(total, progressOutput ?? Console.Error,
+            progressOutput is null && !Console.IsErrorRedirected && Environment.GetEnvironmentVariable("TERM") != "dumb");
+        await using var source = await response.Content.ReadAsStreamAsync(token).ConfigureAwait(false);
+        await using var archive = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None, 131072, true);
+        var buffer = new byte[131072];
+        long downloaded = 0;
+        int count;
+        while ((count = await source.ReadAsync(buffer, token).ConfigureAwait(false)) != 0)
+        {
+            await archive.WriteAsync(buffer.AsMemory(0, count), token).ConfigureAwait(false);
+            downloaded += count;
+            if (total is { } length && downloaded > length)
+                throw new InvalidDataException("Update download exceeded its declared Content-Length.");
+            progress.Report(downloaded);
+        }
+        if (total is { } expected && downloaded != expected)
+            throw new InvalidDataException("Update download ended before its declared Content-Length.");
+        progress.Report(downloaded, completed: true);
     }
 
     internal static bool TryParseReleaseVersion(string? text, out Version version)

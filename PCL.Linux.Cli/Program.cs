@@ -25,6 +25,7 @@ internal static class Program
                 "login" when args is ["login", "offline", _] => await LoginOfflineAsync(args[2]).ConfigureAwait(false),
                 "login" when args is ["login", "authlib", _, _] => await LoginAuthlibAsync(args[2], args[3]).ConfigureAwait(false),
                 "logout" when args.Length == 1 => await LogoutAsync().ConfigureAwait(false),
+                "info" when args is ["info"] => McmInfo.Write(Console.Out),
                 "update" when args is ["update"] => await LinuxSelfUpdater.UpdateAsync().ConfigureAwait(false),
                 "scan" => await InstanceCommands.ScanAsync(args.Skip(1).ToArray()).ConfigureAwait(false),
                 "instance" when args.Length >= 2 && args[1] == "list" => ListInstances(args.Skip(2).ToArray()),
@@ -56,6 +57,7 @@ internal static class Program
         Console.WriteLine("  mcm login offline <玩家名>");
         Console.WriteLine("  mcm login authlib <验证服务器URL> <用户名>");
         Console.WriteLine("  mcm logout");
+        Console.WriteLine("  mcm info");
         Console.WriteLine("  mcm update");
         Console.WriteLine("  mcm scan [path] [--migrate] [--version <id>] [--instance <name>] [--data-dir <path>] [--game-dir <destination>]");
         Console.WriteLine("  mcm instance list [--game-dir <path>]");

@@ -41,8 +41,20 @@ def main():
 
         help_text = run("--help")
         assert "MCM Linux CLI" in help_text
+        assert "mcm info" in help_text
         assert "mcm -R <file.jar>" in help_text
         assert "pcl " not in help_text
+
+        info = run("info")
+        assert info.startswith("MCM Linux CLI "), info
+        assert "https://github.com/dyyxxhh/PCL3" in info
+        assert "PCL.Linux.Cli/README.md" in info and "/issues" in info
+        assert "Minecraft Java" in info and "Linux x86_64 / glibc" in info
+        assert "Apache-2.0" in info
+        assert not (root / "config").exists(), "info should not create configuration"
+        if len(sys.argv) > 2:
+            assert info.splitlines()[0] == f"MCM Linux CLI {sys.argv[2]}", info
+        run("info", "unexpected", expected=2)
 
         game = root / "game with spaces"
         selected = instance(game, "selected")
@@ -88,7 +100,7 @@ def main():
         run("logout")
         assert not profile.exists()
 
-    print("MCM CLI naming/mod removal/legacy compatibility smoke checks: PASS")
+    print("MCM CLI info/version/naming/mod removal/legacy compatibility smoke checks: PASS")
 
 
 if __name__ == "__main__":

@@ -6,7 +6,15 @@ MCM Linux CLI 使用 `PCL.Core.Shared` 中可跨平台的 Minecraft、模组平�
 
 发布包 `MCM_Release_linux-x64.tar.gz` 包含 self-contained 的 Linux x64 `mcm` 可执行文件，不需要单独安装 .NET Runtime。开发构建需要 .NET 10 SDK。首次 Microsoft 登录还需要已授权的 `MCM_MS_CLIENT_ID`；为兼容旧配置，也接受 `PCL_MS_CLIENT_ID`。
 
-解压后可运行 `./mcm --help`；将可执行文件放入 `PATH` 后可直接使用下面的 `mcm` 命令。正式版可用 `mcm update` 更新。旧 `pcl` 可执行文件的更新器仍使用旧发布资源名，更名后的首次升级需手动下载 MCM 发布包，再改用 `mcm` 命令。
+解压后可运行 `./mcm --help`；将可执行文件放入 `PATH` 后可直接使用下面的 `mcm` 命令。正式版可用 `mcm update` 更新。
+
+```sh
+mcm info    # 当前版本、项目地址、文档、反馈入口和功能说明；无需联网
+mcm update  # 从项目 GitHub Release 检查并更新 MCM；需要联网
+```
+
+`mcm update` 下载更新包时显示进度条、百分比、已下载/总大小、平均速度和预计剩余时间；服务器未提供总大小时显示已下载量和速度。交互终端在同一行刷新，重定向输出时定期输出普通文本，不写入终端控制符。下载后会单独提示 SHA-256 校验和解压阶段，验证通过后才替换原程序；下载出错或校验失败会保留原程序。
+旧 `pcl` 可执行文件的更新器仍使用旧发布资源名，更名后的首次升级需手动下载 MCM 发布包，再改用 `mcm` 命令。
 
 ```sh
 mcm -S 1.21.1 --instance FabricTest --loader fabric
