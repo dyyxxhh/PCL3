@@ -123,16 +123,16 @@ public sealed class ForgeLikeLoaderInstaller(HttpClient http)
         {
             ["profiles"] = new JsonObject
             {
-                ["PCL"] = new JsonObject
+                ["MCM"] = new JsonObject
                 {
                     ["icon"] = "Grass",
-                    ["name"] = "PCL",
+                    ["name"] = "MCM",
                     ["lastVersionId"] = "latest-release",
                     ["type"] = "latest-release",
                     ["lastUsed"] = DateTime.UtcNow.ToString("yyyy-MM-dd'T'HH:mm:ss'.0000Z'", CultureInfo.InvariantCulture)
                 }
             },
-            ["selectedProfile"] = "PCL",
+            ["selectedProfile"] = "MCM",
             ["clientToken"] = "23323323323323323323323323323333"
         };
         var temporary = path + "." + Guid.NewGuid().ToString("N") + ".tmp";

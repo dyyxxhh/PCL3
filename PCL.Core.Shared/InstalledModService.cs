@@ -7,7 +7,8 @@ public sealed record InstalledMod(string FileName, ModSource Source, string Proj
 
 public static class InstalledModService
 {
-    private const string ManifestName = "pcl-mods.json";
+    internal const string ManifestName = "mcm-mods.json";
+    internal const string LegacyManifestName = "pcl-mods.json";
 
     public static IReadOnlyList<InstalledMod> List(string instanceDirectory)
     {
@@ -92,6 +93,7 @@ public static class InstalledModService
     private static List<InstalledMod> Load(string instanceDirectory)
     {
         var path = Path.Combine(instanceDirectory, ManifestName);
+        if (!File.Exists(path)) path = Path.Combine(instanceDirectory, LegacyManifestName);
         return !File.Exists(path) ? [] : JsonSerializer.Deserialize<List<InstalledMod>>(File.ReadAllText(path))
             ?? throw new InvalidDataException("Installed mods manifest is invalid.");
     }

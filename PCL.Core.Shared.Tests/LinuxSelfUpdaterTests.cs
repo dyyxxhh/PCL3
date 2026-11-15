@@ -16,7 +16,7 @@ public sealed class LinuxSelfUpdaterTests
         var html = "<link rel=\"canonical\" href=\"https://github.com/dyyxxhh/PCL3/releases/tag/v0.1.8\">";
         Assert.AreEqual("v0.1.8", LinuxSelfUpdater.ParseReleaseTag(html));
         var checksum = new string('a', 64);
-        Assert.AreEqual(checksum, LinuxSelfUpdater.ParseSha256(checksum + "  PCL3_Release_linux-x64.tar.gz\n"));
+        Assert.AreEqual(checksum, LinuxSelfUpdater.ParseSha256(checksum + "  MCM_Release_linux-x64.tar.gz\n"));
     }
 
     [TestMethod]
@@ -30,33 +30,40 @@ public sealed class LinuxSelfUpdaterTests
     }
 
     [TestMethod]
-    public void Version023IsNewerThanPreviousReleaseAndAcceptsReleaseTag()
+    public void Version030IsNewerThanPreviousReleaseAndAcceptsReleaseTag()
     {
-        Assert.IsTrue(LinuxSelfUpdater.TryParseReleaseVersion("v0.2.3", out var released));
-        Assert.IsTrue(LinuxSelfUpdater.TryParseReleaseVersion("0.2.2", out var previous));
+        Assert.IsTrue(LinuxSelfUpdater.TryParseReleaseVersion("v0.3.0", out var released));
+        Assert.IsTrue(LinuxSelfUpdater.TryParseReleaseVersion("0.2.3", out var previous));
         Assert.IsTrue(released > previous);
-        Assert.AreEqual(new Version(0, 2, 3, 0), released);
-        Assert.AreEqual("v0.2.3", LinuxSelfUpdater.ParseReleaseTag(
-            "<link rel=\"canonical\" href=\"https://github.com/dyyxxhh/PCL3/releases/tag/v0.2.3\">"));
+        Assert.AreEqual(new Version(0, 3, 0, 0), released);
+        Assert.AreEqual("v0.3.0", LinuxSelfUpdater.ParseReleaseTag(
+            "<link rel=\"canonical\" href=\"https://github.com/dyyxxhh/PCL3/releases/tag/v0.3.0\">"));
     }
 
     [TestMethod]
-    public async Task UpdateReplacesExecutableOnlyAfterVerification()
+    [DataRow("mcm")]
+    [DataRow("./mcm")]
+    public async Task UpdateReplacesExecutableOnlyAfterVerification(string executableEntry)
     {
         if (!OperatingSystem.IsLinux()) return;
-        var root = Path.Combine(Path.GetTempPath(), "pcl-update-test-" + Guid.NewGuid().ToString("N"));
+        var root = Path.Combine(Path.GetTempPath(), "mcm-update-test-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
-        var target = Path.Combine(root, "pcl");
+        var target = Path.Combine(root, "mcm");
         await File.WriteAllTextAsync(target, "old executable");
         File.SetUnixFileMode(target, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
         try
         {
-            var archive = CreateArchive("pcl", TarEntryType.RegularFile, "new executable");
+            var archive = CreateArchive(executableEntry, TarEntryType.RegularFile, "new executable");
             using var badChecksum = CreateClient(archive, new string('0', 64));
             await Assert.ThrowsExactlyAsync<InvalidDataException>(() => LinuxSelfUpdater.UpdateTargetAsync(badChecksum, target, "0.1.0", new Version(0, 1, 0, 0)));
             Assert.AreEqual("old executable", await File.ReadAllTextAsync(target));
 
-            var malicious = CreateArchive("pcl", TarEntryType.SymbolicLink, "outside");
+            var oldNameArchive = CreateArchive("pcl", TarEntryType.RegularFile, "wrong executable name");
+            using var oldNameClient = CreateClient(oldNameArchive, Convert.ToHexString(SHA256.HashData(oldNameArchive)));
+            await Assert.ThrowsExactlyAsync<InvalidDataException>(() => LinuxSelfUpdater.UpdateTargetAsync(oldNameClient, target, "0.1.0", new Version(0, 1, 0, 0)));
+            Assert.AreEqual("old executable", await File.ReadAllTextAsync(target));
+
+            var malicious = CreateArchive("mcm", TarEntryType.SymbolicLink, "outside");
             using var unsafeClient = CreateClient(malicious, Convert.ToHexString(SHA256.HashData(malicious)));
             await Assert.ThrowsExactlyAsync<InvalidDataException>(() => LinuxSelfUpdater.UpdateTargetAsync(unsafeClient, target, "0.1.0", new Version(0, 1, 0, 0)));
             Assert.AreEqual("old executable", await File.ReadAllTextAsync(target));
@@ -95,11 +102,14 @@ public sealed class LinuxSelfUpdaterTests
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             var url = request.RequestUri!.AbsoluteUri;
-            HttpContent content = url.EndsWith("/releases/latest", StringComparison.Ordinal)
-                ? new StringContent("<a href=\"https://github.com/dyyxxhh/PCL3/releases/tag/v0.2.0\">release</a>")
-                : url.EndsWith(".sha256", StringComparison.Ordinal)
-                    ? new StringContent(checksum)
-                    : new ByteArrayContent(archive);
+            const string assetUrl = "https://github.com/dyyxxhh/PCL3/releases/download/v0.2.0/MCM_Release_linux-x64.tar.gz";
+            HttpContent content = url switch
+            {
+                "https://github.com/dyyxxhh/PCL3/releases/latest" => new StringContent("<a href=\"https://github.com/dyyxxhh/PCL3/releases/tag/v0.2.0\">release</a>"),
+                assetUrl + ".sha256" => new StringContent(checksum),
+                assetUrl => new ByteArrayContent(archive),
+                _ => throw new AssertFailedException("Unexpected update URL: " + url)
+            };
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = content });
         }
     }

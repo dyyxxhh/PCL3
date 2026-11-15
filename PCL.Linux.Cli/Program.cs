@@ -8,6 +8,7 @@ internal static class Program
 {
     private static async Task<int> Main(string[] args)
     {
+        ApplyEnvironmentAliases();
         if (args.Length == 0 || args is ["--help"] or ["-h"] or ["help"])
         {
             PrintHelp();
@@ -29,6 +30,7 @@ internal static class Program
                 "instance" when args.Length >= 2 && args[1] == "list" => ListInstances(args.Skip(2).ToArray()),
                 "-Ss" => await PackageCommands.SearchAsync(args.Skip(1).ToArray()).ConfigureAwait(false),
                 "-S" => await PackageCommands.InstallAsync(args.Skip(1).ToArray()).ConfigureAwait(false),
+                "-R" => await PackageCommands.ManageModsAsync(["remove", .. args.Skip(1)]).ConfigureAwait(false),
                 "mod" => await PackageCommands.ManageModsAsync(args.Skip(1).ToArray()).ConfigureAwait(false),
                 "pack" => await PackageCommands.ManagePackAsync(args.Skip(1).ToArray()).ConfigureAwait(false),
                 "launch" when args.Length >= 2 => await LaunchAsync(args[1], args.Skip(2).ToArray()).ConfigureAwait(false),
@@ -44,31 +46,45 @@ internal static class Program
 
     private static void PrintHelp()
     {
-        Console.WriteLine("PCL Linux CLI (early development)");
+        Console.WriteLine("MCM Linux CLI (early development)");
         Console.WriteLine();
         Console.WriteLine("Usage:");
-        Console.WriteLine("  pcl java scan");
-        Console.WriteLine("  pcl java install <major-version>");
-        Console.WriteLine("  pcl login [microsoft]");
-        Console.WriteLine("  pcl login offline <玩家名>");
-        Console.WriteLine("  pcl login authlib <验证服务器URL> <用户名>");
-        Console.WriteLine("  pcl logout");
-        Console.WriteLine("  pcl update");
-        Console.WriteLine("  pcl scan [path] [--migrate] [--version <id>] [--instance <name>] [--data-dir <path>] [--game-dir <destination>]");
-        Console.WriteLine("  pcl instance list [--game-dir <path>]");
-        Console.WriteLine("  pcl -Ss <mod query> [--game-version <version>] [--loader <loader>] [--source modrinth|curseforge]");
-        Console.WriteLine("  pcl -S <Minecraft version|mod name> [--instance <name>] [--loader fabric|quilt|forge|neoforge] [--loader-version <version>] [--mod-version <version>] [--game-dir <path>]");
-        Console.WriteLine("  pcl mod <list|update|enable|disable|remove> [file.jar] --instance <name> [--game-dir <path>]");
-        Console.WriteLine("  pcl pack <import|export> <file.mrpack|file.zip> --instance <name> [--game-dir <path>]");
-        Console.WriteLine("  pcl launch <instance|version> [--game-dir <path>] [--java <path>]");
-        Console.WriteLine("  pcl --help");
+        Console.WriteLine("  mcm java scan");
+        Console.WriteLine("  mcm java install <major-version>");
+        Console.WriteLine("  mcm login [microsoft]");
+        Console.WriteLine("  mcm login offline <玩家名>");
+        Console.WriteLine("  mcm login authlib <验证服务器URL> <用户名>");
+        Console.WriteLine("  mcm logout");
+        Console.WriteLine("  mcm update");
+        Console.WriteLine("  mcm scan [path] [--migrate] [--version <id>] [--instance <name>] [--data-dir <path>] [--game-dir <destination>]");
+        Console.WriteLine("  mcm instance list [--game-dir <path>]");
+        Console.WriteLine("  mcm -Ss <mod query> [--game-version <version>] [--loader <loader>] [--source modrinth|curseforge]");
+        Console.WriteLine("  mcm -S <Minecraft version|mod name> [--instance <name>] [--loader fabric|quilt|forge|neoforge] [--loader-version <version>] [--mod-version <version>] [--game-dir <path>]");
+        Console.WriteLine("  mcm -R <file.jar> --instance <name> [--game-dir <path>]");
+        Console.WriteLine("  mcm mod <list|update|enable|disable|remove> [file.jar] --instance <name> [--game-dir <path>]");
+        Console.WriteLine("  mcm pack <import|export> <file.mrpack|file.zip> --instance <name> [--game-dir <path>]");
+        Console.WriteLine("  mcm launch <instance|version> [--game-dir <path>] [--java <path>]");
+        Console.WriteLine("  mcm --help");
         Console.WriteLine();
-        Console.WriteLine("Microsoft login requires PCL_MS_CLIENT_ID and stores its refresh token with owner-only file permissions.");
+        Console.WriteLine("Microsoft login requires MCM_MS_CLIENT_ID and stores its refresh token with owner-only file permissions.");
+    }
+
+    private static void ApplyEnvironmentAliases()
+    {
+        // Shared services still consume legacy PCL_* keys; prefer the MCM_* CLI names.
+        CopyEnvironmentVariable("MCM_GAME_DIR", "PCL_GAME_DIR");
+        CopyEnvironmentVariable("MCM_MS_CLIENT_ID", "PCL_MS_CLIENT_ID");
+
+        static void CopyEnvironmentVariable(string source, string destination)
+        {
+            var value = Environment.GetEnvironmentVariable(source);
+            if (!string.IsNullOrWhiteSpace(value)) Environment.SetEnvironmentVariable(destination, value);
+        }
     }
 
     private static int InvalidCommand()
     {
-        Console.Error.WriteLine("Unknown or invalid command. Run 'pcl --help' for usage.");
+        Console.Error.WriteLine("Unknown or invalid command. Run 'mcm --help' for usage.");
         return 2;
     }
 
@@ -188,12 +204,12 @@ internal static class Program
         var installedPath = Path.Combine(gameDirectory, "versions", version, version + ".json");
         if (managed is null && InstanceCommands.RequiresLegacyMigration(gameDirectory, version))
         {
-            Console.Error.WriteLine("This legacy PCL version was found but requires migration before Linux CLI can launch it.");
-            Console.Error.WriteLine($"Run: pcl scan \"{gameDirectory}\" --migrate --version \"{version}\" --instance ImportedGame --game-dir \"{gameDirectory}\"");
+            Console.Error.WriteLine("This legacy PCL version was found but requires migration before MCM can launch it.");
+            Console.Error.WriteLine($"Run: mcm scan \"{gameDirectory}\" --migrate --version \"{version}\" --instance ImportedGame --game-dir \"{gameDirectory}\"");
             return 2;
         }
         if (managed is not null && !File.Exists(installedPath))
-            throw new InvalidDataException($"Instance '{managed.Name}' is incomplete. Reinstall it with pcl -S {managed.GameVersion} --instance {managed.Name}.");
+            throw new InvalidDataException($"Instance '{managed.Name}' is incomplete. Reinstall it with mcm -S {managed.GameVersion} --instance {managed.Name}.");
         if (version.Equals("latest", StringComparison.OrdinalIgnoreCase) || !File.Exists(installedPath))
         {
             Console.WriteLine($"Minecraft {version} is not installed. Installing it now...");
@@ -248,7 +264,7 @@ internal static class Program
             var storedAccount = await MinecraftAccountStore.LoadAsync().ConfigureAwait(false);
             if (storedAccount is null)
             {
-                Console.Error.WriteLine("请先运行 pcl login、pcl login offline 或 pcl login authlib。");
+                Console.Error.WriteLine("请先运行 mcm login、mcm login offline 或 mcm login authlib。");
                 return 1;
             }
             var account = await new MicrosoftMinecraftAuth().RefreshAsync(new MinecraftAccount(storedAccount.UserName, storedAccount.Uuid, string.Empty, storedAccount.RefreshToken, DateTimeOffset.MinValue)).ConfigureAwait(false);
@@ -256,6 +272,7 @@ internal static class Program
             launchOptions = new MinecraftLaunchOptions(gameDirectory, javaPath, account.UserName, account.Uuid, account.AccessToken, "msa");
         }
         else throw new InvalidDataException("未知账户类型，请重新登录。");
+        launchOptions = launchOptions with { LauncherName = "MCM" };
         var process = await installer.LaunchAsync(version, launchOptions).ConfigureAwait(false);
         Console.WriteLine($"Started Minecraft {version} as {launchOptions.PlayerName} with Java at {javaPath}.");
         await process.WaitForExitAsync().ConfigureAwait(false);

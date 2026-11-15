@@ -8,6 +8,14 @@ namespace PCL.Core.Shared.Tests;
 public sealed class LauncherProcessTests
 {
     [TestMethod]
+    public void LauncherBrandIsConfigurableWithoutChangingTheSharedDefault()
+    {
+        var options = new MinecraftLaunchOptions("game", "java");
+        Assert.AreEqual("PCL", options.LauncherName);
+        Assert.AreEqual("MCM", (options with { LauncherName = "MCM" }).LauncherName);
+    }
+
+    [TestMethod]
     public async Task ClasspathUsesMavenCoordinatesAndInheritedJarId()
     {
         if (!OperatingSystem.IsLinux()) return;
@@ -26,15 +34,16 @@ public sealed class LauncherProcessTests
                 new JsonObject { ["name"] = "com.example:sample:1.2.3" },
                 new JsonObject { ["name"] = "com.example:forge:2.0:client" },
                 new JsonObject { ["name"] = "org.example:custom:2.0", ["downloads"] = new JsonObject { ["artifact"] = new JsonObject { ["path"] = "custom/path.jar" } } }),
-            ["arguments"] = new JsonObject { ["jvm"] = new JsonArray("-Djava.library.path=${natives_directory}", "-cp", "${classpath}"), ["game"] = new JsonArray() }
+            ["arguments"] = new JsonObject { ["jvm"] = new JsonArray("-Djava.library.path=${natives_directory}", "-Dminecraft.launcher.brand=${launcher_name}", "-cp", "${classpath}"), ["game"] = new JsonArray() }
         };
         await File.WriteAllTextAsync(Path.Combine(root, "versions", "profile", "profile.json"), metadata.ToJsonString());
         try
         {
-            using var process = await new MinecraftInstaller().LaunchAsync("profile", new MinecraftLaunchOptions(root, java, "Steve", "123", "token", "legacy"));
+            using var process = await new MinecraftInstaller().LaunchAsync("profile", new MinecraftLaunchOptions(root, java, "Steve", "123", "token", "legacy", LauncherName: "MCM"));
             await process.WaitForExitAsync();
             Assert.AreEqual(0, process.ExitCode);
             var args = await File.ReadAllLinesAsync(capture);
+            CollectionAssert.Contains(args, "-Dminecraft.launcher.brand=MCM");
             var classpath = args[Array.IndexOf(args, "-cp") + 1].Split(Path.PathSeparator);
             CollectionAssert.Contains(classpath, Path.Combine(root, "libraries", "com", "example", "sample", "1.2.3", "sample-1.2.3.jar"));
             CollectionAssert.Contains(classpath, Path.Combine(root, "libraries", "com", "example", "forge", "2.0", "forge-2.0-client.jar"));

@@ -152,13 +152,14 @@ jobs:
             --configuration Release --runtime linux-x64 --self-contained true \
             -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true \
             -p:UseSharedCompilation=false \
-            -p:PclReleaseVersion="${{ inputs.version }}" \
+            -p:McmReleaseVersion="${{ inputs.version }}" \
             -o ./linux-artifact
-          test -x ./linux-artifact/pcl
+          test -x ./linux-artifact/mcm
+          python3 scripts/check_mcm_cli.py ./linux-artifact/mcm
           cp PCL.Linux.Cli/README.md ./linux-artifact/README.md
           cp LICENSE ./linux-artifact/LICENSE
-          tar -C ./linux-artifact -czf "PCL3_${{ inputs.configuration }}_linux-x64.tar.gz" pcl README.md LICENSE
-          sha256sum "PCL3_${{ inputs.configuration }}_linux-x64.tar.gz" > "PCL3_${{ inputs.configuration }}_linux-x64.tar.gz.sha256"
+          tar -C ./linux-artifact -czf "MCM_${{ inputs.configuration }}_linux-x64.tar.gz" mcm README.md LICENSE
+          sha256sum "MCM_${{ inputs.configuration }}_linux-x64.tar.gz" > "MCM_${{ inputs.configuration }}_linux-x64.tar.gz.sha256"
       - name: Upload Linux CLI to Release
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
@@ -166,8 +167,8 @@ jobs:
           target_commitish: ${{ github.sha }}
           tag_name: v${{ inputs.version }}
           files: |
-            PCL3_${{ inputs.configuration }}_linux-x64.tar.gz
-            PCL3_${{ inputs.configuration }}_linux-x64.tar.gz.sha256
+            MCM_${{ inputs.configuration }}_linux-x64.tar.gz
+            MCM_${{ inputs.configuration }}_linux-x64.tar.gz.sha256
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -181,4 +182,3 @@ jobs:
           target_commitish: ${{ github.sha }}
           tag_name: v${{ inputs.version }}
           draft: false
-

@@ -13,23 +13,23 @@ internal static class PackageCommands
     internal static async Task<int> SearchAsync(string[] arguments)
     {
         if (!Parse(arguments, ["game-dir", "game-version", "loader", "source"], out var terms, out var options) || terms.Length == 0)
-            return Usage("Usage: pcl -Ss <mod search terms> [--game-version <version>] [--loader <loader>] [--source modrinth|curseforge]");
+            return Usage("Usage: mcm -Ss <mod search terms> [--game-version <version>] [--loader <loader>] [--source modrinth|curseforge]");
         var source = GetSource(options.GetValueOrDefault("source"));
         if (source == ModSource.CurseForge && string.IsNullOrWhiteSpace(LinuxSecrets.CurseForgeApiKey))
-            return Usage("CurseForge requires PCL_CURSEFORGE_API_KEY configured at build time.");
+            return Usage("CurseForge is unavailable in this build; use a release built with the CurseForge key.");
         var platform = new ModPlatformService(Http, LinuxSecrets.CurseForgeApiKey);
         var matches = await platform.SearchModsAsync(string.Join(' ', terms), options.GetValueOrDefault("game-version"), options.GetValueOrDefault("loader")).ConfigureAwait(false);
         foreach (var item in matches.Where(item => source is null || source == item.Source))
             Console.WriteLine($"{item.Source.ToString().ToLowerInvariant()}:{item.Id}\t{item.Name}\t{item.Description}");
         if (string.IsNullOrWhiteSpace(LinuxSecrets.CurseForgeApiKey) && source != ModSource.Modrinth)
-            Console.Error.WriteLine("CurseForge results unavailable: the release lacks PCL_CURSEFORGE_API_KEY; Modrinth results are still shown.");
+            Console.Error.WriteLine("CurseForge results are unavailable in this build; Modrinth results are still shown.");
         return 0;
     }
 
     internal static async Task<int> InstallAsync(string[] arguments)
     {
         if (!Parse(arguments, ["game-dir", "instance", "loader", "loader-version", "source", "mod-version"], out var terms, out var options) || terms.Length != 1)
-            return Usage("Usage: pcl -S <Minecraft version|mod name> [--instance <name>] [--loader forge|neoforge|fabric|quilt] [--game-dir <path>]");
+            return Usage("Usage: mcm -S <Minecraft version|mod name> [--instance <name>] [--loader forge|neoforge|fabric|quilt] [--game-dir <path>]");
         var target = terms[0];
         var gameDirectory = MinecraftInstanceService.ResolveGameDirectory(options.GetValueOrDefault("game-dir"));
         if (options.ContainsKey("loader-version") && !options.ContainsKey("loader"))
@@ -85,8 +85,8 @@ internal static class PackageCommands
             : Select(instances, i => $"{i.Name} ({i.GameVersion} {i.Loader ?? "vanilla"})", "Select the destination instance");
         if (instance is null)
         {
-            if (options.ContainsKey("instance")) return Usage("The requested instance does not exist. Install it first using pcl -S <Minecraft version> --loader <loader> --instance <name>.");
-            if (Console.IsInputRedirected) return Usage("No instance selected. Provide --instance <name> (or create an instance first with pcl -S <Minecraft version> --loader <loader>).");
+            if (options.ContainsKey("instance")) return Usage("The requested instance does not exist. Install it first using mcm -S <Minecraft version> --loader <loader> --instance <name>.");
+            if (Console.IsInputRedirected) return Usage("No instance selected. Provide --instance <name> (or create an instance first with mcm -S <Minecraft version> --loader <loader>).");
             Console.Write("No instance found. Minecraft version for a new instance (e.g. 1.21.1): ");
             var version = Console.ReadLine()?.Trim();
             Console.Write("Loader (fabric/forge/neoforge/quilt): ");
@@ -100,11 +100,11 @@ internal static class PackageCommands
             if (await InstallGameAsync(version, gameDirectory, createOptions).ConfigureAwait(false) != 0) return 2;
             instance = ManagedInstanceService.Find(gameDirectory, chosenName);
         }
-        if (instance?.Loader is null) return Usage("This instance has no mod loader. Create one with pcl -S <Minecraft version> --loader <loader> --instance <name>.");
+        if (instance?.Loader is null) return Usage("This instance has no mod loader. Create one with mcm -S <Minecraft version> --loader <loader> --instance <name>.");
 
         var source = GetSource(options.GetValueOrDefault("source"));
         if (source == ModSource.CurseForge && string.IsNullOrWhiteSpace(LinuxSecrets.CurseForgeApiKey))
-            return Usage("CurseForge requires PCL_CURSEFORGE_API_KEY configured at build time.");
+            return Usage("CurseForge is unavailable in this build; use a release built with the CurseForge key.");
         var platform = new ModPlatformService(Http, LinuxSecrets.CurseForgeApiKey);
         ModProject[] matches;
         using (var progress = new ConsoleInstallProgress($"Searching compatible mods for {query}"))
@@ -115,7 +115,7 @@ internal static class PackageCommands
             || item.Name.Equals(query, StringComparison.OrdinalIgnoreCase)).ToArray();
         var selected = exact.Length == 1 ? exact[0] : Select(exact.Length > 0 ? exact : matches,
             item => $"{item.Source.ToString().ToLowerInvariant()}:{item.Id} {item.Name}", "Select the mod to install");
-        if (selected is null) return Usage("No unambiguous compatible mod found. Search with pcl -Ss <name>, or specify --source and --instance.");
+        if (selected is null) return Usage("No unambiguous compatible mod found. Search with mcm -Ss <name>, or specify --source and --instance.");
         var visited = new HashSet<string>(StringComparer.Ordinal);
         await InstallModTreeAsync(selected, options.GetValueOrDefault("mod-version"), instance, platform, visited, 0).ConfigureAwait(false);
         Console.WriteLine($"Installed {selected.Name} and required dependencies to instance '{instance.Name}'.");
@@ -150,7 +150,7 @@ internal static class PackageCommands
     {
         if (!Parse(arguments, ["instance", "game-dir"], out var terms, out var options)
             || terms.Length != 2 || terms[0] is not ("import" or "export"))
-            return Usage("Usage: pcl pack <import|export> <file.mrpack|file.zip> --instance <name> [--game-dir <path>]");
+            return Usage("Usage: mcm pack <import|export> <file.mrpack|file.zip> --instance <name> [--game-dir <path>]");
         var gameDirectory = MinecraftInstanceService.ResolveGameDirectory(options.GetValueOrDefault("game-dir"));
         var path = Path.GetFullPath(terms[1]);
         using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(10) };
@@ -183,7 +183,7 @@ internal static class PackageCommands
         if (plan.Loader is not null && plan.Loader is not ("forge" or "neoforge" or "fabric" or "quilt"))
             return Usage($"This pack requires an unsupported loader: {plan.Loader}");
         if (plan.Files.Any(file => file.CurseForgeProject is not null) && string.IsNullOrWhiteSpace(LinuxSecrets.CurseForgeApiKey))
-            return Usage("CurseForge pack import requires a release built with PCL_CURSEFORGE_API_KEY.");
+            return Usage("CurseForge pack import requires a release built with the CurseForge key.");
         using (var progress = new ConsoleInstallProgress("Preparing modpack installation"))
         {
             var minecraft = await new MinecraftInstaller().InstallAsync(plan.MinecraftVersion, directory, progress).ConfigureAwait(false);
@@ -210,7 +210,7 @@ internal static class PackageCommands
     {
         if (!Parse(arguments, ["instance", "game-dir"], out var terms, out var options)
             || terms.Length is < 1 or > 2 || terms[0] is not ("list" or "update" or "enable" or "disable" or "remove"))
-            return Usage("Usage: pcl mod <list|update|enable|disable|remove> [file.jar] --instance <name> [--game-dir <path>]");
+            return Usage("Usage: mcm mod <list|update|enable|disable|remove> [file.jar] --instance <name> [--game-dir <path>]");
         if (!options.TryGetValue("instance", out var name))
             return Usage("Mod management requires --instance <name> (also when running without a terminal).");
         var gameDirectory = MinecraftInstanceService.ResolveGameDirectory(options.GetValueOrDefault("game-dir"));
@@ -219,11 +219,11 @@ internal static class PackageCommands
         var mods = InstalledModService.List(instance.DirectoryPath);
         if (terms[0] == "list")
         {
-            if (terms.Length != 1) return Usage("Usage: pcl mod list --instance <name>");
+            if (terms.Length != 1) return Usage("Usage: mcm mod list --instance <name>");
             foreach (var mod in mods) Console.WriteLine($"{mod.FileName}\t{(mod.Disabled ? "disabled" : "enabled")}\t{mod.ProjectName}");
             return 0;
         }
-        if (terms.Length != 2) return Usage($"Usage: pcl mod {terms[0]} <file.jar> --instance <name>");
+        if (terms.Length != 2) return Usage($"Usage: mcm mod {terms[0]} <file.jar> --instance <name>");
         var selected = mods.FirstOrDefault(item => item.FileName == terms[1]);
         if (selected is null) return Usage($"Mod '{terms[1]}' was not found in instance '{name}'.");
         switch (terms[0])

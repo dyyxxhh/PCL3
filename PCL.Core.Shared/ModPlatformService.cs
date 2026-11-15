@@ -220,7 +220,7 @@ public sealed class ModPlatformService(HttpClient http, string? curseForgeApiKey
     private HttpRequestMessage CreateCurseForgeRequest(string url)
     {
         if (string.IsNullOrWhiteSpace(curseForgeApiKey))
-            throw new InvalidOperationException("CurseForge requires a configured PCL_CURSEFORGE_API_KEY.");
+            throw new InvalidOperationException("CurseForge requires a configured API key.");
         var request = new HttpRequestMessage(HttpMethod.Get, url);
         request.Headers.TryAddWithoutValidation("x-api-key", curseForgeApiKey);
         return request;

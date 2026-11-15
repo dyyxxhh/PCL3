@@ -124,6 +124,11 @@ public sealed class ModLoaderAndPackTests
             var plan = service.ReadPlan(export);
             using (var zip = ZipFile.OpenRead(export))
             {
+                var manifest = zip.GetEntry(curseForge ? "manifest.json" : "modrinth.index.json")!;
+                using var manifestStream = manifest.Open();
+                var metadata = System.Text.Json.Nodes.JsonNode.Parse(manifestStream)!;
+                Assert.AreEqual(curseForge ? "MCM Linux CLI" : "Exported by MCM Linux CLI",
+                    metadata[curseForge ? "author" : "summary"]!.GetValue<string>());
                 Assert.IsNotNull(zip.GetEntry("overrides/config/example.json"));
                 Assert.IsNotNull(zip.GetEntry("overrides/kubejs/startup.js"));
                 Assert.IsNull(zip.GetEntry("overrides/accounts.json"));

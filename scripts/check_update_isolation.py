@@ -53,7 +53,14 @@ for name in ('AssemblyVersion', 'FileVersion'):
     assert project.findtext(f'.//{name}') == release_version + '.0', name
 workflow = (ROOT / '.github/workflows/release-publish.yml').read_text(encoding='utf-8')
 linux_updater = (ROOT / 'PCL.Linux.Cli/LinuxSelfUpdater.cs').read_text(encoding='utf-8')
-assert '-p:PclReleaseVersion="${{ inputs.version }}"' in workflow
-assert 'PCL3_${{ inputs.configuration }}_linux-x64.tar.gz' in workflow
-assert 'PCL3_Release_linux-x64.tar.gz' in linux_updater
+assert '-p:McmReleaseVersion="${{ inputs.version }}"' in workflow
+assert 'MCM_${{ inputs.configuration }}_linux-x64.tar.gz' in workflow
+assert 'MCM_Release_linux-x64.tar.gz' in linux_updater
+assert 'test -x ./linux-artifact/mcm' in workflow
+assert 'mcm README.md LICENSE' in workflow
+linux_project = ET.parse(ROOT / 'PCL.Linux.Cli/PCL.Linux.Cli.csproj').getroot()
+assert linux_project.findtext('.//AssemblyName') == 'mcm'
+assert linux_project.find('.//AssemblyMetadata').attrib == {
+    'Include': 'McmReleaseVersion', 'Value': '$(McmReleaseVersion)'
+}
 print('GitHub-only update source / no channels or CDK: PASS')

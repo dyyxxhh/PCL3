@@ -6,11 +6,13 @@ public static class LauncherProfileStore
 {
     private static readonly JsonSerializerOptions Options = new(JsonSerializerDefaults.Web);
     public static string PathName => Path.Combine(Path.GetDirectoryName(MinecraftAccountStore.AccountPath)!, "selected-profile.json");
+    private static string LegacyPathName => Path.Combine(Path.GetDirectoryName(MinecraftAccountStore.LegacyAccountPath)!, "selected-profile.json");
 
     public static async Task<LauncherProfile?> LoadAsync(CancellationToken token = default)
     {
-        if (!File.Exists(PathName)) return null;
-        await using var stream = File.OpenRead(PathName);
+        var path = File.Exists(PathName) ? PathName : LegacyPathName;
+        if (!File.Exists(path)) return null;
+        await using var stream = File.OpenRead(path);
         return await JsonSerializer.DeserializeAsync<LauncherProfile>(stream, Options, token);
     }
 
@@ -32,5 +34,9 @@ public static class LauncherProfileStore
         finally { if (File.Exists(temporary)) File.Delete(temporary); }
     }
 
-    public static void Delete() { if (File.Exists(PathName)) File.Delete(PathName); }
+    public static void Delete()
+    {
+        foreach (var path in new[] { PathName, LegacyPathName })
+            if (File.Exists(path)) File.Delete(path);
+    }
 }

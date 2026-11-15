@@ -119,8 +119,8 @@ public sealed class ModpackService(HttpClient http, string? curseForgeApiKey = n
             if (file.Url is null || file.Sha1 is null || !IsSha1(file.Sha1))
                 throw new InvalidDataException($"A verified download is unavailable for {file.Path}.");
             var destination = SafePath(instanceDirectory, file.Path);
-            if (destination.EndsWith("pcl-instance.json", StringComparison.Ordinal) || destination.EndsWith("pcl-mods.json", StringComparison.Ordinal))
-                throw new InvalidDataException("Modpack files may not replace PCL instance metadata.");
+            if (IsLauncherMetadataPath(destination))
+                throw new InvalidDataException("Modpack files may not replace launcher instance metadata.");
             if (!Uri.TryCreate(file.Url, UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttps)
                 throw new InvalidDataException("Modpack downloads must use HTTPS.");
             Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
@@ -186,8 +186,8 @@ public sealed class ModpackService(HttpClient http, string? curseForgeApiKey = n
                 throw new InvalidDataException("Modpack overrides exceed the allowed extraction size.");
             var relative = entry.FullName[prefix.Length..];
             var destination = SafePath(instanceDirectory, relative);
-            if (destination.EndsWith("pcl-instance.json", StringComparison.Ordinal) || destination.EndsWith("pcl-mods.json", StringComparison.Ordinal))
-                throw new InvalidDataException("Modpack overrides may not replace PCL instance metadata.");
+            if (IsLauncherMetadataPath(destination))
+                throw new InvalidDataException("Modpack overrides may not replace launcher instance metadata.");
             Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
             if (File.Exists(destination)) throw new IOException($"Modpack override would overwrite an existing file: {entry.FullName}");
             await using var source = entry.Open();
@@ -207,7 +207,7 @@ public sealed class ModpackService(HttpClient http, string? curseForgeApiKey = n
             ["game"] = "minecraft",
             ["versionId"] = "1.0.0",
             ["name"] = instance.Name,
-            ["summary"] = "Exported by PCL Linux CLI",
+            ["summary"] = "Exported by MCM Linux CLI",
             ["files"] = new JsonArray(mods.Where(mod => !mod.Disabled).Select(mod => (JsonNode?)new JsonObject
             {
                 ["path"] = "mods/" + mod.FileName,
@@ -259,7 +259,7 @@ public sealed class ModpackService(HttpClient http, string? curseForgeApiKey = n
             ["manifestVersion"] = 1,
             ["name"] = instance.Name,
             ["version"] = "1.0.0",
-            ["author"] = "PCL Linux CLI",
+            ["author"] = "MCM Linux CLI",
             ["files"] = new JsonArray(mods.Select(mod => (JsonNode?)new JsonObject
             {
                 ["projectID"] = long.Parse(mod.ProjectId),
@@ -330,7 +330,7 @@ public sealed class ModpackService(HttpClient http, string? curseForgeApiKey = n
     private async Task<ModpackFile> ResolveCurseForgeFileAsync(ModpackFile file, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(curseForgeApiKey))
-            throw new InvalidOperationException("CurseForge modpack installation requires PCL_CURSEFORGE_API_KEY.");
+            throw new InvalidOperationException("CurseForge modpack installation requires a configured API key.");
         var url = $"https://api.curseforge.com/v1/mods/{Uri.EscapeDataString(file.CurseForgeProject!)}/files/{Uri.EscapeDataString(file.CurseForgeFile!)}";
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
         request.Headers.TryAddWithoutValidation("x-api-key", curseForgeApiKey);
@@ -362,6 +362,12 @@ public sealed class ModpackService(HttpClient http, string? curseForgeApiKey = n
     }
 
     private static bool IsSha1(string value) => value.Length == 40 && value.All(Uri.IsHexDigit);
+
+    private static bool IsLauncherMetadataPath(string path)
+        => path.EndsWith(ManagedInstanceService.MetadataFileName, StringComparison.Ordinal)
+            || path.EndsWith(ManagedInstanceService.LegacyMetadataFileName, StringComparison.Ordinal)
+            || path.EndsWith(InstalledModService.ManifestName, StringComparison.Ordinal)
+            || path.EndsWith(InstalledModService.LegacyManifestName, StringComparison.Ordinal);
 
     private static string SafePath(string root, string relative)
     {

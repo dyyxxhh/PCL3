@@ -23,7 +23,7 @@ internal static class InstanceCommands
                 var key = args[i][2..];
                 if (key is not ("game-dir" or "version" or "instance" or "data-dir") || i + 1 == args.Length
                     || args[i + 1].StartsWith("--", StringComparison.Ordinal) || !options.TryAdd(key, args[++i]))
-                    return Usage("Invalid scan option. Usage: pcl scan [path] [--migrate] [--version <id>] [--instance <name>] [--data-dir <path>] [--game-dir <destination>]");
+                    return Usage("Invalid scan option. Usage: mcm scan [path] [--migrate] [--version <id>] [--instance <name>] [--data-dir <path>] [--game-dir <destination>]");
             }
             else if (sourcePath is null) sourcePath = args[i];
             else return Usage("scan accepts only one source path.");
@@ -40,7 +40,7 @@ internal static class InstanceCommands
             roots = new[] { destination }.Concat(defaults).Where(Directory.Exists)
                 .Select(MinecraftInstanceMigration.ResolveScanDirectory).Distinct(StringComparer.Ordinal).ToArray();
         }
-        Console.WriteLine($"PCL3 game directory: {destination}");
+        Console.WriteLine($"MCM game directory: {destination}");
         var candidates = new List<ScannedMinecraftInstance>();
         foreach (var root in roots)
         {
@@ -56,17 +56,17 @@ internal static class InstanceCommands
         }
         if (candidates.Count == 0)
         {
-            Console.WriteLine("No compatible versions found. Use pcl scan /path/to/.minecraft to inspect another directory.");
+            Console.WriteLine("No compatible versions found. Use mcm scan /path/to/.minecraft to inspect another directory.");
             return migrate ? Usage("No version is available to migrate.") : 0;
         }
         if (!migrate)
         {
             if (Console.IsInputRedirected)
             {
-                Console.WriteLine("To copy a version into a PCL3 instance: pcl scan <path> --migrate --version <id> --instance <name>.");
+                Console.WriteLine("To copy a version into an MCM instance: mcm scan <path> --migrate --version <id> --instance <name>.");
                 return 0;
             }
-            Console.Write("Migrate a version to a PCL3 instance? Original files are kept. [y/N]: ");
+            Console.Write("Migrate a version to an MCM instance? Original files are kept. [y/N]: ");
             if (!string.Equals(Console.ReadLine()?.Trim(), "y", StringComparison.OrdinalIgnoreCase)) return 0;
         }
         ScannedMinecraftInstance? selected;
@@ -92,7 +92,7 @@ internal static class InstanceCommands
             if (Console.IsInputRedirected) return Usage("Non-interactive migration requires --instance <name>.");
             var suggested = Regex.Replace(selected.Id, "[^a-zA-Z0-9._-]", "_").TrimStart('.', '-', '_');
             if (string.IsNullOrEmpty(suggested)) suggested = "imported-instance";
-            Console.Write($"PCL3 instance name [{suggested}]: ");
+            Console.Write($"MCM instance name [{suggested}]: ");
             name = Console.ReadLine()?.Trim();
             if (string.IsNullOrEmpty(name)) name = suggested;
         }
@@ -114,7 +114,7 @@ internal static class InstanceCommands
             installed = await MinecraftInstanceMigration.MigrateAsync(selected, destination, name, data).ConfigureAwait(false);
         Console.WriteLine($"Migrated '{installed.Name}' (Minecraft {installed.GameVersion}, {installed.Loader ?? "vanilla"}).");
         Console.WriteLine("Original files were kept. Launch with:");
-        Console.WriteLine($"  pcl launch {installed.Name} --game-dir \"{destination}\"");
+        Console.WriteLine($"  mcm launch {installed.Name} --game-dir \"{destination}\"");
         return 0;
     }
 

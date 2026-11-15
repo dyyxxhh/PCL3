@@ -9,10 +9,10 @@ PCL₃ 是基于 PCL Community Edition 的 Minecraft Java 版启动器 fork。Wi
 - `Plain Craft Launcher 2/`：Windows WPF 入口、页面、控件、Minecraft 下载/启动模块及资源；项目文件为 `Plain Craft Launcher 2.csproj`。
 - `PCL.Core/`：现有 Windows 核心，目标 `net10.0-windows`，包含业务、WPF UI 和平台服务，不能直接作为跨平台库使用。
 - `PCL.Core.Shared/`：`net10.0` 共享代码，包括 Linux 原版安装、Java 发现、启动和认证。Windows 当前仅部分使用该库（例如 Java 版本规则），不要误称所有启动逻辑已经共享。
-- `PCL.Linux.Cli/`：Linux CLI 命令、终端交互；详细命令参见其 README。
+- `PCL.Linux.Cli/`：MCM Linux CLI 命令、终端交互，可执行文件为 `mcm`；详细命令参见其 README。
 - `PCL.Core.Shared.Tests/`：共享核心 MSTest 测试。
 - `PCL.Core.Test/`：Windows 核心测试；`PCL.Core.SourceGenerators/`：源生成器；`tests/UpdateRegression/`：更新回归测试。
-- `.github/workflows/`：CI、复用 Windows 构建和手动 Release workflow；发布资源统一使用 `PCL3_` 前缀。
+- `.github/workflows/`：CI、复用 Windows 构建和手动 Release workflow；Windows 发布资源使用 `PCL3_` 前缀，MCM Linux CLI 使用 `MCM_` 前缀。
 - `docs/research/`：研究记录；注意保留现有未跟踪文件。
 
 ## 构建与验证
@@ -23,6 +23,7 @@ PCL₃ 是基于 PCL Community Edition 的 Minecraft Java 版启动器 fork。Wi
 dotnet build PCL.Linux.Cli/PCL.Linux.Cli.csproj
 dotnet test PCL.Core.Shared.Tests/PCL.Core.Shared.Tests.csproj
 dotnet publish PCL.Linux.Cli/PCL.Linux.Cli.csproj -c Release -r linux-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o ./artifact-linux
+python3 scripts/check_mcm_cli.py ./artifact-linux/mcm
 dotnet build "Plain Craft Launcher 2/Plain Craft Launcher 2.csproj"
 python3 scripts/check_launcher_fixes.py
 python3 scripts/check_update_isolation.py

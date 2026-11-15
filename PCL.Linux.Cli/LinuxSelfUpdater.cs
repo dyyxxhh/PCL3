@@ -11,17 +11,18 @@ namespace PCL.Linux.Cli;
 internal static class LinuxSelfUpdater
 {
     private const string RepositoryUrl = "https://github.com/dyyxxhh/PCL3";
-    private const string AssetName = "PCL3_Release_linux-x64.tar.gz";
+    private const string ExecutableName = "mcm";
+    private const string AssetName = "MCM_Release_linux-x64.tar.gz";
     private static readonly HttpClient Http = CreateHttpClient();
 
     public static async Task<int> UpdateAsync(CancellationToken cancellationToken = default)
     {
         if (!OperatingSystem.IsLinux() || RuntimeInformation.ProcessArchitecture != Architecture.X64 ||
             !string.IsNullOrEmpty(AppContext.GetData("APP_CONTEXT_DEPS_FILES") as string))
-            throw new NotSupportedException("Self-update requires the published single-file Linux x64 pcl executable.");
+            throw new NotSupportedException("Self-update requires the published single-file Linux x64 mcm executable.");
 
         var localVersionText = Assembly.GetEntryAssembly()?.GetCustomAttributes<AssemblyMetadataAttribute>()
-            .FirstOrDefault(attribute => attribute.Key == "PclReleaseVersion")?.Value;
+            .FirstOrDefault(attribute => attribute.Key == "McmReleaseVersion")?.Value;
         if (!TryParseReleaseVersion(localVersionText, out var localVersion))
             throw new NotSupportedException("Self-update requires a versioned official release build.");
         var processPath = Environment.ProcessPath ?? throw new InvalidOperationException("The executable path is unavailable.");
@@ -44,11 +45,11 @@ internal static class LinuxSelfUpdater
         }
         var assetUrl = $"{RepositoryUrl}/releases/download/{Uri.EscapeDataString(tag)}/{AssetName}";
         var expectedHash = ParseSha256(await http.GetStringAsync(assetUrl + ".sha256", cancellationToken).ConfigureAwait(false));
-        var archivePath = Path.Combine(Path.GetTempPath(), "pcl-update-" + Guid.NewGuid().ToString("N") + ".tar.gz");
-        var stagedPath = Path.Combine(targetDirectory, ".pcl-update-" + Guid.NewGuid().ToString("N"));
+        var archivePath = Path.Combine(Path.GetTempPath(), "mcm-update-" + Guid.NewGuid().ToString("N") + ".tar.gz");
+        var stagedPath = Path.Combine(targetDirectory, ".mcm-update-" + Guid.NewGuid().ToString("N"));
         try
         {
-            Console.WriteLine($"Downloading PCL Linux {tag}...");
+            Console.WriteLine($"Downloading MCM Linux {tag}...");
             await using (var source = await http.GetStreamAsync(assetUrl, cancellationToken).ConfigureAwait(false))
             await using (var archive = new FileStream(archivePath, FileMode.CreateNew, FileAccess.Write, FileShare.None, 131072, true))
                 await source.CopyToAsync(archive, cancellationToken).ConfigureAwait(false);
@@ -64,14 +65,14 @@ internal static class LinuxSelfUpdater
                 var extracted = false;
                 while ((entry = reader.GetNextEntry()) is not null)
                 {
-                    if (entry.Name is not ("pcl" or "./pcl")) continue;
+                    if (entry.Name is not (ExecutableName or "./mcm")) continue;
                     if (extracted || entry.EntryType is not (TarEntryType.RegularFile or TarEntryType.V7RegularFile) || entry.DataStream is null)
-                        throw new InvalidDataException("Invalid pcl entry in update archive.");
+                        throw new InvalidDataException("Invalid mcm entry in update archive.");
                     await using var output = new FileStream(stagedPath, FileMode.CreateNew, FileAccess.Write, FileShare.None, 131072, true);
                     await entry.DataStream.CopyToAsync(output, cancellationToken).ConfigureAwait(false);
                     extracted = true;
                 }
-                if (!extracted) throw new InvalidDataException("Update archive does not contain pcl.");
+                if (!extracted) throw new InvalidDataException("Update archive does not contain mcm.");
             }
 
             if ((await ComputeSha256Async(stagedPath, cancellationToken).ConfigureAwait(false)).Equals(
@@ -82,7 +83,7 @@ internal static class LinuxSelfUpdater
             }
             File.SetUnixFileMode(stagedPath, File.GetUnixFileMode(target));
             File.Move(stagedPath, target, overwrite: true);
-            Console.WriteLine($"Updated to {tag}. Run pcl again to use the new version.");
+            Console.WriteLine($"Updated to {tag}. Run mcm again to use the new version.");
             return 0;
         }
         finally
@@ -128,7 +129,7 @@ internal static class LinuxSelfUpdater
     private static HttpClient CreateHttpClient()
     {
         var client = new HttpClient { Timeout = TimeSpan.FromMinutes(10) };
-        client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 PCL3-Linux-Updater/1.0");
+        client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 MCM-Linux-Updater/1.0");
         return client;
     }
 }

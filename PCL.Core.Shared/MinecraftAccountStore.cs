@@ -8,21 +8,21 @@ public static class MinecraftAccountStore
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
-    public static string AccountPath
+    public static string AccountPath => GetAccountPath("mcm");
+    internal static string LegacyAccountPath => GetAccountPath("pcl-linux");
+
+    private static string GetAccountPath(string directory)
     {
-        get
-        {
-            var configHome = Environment.GetEnvironmentVariable("XDG_CONFIG_HOME");
-            var root = !string.IsNullOrWhiteSpace(configHome)
-                ? configHome
-                : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".config");
-            return Path.Combine(root, "pcl-linux", "microsoft-account.json");
-        }
+        var configHome = Environment.GetEnvironmentVariable("XDG_CONFIG_HOME");
+        var root = !string.IsNullOrWhiteSpace(configHome)
+            ? configHome
+            : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".config");
+        return Path.Combine(root, directory, "microsoft-account.json");
     }
 
     public static async Task<StoredMinecraftAccount?> LoadAsync(CancellationToken cancellationToken = default)
     {
-        var path = AccountPath;
+        var path = File.Exists(AccountPath) ? AccountPath : LegacyAccountPath;
         if (!File.Exists(path)) return null;
         await using var stream = File.OpenRead(path);
         return await JsonSerializer.DeserializeAsync<StoredMinecraftAccount>(stream, JsonOptions, cancellationToken).ConfigureAwait(false);
@@ -55,8 +55,8 @@ public static class MinecraftAccountStore
 
     public static Task DeleteAsync()
     {
-        var path = AccountPath;
-        if (File.Exists(path)) File.Delete(path);
+        foreach (var path in new[] { AccountPath, LegacyAccountPath })
+            if (File.Exists(path)) File.Delete(path);
         return Task.CompletedTask;
     }
 }

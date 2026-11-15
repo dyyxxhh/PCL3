@@ -19,7 +19,8 @@ public sealed record MinecraftLaunchOptions(
     string AccessToken = "0",
     string UserType = "legacy",
     string? AuthlibInjectorPath = null,
-    string? AuthServer = null);
+    string? AuthServer = null,
+    string LauncherName = "PCL");
 
 public sealed class MinecraftInstaller(HttpClient? httpClient = null)
 {
@@ -403,7 +404,7 @@ public sealed class MinecraftInstaller(HttpClient? httpClient = null)
             ["${clientid}"] = "0",
             ["${auth_xuid}"] = "0",
             ["${version_type}"] = "release",
-            ["${launcher_name}"] = "PCL",
+            ["${launcher_name}"] = options.LauncherName,
             ["${launcher_version}"] = "Linux CLI"
         };
         var result = new List<string> { "-Xmx2G" };

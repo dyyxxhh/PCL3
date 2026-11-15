@@ -98,9 +98,9 @@ public sealed class ForgeLikeLoaderInstallerTests
             else
             {
                 var profiles = JsonNode.Parse(profilesText)!;
-                Assert.AreEqual("PCL", profiles["selectedProfile"]!.GetValue<string>());
-                Assert.AreEqual("PCL", profiles["profiles"]!["PCL"]!["name"]!.GetValue<string>());
-                Assert.AreEqual("latest-release", profiles["profiles"]!["PCL"]!["lastVersionId"]!.GetValue<string>());
+                Assert.AreEqual("MCM", profiles["selectedProfile"]!.GetValue<string>());
+                Assert.AreEqual("MCM", profiles["profiles"]!["MCM"]!["name"]!.GetValue<string>());
+                Assert.AreEqual("latest-release", profiles["profiles"]!["MCM"]!["lastVersionId"]!.GetValue<string>());
                 Assert.IsNotNull(profiles["clientToken"]);
             }
         }

@@ -50,9 +50,24 @@ PCL₃ 是 [PCL CE](https://github.com/PCL-Community/PCL-CE) 的个人改编版�
 | Windows 10 1809 (17763) 或更高 | ✅ 完整支持 | [.NET 10 Desktop Runtime](https://get.dot.net/10) |
 | Windows 8 - Windows 10 1809 (17763) | ⚠️ 理论能跑 | [.NET 10 Desktop Runtime](https://get.dot.net/10) |
 | Windows 7 或更低版本 | ❌ 不支持 | / |
-| macOS / Linux | 仅交叉编译开发支持 | [.NET 10 SDK](https://get.dot.net/10) |
+| Linux x64 | 🚧 独立的 MCM CLI，仍在开发中，不含 Windows UI | 发布包自带 .NET Runtime；启动游戏需要图形环境 |
+| macOS | 仅交叉编译开发支持 | [.NET 10 SDK](https://get.dot.net/10) |
 
-Release 提供 x64 与 ARM64 两个架构的依赖框架版本，需系统已安装 .NET 10 Desktop Runtime。
+Windows Release 提供 x64 与 ARM64 两个架构的依赖框架版本，需系统已安装 .NET 10 Desktop Runtime。
+
+## 🐧 MCM Linux CLI
+
+Linux 命令行客户端使用 **MCM** 名称，可执行文件为 `mcm`，正式发布包为 `MCM_Release_linux-x64.tar.gz`。它支持原版及 Forge/NeoForge/Fabric/Quilt 实例、模组管理、整合包导入导出和旧 PCL 目录迁移，仍不具备 Windows 桌面端的全部功能。
+
+```sh
+mcm -S 1.21.1 --loader fabric --instance MyGame
+mcm -S sodium --instance MyGame
+mcm mod disable sodium.jar --instance MyGame
+mcm -R sodium.jar.disabled --instance MyGame
+mcm launch MyGame
+```
+
+`-R` 删除模组；只想暂时停用时使用 `mod disable`，恢复使用 `mod enable`。完整安装、登录、更新和迁移说明见 [MCM Linux CLI README](PCL.Linux.Cli/README.md)。
 
 ## 🔄 与上游同步
 

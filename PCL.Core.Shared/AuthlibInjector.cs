@@ -9,7 +9,7 @@ public static class AuthlibInjector
     private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromMinutes(2) };
     public static async Task<string> EnsureAsync(string gameDirectory, CancellationToken cancellationToken = default)
     {
-        var path = Path.Combine(gameDirectory, "pcl", "authlib-injector.jar");
+        var path = Path.Combine(gameDirectory, "mcm", "authlib-injector.jar");
         JsonObject? metadata;
         try { metadata = await Http.GetFromJsonAsync<JsonObject>("https://authlib-injector.yushi.moe/artifact/latest.json", cancellationToken); }
         catch (HttpRequestException) { metadata = await Http.GetFromJsonAsync<JsonObject>("https://bmclapi2.bangbang93.com/mirrors/authlib-injector/artifact/latest.json", cancellationToken); }

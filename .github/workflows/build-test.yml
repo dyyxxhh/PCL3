@@ -38,7 +38,7 @@ jobs:
     secrets: inherit
 
   linux-cli:
-    name: Build Linux CLI
+    name: Build MCM CLI
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -52,9 +52,11 @@ jobs:
       - name: Build Linux CLI
         run: dotnet publish PCL.Linux.Cli/PCL.Linux.Cli.csproj --configuration Release --runtime linux-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o ./artifact
       - name: Smoke test CLI
-        run: ./artifact/pcl --help
+        run: |
+          ./artifact/mcm --help
+          python3 scripts/check_mcm_cli.py ./artifact/mcm
       - name: Upload Linux CLI artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: PCL₃_CI_linux-x64
+          name: MCM_CI_linux-x64
           path: artifact/**

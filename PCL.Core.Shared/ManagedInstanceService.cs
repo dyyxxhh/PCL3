@@ -7,7 +7,8 @@ public sealed record ManagedMinecraftInstance(string Name, string GameVersion, s
 
 public static class ManagedInstanceService
 {
-    private const string MetadataFileName = "pcl-instance.json";
+    internal const string MetadataFileName = "mcm-instance.json";
+    internal const string LegacyMetadataFileName = "pcl-instance.json";
     private static readonly Regex SafeName = new("^[a-zA-Z0-9][a-zA-Z0-9._-]*$", RegexOptions.CultureInvariant);
 
     public static string GetInstanceDirectory(string gameDirectory, string name)
@@ -60,6 +61,7 @@ public static class ManagedInstanceService
     private static ManagedMinecraftInstance? ReadFromDirectory(string directory)
     {
         var path = Path.Combine(directory, MetadataFileName);
+        if (!File.Exists(path)) path = Path.Combine(directory, LegacyMetadataFileName);
         if (!File.Exists(path)) return null;
         var metadata = JsonSerializer.Deserialize<InstanceMetadata>(File.ReadAllText(path))
             ?? throw new InvalidDataException($"Invalid instance metadata: {path}");

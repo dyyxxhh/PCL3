@@ -1,14 +1,14 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <AssemblyName>pcl</AssemblyName>
+    <AssemblyName>mcm</AssemblyName>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
   <ItemGroup>
-    <AssemblyMetadata Include="PclReleaseVersion" Value="$(PclReleaseVersion)" />
+    <AssemblyMetadata Include="McmReleaseVersion" Value="$(McmReleaseVersion)" />
     <ProjectReference Include="..\PCL.Core.Shared\PCL.Core.Shared.csproj" />
     <ProjectReference Include="..\PCL.Core.SecretsGenerator\PCL.Core.SecretsGenerator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>

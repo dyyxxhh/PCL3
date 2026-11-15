@@ -10,7 +10,7 @@ public sealed record ScannedMinecraftInstance(string Id, string GameDirectory, s
 
 public sealed record MinecraftScanResult(IReadOnlyList<ScannedMinecraftInstance> Instances, IReadOnlyList<string> Diagnostics);
 
-/// <summary>Reads PCL/official version folders and copies selected versions into independent PCL3 instances.</summary>
+/// <summary>Reads PCL/official version folders and copies selected versions into independent managed instances.</summary>
 public static class MinecraftInstanceMigration
 {
     private static readonly string[] DataDirectories = ["mods", "config", "defaultconfigs", "saves", "resourcepacks",
