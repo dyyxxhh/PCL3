@@ -253,7 +253,18 @@ def main():
                         state["range_requests"] += int(ranged)
                     try:
                         if state["slow"]:
-                            self.send_response(200)
+                            # Cancellation needs sustained valid transfers. Returning the whole file
+                            # makes curl --max-filesize reject each range before all workers overlap.
+                            total = len(data)
+                            if ranged:
+                                bounds = self.headers["Range"].removeprefix("bytes=").split("-")
+                                start, end = map(int, bounds)
+                                assert 0 <= start <= end < total
+                                data = data[start:end + 1]
+                                self.send_response(206)
+                                self.send_header("Content-Range", f"bytes {start}-{end}/{total}")
+                            else:
+                                self.send_response(200)
                             self.send_header("Content-Length", str(len(data)))
                             self.end_headers()
                             for offset in range(0, len(data), 1024):
