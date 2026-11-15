@@ -5,6 +5,7 @@ All game/Java/account data are independent fixtures. No real account or internet
 service is contacted; invalid outbound proxies make accidental HTTP use fail.
 """
 import hashlib
+import http.server
 import json
 import os
 from pathlib import Path
@@ -14,6 +15,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -182,8 +184,10 @@ def main():
         sock.bind(("127.0.0.1", 0))
         port = sock.getsockname()[1]
         sock.close()
+        server_log_path = root / "server-access.log"
+        server_log = server_log_path.open("w", encoding="utf-8")
         server = subprocess.Popen([str(executable), "offline", "serve", str(bundle), "--bind", "127.0.0.1", "--port", str(port)],
-                                  env=environment, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                                  env=environment, stdin=subprocess.DEVNULL, stdout=server_log, stderr=subprocess.PIPE, text=True)
         origin = f"http://127.0.0.1:{port}"
         opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
         try:
@@ -193,7 +197,8 @@ def main():
                     raise AssertionError(("server exited", server.communicate()))
                 try:
                     with opener.open(origin, timeout=0.5) as response:
-                        assert b"sha256sum" in response.read()
+                        install_script = response.read().decode()
+                        assert "sha256sum" in install_script
                     break
                 except (urllib.error.URLError, TimeoutError):
                     if time.monotonic() > deadline:
@@ -209,7 +214,10 @@ def main():
             lan_game = root / "LAN game with spaces"
             install_dir = root / "LAN bin with spaces"
             client_environment = environment | {"MCM_GAME_DIR": str(lan_game), "MCM_INSTALL_DIR": str(install_dir), "MCM_INSTANCE": "LanInstalled"}
-            bootstrap(client_environment)
+            first_output = bootstrap(client_environment)
+            assert "使用 4 个连接下载" in first_output
+            assert "KiB/s | ETA" in first_output and "100%" in first_output
+            assert "下载完成，正在验证 SHA-256" in first_output
             lan_instance = lan_game / "instances" / "LanInstalled"
             assert (lan_instance / "mods" / "test.jar").read_bytes() == b"mock mod"
             assert (lan_instance / "runtime" / "offline-java" / "bin" / "java").exists()
@@ -220,8 +228,99 @@ def main():
             marker.write_text("keep", encoding="utf-8")
             bootstrap(client_environment, expected=1)
             assert marker.read_text() == "keep"
-            bootstrap(client_environment | {"MCM_INSTANCE": "SecondInstance"})
+            second_output = bootstrap(client_environment | {"MCM_INSTANCE": "SecondInstance", "MCM_DOWNLOAD_CONNECTIONS": "1"})
+            assert "使用 1 个连接下载" in second_output
             assert (lan_game / "instances" / "SecondInstance" / "mcm-instance.json").exists()
+            # Independent HTTP fixture: range failures must fall back, never install partial data;
+            # cancellation must stop every background curl and remove staging files.
+            payloads = {"/mcm": executable.read_bytes(), "/bundle.zip": bundle.read_bytes()}
+            state = {"slow": False, "active": 0, "peak": 0, "range_requests": 0}
+            lock = threading.Lock()
+
+            class DownloadFixture(http.server.BaseHTTPRequestHandler):
+                def log_message(self, *_):
+                    pass
+
+                def do_GET(self):
+                    if self.path not in payloads:
+                        self.send_error(404)
+                        return
+                    data = payloads[self.path]
+                    ranged = self.headers.get("Range") is not None
+                    with lock:
+                        state["active"] += 1
+                        state["peak"] = max(state["peak"], state["active"])
+                        state["range_requests"] += int(ranged)
+                    try:
+                        if state["slow"]:
+                            self.send_response(200)
+                            self.send_header("Content-Length", str(len(data)))
+                            self.end_headers()
+                            for offset in range(0, len(data), 1024):
+                                self.wfile.write(data[offset:offset + 1024])
+                                self.wfile.flush()
+                                time.sleep(0.01)
+                        else:
+                            # Simulate a middlebox that does not honor Range. All four requests overlap.
+                            if ranged:
+                                data = data[:1024]
+                                time.sleep(0.15)
+                            self.send_response(200)
+                            self.send_header("Content-Length", str(len(data)))
+                            self.end_headers()
+                            self.wfile.write(data)
+                    except (BrokenPipeError, ConnectionResetError):
+                        pass
+                    finally:
+                        with lock:
+                            state["active"] -= 1
+
+            fake = http.server.ThreadingHTTPServer(("127.0.0.1", 0), DownloadFixture)
+            fake.daemon_threads = True
+            fake_thread = threading.Thread(target=fake.serve_forever, daemon=True)
+            fake_thread.start()
+            try:
+                fake_origin = f"http://127.0.0.1:{fake.server_port}"
+                script = install_script.replace("base='" + origin + "'", "base='" + fake_origin + "'")
+                assert script != install_script
+                fallback_env = client_environment | {"MCM_INSTANCE": "FallbackInstalled"}
+                fallback = subprocess.run(["bash"], input=script, env=fallback_env,
+                                          capture_output=True, text=True, timeout=120)
+                assert fallback.returncode == 0, (fallback.returncode, fallback.stdout, fallback.stderr)
+                assert "回退为单连接" in fallback.stderr
+                assert (lan_game / "instances" / "FallbackInstalled" / "mcm-instance.json").exists()
+                assert state["peak"] >= 2 and state["range_requests"] >= 4, state
+                invalid = subprocess.run(["bash"], input=script,
+                                         env=fallback_env | {"MCM_DOWNLOAD_CONNECTIONS": "0"},
+                                         capture_output=True, text=True, timeout=15)
+                assert invalid.returncode != 0 and "必须是 1 到 8" in invalid.stderr
+                state["slow"] = True
+                cancel_tmp = root / "cancel-download-tmp"
+                cancel_tmp.mkdir()
+                cancel_game = root / "cancel-download-game"
+                cancel_bin = root / "cancel-download-bin"
+                cancel_env = client_environment | {"TMPDIR": str(cancel_tmp), "MCM_GAME_DIR": str(cancel_game),
+                                                    "MCM_INSTALL_DIR": str(cancel_bin)}
+                with (root / "cancel-download.log").open("w") as output:
+                    downloading = subprocess.Popen(["bash"], env=cancel_env, stdin=subprocess.PIPE,
+                                                   stdout=output, stderr=output, text=True, start_new_session=True)
+                    downloading.stdin.write(script)
+                    downloading.stdin.close()
+                    deadline = time.monotonic() + 15
+                    while state["active"] < 4:
+                        if downloading.poll() is not None or time.monotonic() > deadline:
+                            downloading.kill()
+                            downloading.wait()
+                            raise AssertionError("did not observe four active cancellable download workers")
+                        time.sleep(0.01)
+                    downloading.terminate()
+                    assert downloading.wait(timeout=15) == 143
+                assert not list(cancel_tmp.iterdir()), "cancelled download must clean temporary fragments"
+                assert not cancel_game.exists() and not cancel_bin.exists()
+            finally:
+                fake.shutdown()
+                fake.server_close()
+                fake_thread.join(timeout=5)
             with bundle.open("ab") as stream:
                 stream.write(b"corruption after server startup")
             failed_game = root / "tampered target"
@@ -237,7 +336,11 @@ def main():
                 server.kill()
                 stdout, stderr = server.communicate()
                 raise AssertionError(("server did not stop on Ctrl+C", stdout, stderr))
+            server_log.close()
             assert server.returncode == 0, (server.returncode, stdout, stderr)
+        access = server_log_path.read_text()
+        assert "127.0.0.1 GET /bundle.zip request range=yes" in access
+        assert "status=206" in access and "duration_ms=" in access and "bytes=" in access
         assert not list(lan_game.glob("instances/.migration-*"))
     print("MCM offline bundle/Java/bootstrap/LAN/offline-launch safety smoke checks: PASS"
           + (" (USB/export/launch in isolated network namespaces)" if network_prefix else ""))

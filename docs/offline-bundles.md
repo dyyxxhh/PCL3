@@ -61,7 +61,7 @@ ZIP 由 `PCL.Core.Shared/OfflineBundleService.cs` 处理，不是 `.mrpack` 或 
 
 ## LAN 分发
 
-`PCL.Linux.Cli/OfflineInstallServer.cs` 启动前验证整个包，将其中的 bootstrap 提取到仅当前用户可读的临时目录。服务只提供固定 GET/HEAD 端点：根路径和 `/install.sh` 返回脚本，`/mcm` 返回包内启动器，`/bundle.zip` 返回原 ZIP。不是通用文件服务器，不接受上传，也不把 URL 映射到磁盘路径。
+`PCL.Linux.Cli/OfflineInstallServer.cs` 启动前验证整个包，将其中的 bootstrap 提取到仅当前用户可读的临时目录。服务支持单范围 `Range: bytes=...`（有效请求返回 `206`，无效/多范围返回 `416`），并只提供固定 GET/HEAD 端点：根路径和 `/install.sh` 返回脚本，`/mcm` 返回包内启动器，`/bundle.zip` 返回原 ZIP。不是通用文件服务器，不接受上传，也不把 URL 映射到磁盘路径。
 
 仅接受回环、RFC 1918、链路本地和 IPv6 ULA 对端。脚本的下载地址由服务端本地 socket 的 IP/端口生成，不信任 HTTP Host 或转发头；实例名按 Bash 单引号规则转义。curl 不使用代理、不跟随重定向，限定 HTTP 和当前 LAN 地址。两次下载都先验证启动时固定的 SHA-256，才执行 MCM 或写入安装路径；导入又检查包内每个文件。服务期间原 ZIP 如有变化，客户端会因固定校验和不符而停止。
 
@@ -76,3 +76,9 @@ Bash 脚本使用目标机已有的 `bash`、`curl`、`coreutils`，不访问包
 - `scripts/check_mcm_offline.py`：self-contained 发布产物端到端测试。临时 HOME/配置、假游戏、可探测版本的独立 Java fixture、无真实账户、无公网依赖；从 ZIP 提取的 MCM 导入与显式离线启动，以及 loopback `curl | bash` 安装、重复实例保护、已有相同启动器复用和服务期间损坏包拒绝。
 
 这些测试不能替代不同发行版/GPU/内核上的真实桌面游戏验证。系统依赖与离线驱动准备方法见 Linux CLI README。
+
+### 下载进度与日志
+
+客户端按已知文件长度分段并行下载（默认 4 连接，`MCM_DOWNLOAD_CONNECTIONS=1..8`；不足 4 MiB 使用单连接），每 250 ms 汇总一次已下载字节并向 stderr 显示百分比、速度和 ETA。检查每段 HTTP 状态与长度，再按顺序合并，最后验证完整文件 SHA-256。分段失败回退单连接一次；取消时先停止并等待后台 curl，再删除临时文件，不留下继续写入的后台下载。
+
+服务器日志使用请求编号关联开始/完成，记录客户端 IP、安全路由、状态、字节数、耗时和中断状态；不回显不受信任的 Host、User-Agent、查询字符串或任意 URL 路径。日志默认输出到终端。日志不证明导入或游戏启动成功；它只反映 HTTP 传输，客户端下载完成后的哈希和导入另行报告。

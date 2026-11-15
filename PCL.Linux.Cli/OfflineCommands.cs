@@ -143,6 +143,8 @@ internal static class OfflineCommands
                     Console.WriteLine($"  curl -fS --noproxy '*' {url} | bash");
                 }
                 Console.WriteLine("Client needs Linux x86_64/glibc, bash, curl and coreutils, but no Java, .NET, MCM or internet.");
+                Console.WriteLine("Client downloads show progress/speed/ETA and use 4 parallel connections for large files (MCM_DOWNLOAD_CONNECTIONS=1..8).");
+                Console.WriteLine("Access logs show client IP, allowlisted route, status, transferred bytes and duration; requests are limited to 8 concurrently.");
                 Console.WriteLine("Ctrl+C stops the server.");
                 await server.RunAsync(cancel.Token).ConfigureAwait(false);
             }
