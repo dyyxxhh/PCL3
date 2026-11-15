@@ -100,9 +100,32 @@ def main():
         (java_home / "lib" / "alias.so").symlink_to("runtime.so")
         bundle = root / "offline bundle.zip"
         assert "offline export" in run("--help")
-        run("offline", "export", bundle, "--instance", "Portable", "--game-dir", source, expected=1)
-        assert not bundle.exists(), "export must require a complete Java runtime"
-        run("offline", "export", bundle, "--instance", "Portable", "--game-dir", source, "--java", java_home)
+        run("offline", "export", bundle, "--instance", "Portable", "--game-dir", source,
+            "--java", root / "missing-java", expected=1)
+        assert not bundle.exists(), "invalid explicit Java must not silently fall back to a host runtime"
+        # Reproduce a launchable instance with no managed Java: JAVA_HOME/default-runtime is a directory link.
+        java_alias = root / "default-runtime"
+        java_alias.symlink_to(java_home, target_is_directory=True)
+        environment["JAVA_HOME"] = str(java_alias)
+        diagnostic = run("offline", "doctor", "--instance", "Portable", "--game-dir", source,
+                         env=environment | {"DISPLAY": "", "WAYLAND_DISPLAY": ""}, expected=1)
+        assert "[OK] Local Java 21" in diagnostic and "no bundled Java" in diagnostic
+        assert "[FAIL] No runnable" not in diagnostic
+        run("offline", "export", bundle, "--instance", "Portable", "--game-dir", source)
+        explicit_bundle = root / "explicit Java bundle.zip"
+        run("offline", "export", explicit_bundle, "--instance", "Portable", "--game-dir", source,
+            "--java", java_alias / "bin" / "java")
+        path_bin = root / "system bin"
+        path_bin.mkdir()
+        (path_bin / "java").symlink_to(java_alias / "bin" / "java")
+        path_environment = environment | {"PATH": str(path_bin)}
+        path_environment.pop("JAVA_HOME", None)
+        path_bundle = root / "PATH system Java bundle.zip"
+        run("offline", "export", path_bundle, "--instance", "Portable", "--game-dir", source,
+            env=path_environment)
+        with zipfile.ZipFile(path_bundle) as archive:
+            assert archive.read("instance/runtime/offline-java/bin/java") == java.read_bytes()
+            assert archive.read("instance/runtime/offline-java/lib/runtime.so") == b"mock Java native library"
         run("offline", "inspect", bundle)
         with zipfile.ZipFile(bundle) as archive:
             names = archive.namelist()

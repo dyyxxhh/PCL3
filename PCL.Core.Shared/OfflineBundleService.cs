@@ -34,7 +34,7 @@ public static class OfflineBundleService
     {
         "accounts.json", "launcher_accounts.json", "launcher_profiles.json", "launcher_profiles_microsoft_store.json",
         "selected-profile.json", "microsoft-account.json", "credentials.json", "tokens.json", "usercache.json",
-        "servers.dat", "servers.dat_old", "realms_persistence.json", ".git", ".ssh", ".config", "logs", "crash-reports", "saves"
+        "jmxremote.password", "servers.dat", "servers.dat_old", "realms_persistence.json", ".git", ".ssh", ".config", "logs", "crash-reports", "saves"
     };
 
     public static string CurrentTargetRuntime => (OperatingSystem.IsLinux() ? "linux" : OperatingSystem.IsWindows() ? "win" : "unknown")
@@ -45,7 +45,7 @@ public static class OfflineBundleService
     {
         RequireSupportedPlatform(CurrentTargetRuntime);
         ValidateMetadata(new OfflineInstanceMetadata(instance.Name, instance.GameVersion, instance.Loader, instance.LoaderVersion, instance.LaunchVersion));
-        javaHome = Path.GetFullPath(javaHome);
+        javaHome = JavaDiscovery.ResolveHome(javaHome);
         launcher = Path.GetFullPath(launcher);
         bundlePath = Path.GetFullPath(bundlePath);
         EnsureNoLinks(instance.DirectoryPath);
@@ -327,36 +327,64 @@ public static class OfflineBundleService
     {
         EnsureNoLinks(root);
         if (!Directory.Exists(root)) throw new DirectoryNotFoundException($"Offline bundle source is not a directory: {root}");
-        return Walk(root, 0);
+        return Walk(root, "", new HashSet<string>(StringComparer.Ordinal), 0);
 
-        IEnumerable<(string, string)> Walk(string directory, int depth)
+        IEnumerable<(string, string)> Walk(string directory, string prefix, HashSet<string> ancestors, int depth)
         {
-            if (depth > 64) throw new InvalidDataException("Offline bundle source directory nesting is too deep.");
-            foreach (var entry in new DirectoryInfo(directory).EnumerateFileSystemInfos())
+            if (depth > 64 || !ancestors.Add(directory)) throw new InvalidDataException("Offline bundle source has a directory cycle or is nested too deeply.");
+            try
             {
-                if (PrivateNames.Contains(entry.Name) || entry.Name.EndsWith(".part", StringComparison.OrdinalIgnoreCase)
-                    || entry.Name.EndsWith(".tmp", StringComparison.OrdinalIgnoreCase)) continue;
-                var source = entry.FullName;
-                var attributes = entry.Attributes;
-                if ((attributes & FileAttributes.ReparsePoint) != 0)
+                foreach (var entry in new DirectoryInfo(directory).EnumerateFileSystemInfos())
                 {
-                    if (!allowInternalFileLinks || (attributes & FileAttributes.Directory) != 0)
-                        throw new InvalidDataException($"Offline bundles reject symbolic links (except internal Java file links): {entry.FullName}");
-                    var target = entry.ResolveLinkTarget(returnFinalTarget: true)
-                        ?? throw new InvalidDataException("Broken Java runtime link.");
-                    source = target.FullName;
-                    var relativeTarget = Path.GetRelativePath(root, source).Replace(Path.DirectorySeparatorChar, '/');
-                    ValidateRelativePath(relativeTarget); // rejects ../, hence links outside this Java home
-                    EnsureNoLinks(source);
-                    if (!File.Exists(source)) throw new InvalidDataException("Java runtime links must target regular files inside the Java home.");
+                    if (PrivateNames.Contains(entry.Name) || entry.Name.EndsWith(".part", StringComparison.OrdinalIgnoreCase)
+                        || entry.Name.EndsWith(".tmp", StringComparison.OrdinalIgnoreCase)) continue;
+                    var relative = prefix + entry.Name;
+                    // A distro JDK may link man to every system manual, or src.zip to a separately installed source package.
+                    // Neither is required by the runtime; configuration, binaries and license notices remain included.
+                    if (allowInternalFileLinks && relative is "man" or "src.zip" or "lib/src.zip") continue;
+                    var source = entry.FullName;
+                    var attributes = entry.Attributes;
+                    if ((attributes & FileAttributes.ReparsePoint) != 0)
+                    {
+                        if (!allowInternalFileLinks) throw new InvalidDataException($"Offline bundles reject game symbolic links: {entry.FullName}");
+                        source = JavaDiscovery.ResolvePhysicalPath(source);
+                        var directoryLink = Directory.Exists(source);
+                        var inside = !Path.GetRelativePath(root, source).Split(Path.DirectorySeparatorChar).Contains("..");
+                        var javaConfigOrLicense = relative is "conf" or "legal" || relative.StartsWith("conf/", StringComparison.Ordinal)
+                            || relative.StartsWith("legal/", StringComparison.Ordinal);
+                        if (!(inside && (!directoryLink || javaConfigOrLicense)) && !IsDistributionJavaLink(relative, source))
+                            throw new InvalidDataException($"Java runtime link is outside the supported configuration/license/certificate locations: {entry.FullName}. Use a portable Java home with --java.");
+                        EnsureNoLinks(source);
+                        attributes = File.GetAttributes(source);
+                    }
+                    if ((attributes & FileAttributes.Directory) != 0)
+                    {
+                        foreach (var child in Walk(source, relative + "/", ancestors, depth + 1)) yield return child;
+                    }
+                    else yield return (relative, source);
                 }
-                if ((attributes & FileAttributes.Directory) != 0)
-                {
-                    foreach (var child in Walk(entry.FullName, depth + 1)) yield return child;
-                }
-                else yield return (Path.GetRelativePath(root, entry.FullName).Replace(Path.DirectorySeparatorChar, '/'), source);
             }
+            finally { ancestors.Remove(directory); }
         }
+    }
+
+    private static bool IsDistributionJavaLink(string relative, string target)
+    {
+        if (!OperatingSystem.IsLinux()) return false;
+        // Only known system-owned Java configuration, public trust stores and license notices may escape JAVA_HOME.
+        // Never follow an arbitrary external file or copy /usr/lib, drivers, user files, or all of /usr/share/man.
+        if (relative == "lib/security/cacerts")
+            return target is "/etc/ssl/certs/java/cacerts" or "/etc/ca-certificates/extracted/java-cacerts.jks"
+                or "/etc/pki/java/cacerts" or "/etc/pki/ca-trust/extracted/java/cacerts";
+        if (relative is "conf" || relative.StartsWith("conf/", StringComparison.Ordinal))
+        {
+            var segments = target.Split('/', StringSplitOptions.RemoveEmptyEntries);
+            return segments.Length >= 2 && segments[0] == "etc" && segments[1].StartsWith("java", StringComparison.Ordinal)
+                && (segments[1].Contains("openjdk", StringComparison.Ordinal) || segments[1] == "java");
+        }
+        if (relative is "legal" || relative.StartsWith("legal/", StringComparison.Ordinal))
+            return target.StartsWith("/usr/share/licenses/", StringComparison.Ordinal) || target.StartsWith("/usr/share/doc/openjdk-", StringComparison.Ordinal);
+        return false;
     }
 
     private static void ValidatePayloadPath(string path)

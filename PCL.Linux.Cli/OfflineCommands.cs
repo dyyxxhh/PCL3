@@ -48,10 +48,10 @@ internal static class OfflineCommands
                 var instance = ManagedInstanceService.Find(root, name) ?? throw new InvalidOperationException("Install or migrate the named instance before exporting it.");
                 var installer = new MinecraftInstaller();
                 var major = await installer.GetRequiredJavaMajorAsync(instance.LaunchVersion, instance.DirectoryPath, cancellationToken).ConfigureAwait(false);
-                var java = options.GetValueOrDefault("java") ?? installer.FindInstalledJavaRuntime(major, instance.DirectoryPath)
-                    ?? installer.FindInstalledJavaRuntime(major, root)
-                    ?? throw new InvalidOperationException($"Java {major} must be bundled. First run 'mcm java install {major}' in the same MCM_GAME_DIR, or supply --java <portable-java-home>. Export will not download anything.");
-                var javaHome = ResolveJavaHome(java);
+                var java = options.GetValueOrDefault("java") ?? FindLocalJava(major, instance.DirectoryPath, root)
+                    ?? throw new InvalidOperationException($"No runnable local Java {major} was found. Install Java {major}, run 'mcm java install {major}', or supply --java <java-home>. Export includes the complete selected Java runtime and will not download anything.");
+                var javaHome = JavaDiscovery.ResolveHome(java);
+                Console.WriteLine($"Bundling complete Java {major} from {javaHome}");
                 var launcher = GetSingleFileLauncher();
                 OfflineBundleManifest manifest;
                 using (var progress = new ConsoleInstallProgress("Preparing complete offline bundle"))
@@ -87,15 +87,17 @@ internal static class OfflineCommands
         }
     }
 
-    private static string ResolveJavaHome(string value)
+    internal static string? FindLocalJava(int major, string instanceDirectory, string root)
     {
-        var path = Path.GetFullPath(value);
-        if (Directory.Exists(path)) return path;
-        if (!File.Exists(path)) throw new FileNotFoundException("Portable Java home or executable was not found.", path);
-        path = File.ResolveLinkTarget(path, returnFinalTarget: true)?.FullName ?? path;
-        var bin = Path.GetDirectoryName(path)!;
-        if (Path.GetFileName(bin) != "bin") throw new ArgumentException("--java must point to a complete Java home or its bin/java executable.");
-        return Path.GetDirectoryName(bin)!;
+        var installer = new MinecraftInstaller();
+        var managed = installer.FindInstalledJavaRuntime(major, instanceDirectory)
+            ?? installer.FindInstalledJavaRuntime(major, root);
+        if (managed is not null) return managed;
+        var javaHome = Environment.GetEnvironmentVariable("JAVA_HOME");
+        var environmentJava = string.IsNullOrWhiteSpace(javaHome) ? null : JavaDiscovery.Probe(Path.Combine(javaHome, "bin", "java"));
+        if (environmentJava is not null && JavaDiscovery.ParseMajorVersion(environmentJava.Version) == major)
+            return environmentJava.ExecutablePath;
+        return JavaDiscovery.Scan().FirstOrDefault(runtime => JavaDiscovery.ParseMajorVersion(runtime.Version) == major)?.ExecutablePath;
     }
 
     private static string GetSingleFileLauncher()
@@ -166,8 +168,15 @@ internal static class OfflineCommands
             okay = false;
         }
         var major = await installer.GetRequiredJavaMajorAsync(instance.LaunchVersion, instance.DirectoryPath, cancellationToken).ConfigureAwait(false);
-        var java = installer.FindInstalledJavaRuntime(major, instance.DirectoryPath);
-        Console.WriteLine(java is not null ? $"[OK] Bundled Java {major}: {java}" : $"[FAIL] No runnable bundled Java {major}; check system ABI/libraries.");
+        var bundledJava = installer.FindInstalledJavaRuntime(major, instance.DirectoryPath);
+        var java = bundledJava ?? FindLocalJava(major, instance.DirectoryPath, root);
+        if (bundledJava is not null) Console.WriteLine($"[OK] Bundled Java {major}: {bundledJava}");
+        else if (java is not null)
+        {
+            Console.WriteLine($"[OK] Local Java {major}: {java}");
+            Console.WriteLine("[INFO] This instance has no bundled Java. Offline export will copy the complete local Java runtime into the bundle.");
+        }
+        else Console.WriteLine($"[FAIL] No runnable local Java {major}; install it or check Java permissions/system libraries.");
         okay &= java is not null;
         if (OperatingSystem.IsLinux())
         {

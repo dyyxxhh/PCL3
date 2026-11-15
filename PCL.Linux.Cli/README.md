@@ -114,13 +114,17 @@ curl -fS --noproxy '*' http://192.168.1.10:5078/ | \
 
 **HTTP 不加密、不认证，SHA-256 只能发现损坏，不能证明分发者可信。只在可信局域网使用，不要映射到公网，也不要执行陌生服务器的 `curl | bash`。** 可先将根路径脚本下载为本地文件，人工检查后再执行。防火墙只需向可信局域网开放服务端选定端口，不应关闭整个防火墙。
 
+导出 Java 的查找顺序为：显式 `--java`、实例内的运行时、游戏根目录的运行时、兼容的 `JAVA_HOME`、系统 Java 扫描。`--java` 可以指向完整 Java home 或 `bin/java`，会解析 `default-runtime`、`/usr/bin/java` 等链接，并将完整运行时复制进包；目标机不需要预装 Java。版本必须与游戏要求一致，导出不会联网下载。
+
+Arch/Debian 等发行版将 Java 配置、公共证书和许可证放在安装目录外时，导出会在受限的系统路径范围内将它们展开成包内普通文件/目录。不会复制全系统手册、可选源码包或 JMX 密码文件，也不会跟随任意外部链接。无法转换的布局会明确报错，可用 `--java` 指定便携版 Java。
+
 ### 显卡驱动、系统库和断网前检查
 
 ```sh
 mcm offline doctor --instance Travel
 ```
 
-该命令不联网，检查本地游戏文件、内置 Java 是否能运行、Linux OpenGL/X11/Wayland/音频库能否加载及图形会话环境变量。检查失败返回非零；通过也**不代表**已经创建 OpenGL 上下文或实际验证游戏画面，较老的 Minecraft/LWJGL 在 Wayland 桌面下仍可能需要 XWayland。
+该命令不联网，检查本地游戏文件、可用的本地 Java、Linux OpenGL/X11/Wayland/音频库能否加载及图形会话环境变量。它会区分实例内置 Java 和本机 Java；本机有兼容 Java 时不会仅因实例没有 runtime 目录就报告 Java 失败。检查失败返回非零；通过也**不代表**已经创建 OpenGL 上下文或实际验证游戏画面，较老的 Minecraft/LWJGL 在 Wayland 桌面下仍可能需要 XWayland。
 
 | 内容 | 是否打包 / 处理方法 |
 | --- | --- |

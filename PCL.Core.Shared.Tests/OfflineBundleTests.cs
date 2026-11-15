@@ -236,6 +236,49 @@ public sealed class OfflineBundleTests
     }
 
     [TestMethod]
+    public async Task ExportAcceptsJavaHomeAliasAndFlattensRuntimeConfigurationLinks()
+    {
+        using var fixture = await OfflineBundleFixture.CreateAsync();
+        var settings = Path.Combine(fixture.JavaHome, "settings");
+        Directory.CreateDirectory(settings);
+        await File.WriteAllTextAsync(Path.Combine(settings, "java.security"), "security fixture");
+        await File.WriteAllTextAsync(Path.Combine(settings, "jmxremote.password"), "private fixture");
+        Directory.CreateSymbolicLink(Path.Combine(fixture.JavaHome, "conf"), "settings");
+        var alias = Path.Combine(fixture.Root, "default-runtime");
+        Directory.CreateSymbolicLink(alias, fixture.JavaHome);
+        var manifest = await OfflineBundleService.ExportAsync(fixture.Instance, alias, fixture.Launcher, fixture.Bundle);
+        Assert.IsTrue(manifest.Files.Any(file => file.Path == "instance/runtime/offline-java/conf/java.security"));
+        Assert.IsFalse(manifest.Files.Any(file => file.Path.EndsWith("jmxremote.password", StringComparison.Ordinal)));
+        var imported = await OfflineBundleService.ImportAsync(fixture.Bundle, fixture.Target);
+        var config = Path.Combine(imported.DirectoryPath, "runtime", "offline-java", "conf", "java.security");
+        Assert.AreEqual("security fixture", await File.ReadAllTextAsync(config));
+        Assert.IsNull(new DirectoryInfo(Path.GetDirectoryName(config)!).LinkTarget);
+    }
+
+    [TestMethod]
+    [DataRow("conf")]
+    [DataRow("legal")]
+    public async Task RejectsArbitraryExternalConfigurationAndLicenseDirectories(string name)
+    {
+        using var fixture = await OfflineBundleFixture.CreateAsync();
+        var outside = Path.Combine(fixture.Root, "private");
+        Directory.CreateDirectory(outside);
+        await File.WriteAllTextAsync(Path.Combine(outside, "secret"), "do not copy");
+        Directory.CreateSymbolicLink(Path.Combine(fixture.JavaHome, name), outside);
+        await Assert.ThrowsExactlyAsync<InvalidDataException>(() => fixture.ExportAsync());
+        Assert.IsFalse(File.Exists(fixture.Bundle));
+    }
+
+    [TestMethod]
+    public async Task RejectsJavaConfigurationDirectoryCycle()
+    {
+        using var fixture = await OfflineBundleFixture.CreateAsync();
+        Directory.CreateSymbolicLink(Path.Combine(fixture.JavaHome, "conf"), fixture.JavaHome);
+        await Assert.ThrowsExactlyAsync<InvalidDataException>(() => fixture.ExportAsync());
+        Assert.IsFalse(File.Exists(fixture.Bundle));
+    }
+
+    [TestMethod]
     public async Task RejectsSymlinkDestinationWithoutWritingThroughIt()
     {
         using var fixture = await OfflineBundleFixture.CreateAsync();

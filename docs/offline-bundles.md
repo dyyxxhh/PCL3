@@ -45,7 +45,7 @@ ZIP 由 `PCL.Core.Shared/OfflineBundleService.cs` 处理，不是 `.mrpack` 或 
 ## 完整性与事务
 
 - 导出不联网；检查已经合并的启动元数据、客户端 JAR、classpath、Linux native JAR、已解压旧 LWJGL natives、资源索引及对象。有已知 SHA-1 的文件必须匹配。缺失或损坏时拒绝导出，不用 URL 清单代替实际文件。
-- 必须包含版本正确且可在来源机运行的完整 Java home 和运行中的 self-contained MCM。来源 CLI 的普通 `dotnet run` / framework-dependent 部署不允许导出。
+- 必须包含版本正确且可在来源机运行的完整 Java home 和运行中的 self-contained MCM。CLI 会自动发现兼容的系统 Java 或 `JAVA_HOME`，不要求先通过 MCM 下载另一份 Java；Java home 及可执行文件祖先中的链接先解析为真实路径。来源 CLI 的普通 `dotnet run` / framework-dependent 部署不允许导出。
 - 导出先写临时 ZIP，再检查完整清单，最后以不覆盖方式移动到输出文件名；异常或取消删除本次临时 ZIP，不改已有文件。
 - 导入在目标 `instances/` 下的 `.migration-offline-<随机值>` 中处理；检查所有条目的 SHA-256、本地游戏闭包及 Java 版本，再生成新的 `mcm-instance.json` 并原子移动目录。失败/取消删除本次临时目录；不覆盖已有实例或合并到已有目录。
 - 不复制账户元数据；导入后不是需要在线修复的 legacy `Imported` 实例。使用 `launch --offline` 时禁止所有启动器下载/刷新分支，并要求用户明确选择离线账户。游戏、模组本身的联网行为不属于启动器禁止联网模式的进程沙箱。
@@ -54,7 +54,7 @@ ZIP 由 `PCL.Core.Shared/OfflineBundleService.cs` 处理，不是 `.mrpack` 或 
 
 - ZIP 文件数上限 200,000，单个展开文件上限 8 GiB，总展开数据上限 64 GiB，清单展开上限 64 MiB。流式拷贝同时计数和哈希，不信任 ZIP 声明大小。
 - 只允许显式列出的游戏目录/选项和 Java runtime；禁止相对越界、绝对路径、反斜杠、控制字符、Windows 保留文件名、重复/大小写冲突、文件/目录冲突、符号链接及特殊设备条目。不解压 ZIP 目录条目。
-- 拒绝输出路径及祖先的符号链接。导出游戏目录也拒绝链接；仅 Java home 内部的普通文件链接可展开成普通文件，不跟随目录链接或逃逸到 Java home 外的链接。
+- 拒绝输出路径及祖先的符号链接。导出游戏目录也拒绝链接；Java home 内部的普通文件链接以及 `conf`/`legal` 下的目录链接会展开为普通文件/目录；仅对已知 `/etc/java*openjdk`（或 `/etc/java/`）配置、公共 Java CA 证书库和 `/usr/share/licenses/` 等许可证路径允许有限的外部链接。其余外部链接、目录循环均拒绝。不导出系统手册、可选 Java 源码归档和 JMX 密码文件。
 - 只保存可执行位语义，不导入 setuid/setgid 或任意 Unix 权限。导入的实例根和服务器临时目录限制当前用户访问。
 - 存档、日志、账户、已知令牌文件和启动器配置默认排除。允许目录中的任意模组配置仍可能含有私密信息；导出者必须人工检查。没有密码/令牌的迁移协议，不提供登录身份离线转移。
 - 校验和提供传输完整性，不提供数字签名、发布者认证或对包内 Java/MCM/模组的沙箱。导入和执行前必须信任来源。

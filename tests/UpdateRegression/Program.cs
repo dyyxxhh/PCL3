@@ -52,7 +52,8 @@ Test("release asset checksum is validated", () =>
 foreach (var (version, code, previousVersion, previousCode) in new[]
 {
     ("0.3.0", 300, "0.2.3", 203),
-    ("0.3.1", 301, "0.3.0", 300)
+    ("0.3.1", 301, "0.3.0", 300),
+    ("0.3.2", 302, "0.3.1", 301)
 })
 {
     Test($"{version} release upgrades previous versions and keeps official asset names", () =>
