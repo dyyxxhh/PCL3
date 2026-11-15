@@ -33,11 +33,12 @@ internal static class Program
                 "-R" => await PackageCommands.ManageModsAsync(["remove", .. args.Skip(1)]).ConfigureAwait(false),
                 "mod" => await PackageCommands.ManageModsAsync(args.Skip(1).ToArray()).ConfigureAwait(false),
                 "pack" => await PackageCommands.ManagePackAsync(args.Skip(1).ToArray()).ConfigureAwait(false),
+                "offline" => await OfflineCommands.RunAsync(args.Skip(1).ToArray()).ConfigureAwait(false),
                 "launch" when args.Length >= 2 => await LaunchAsync(args[1], args.Skip(2).ToArray()).ConfigureAwait(false),
                 _ => InvalidCommand()
             };
         }
-        catch (Exception ex) when (ex is HttpRequestException or IOException or InvalidOperationException or InvalidDataException or ArgumentException or FormatException or System.Text.Json.JsonException or UnauthorizedAccessException or TimeoutException or NotSupportedException or System.Security.Cryptography.CryptographicException)
+        catch (Exception ex) when (ex is HttpRequestException or IOException or InvalidOperationException or InvalidDataException or ArgumentException or FormatException or System.Text.Json.JsonException or UnauthorizedAccessException or TimeoutException or NotSupportedException or System.Security.Cryptography.CryptographicException or System.Net.HttpListenerException)
         {
             Console.Error.WriteLine($"Error: {ex.Message}");
             return 1;
@@ -63,7 +64,12 @@ internal static class Program
         Console.WriteLine("  mcm -R <file.jar> --instance <name> [--game-dir <path>]");
         Console.WriteLine("  mcm mod <list|update|enable|disable|remove> [file.jar] --instance <name> [--game-dir <path>]");
         Console.WriteLine("  mcm pack <import|export> <file.mrpack|file.zip> --instance <name> [--game-dir <path>]");
-        Console.WriteLine("  mcm launch <instance|version> [--game-dir <path>] [--java <path>]");
+        Console.WriteLine("  mcm offline export <bundle.zip> --instance <name> [--game-dir <path>] [--java <portable-java-home>]");
+        Console.WriteLine("  mcm offline import <bundle.zip> [--instance <name>] [--game-dir <path>]");
+        Console.WriteLine("  mcm offline inspect <bundle.zip>");
+        Console.WriteLine("  mcm offline serve <bundle.zip> [--bind <local-IP>] [--port <5078>]");
+        Console.WriteLine("  mcm offline doctor --instance <name> [--game-dir <path>]");
+        Console.WriteLine("  mcm launch <instance|version> [--game-dir <path>] [--java <path>] [--offline]");
         Console.WriteLine("  mcm --help");
         Console.WriteLine();
         Console.WriteLine("Microsoft login requires MCM_MS_CLIENT_ID and stores its refresh token with owner-only file permissions.");
@@ -192,7 +198,8 @@ internal static class Program
 
     private static async Task<int> LaunchAsync(string version, string[] args)
     {
-        if (!TryParseOptions(args, out var options)) return 2;
+        if (!TryParseOptions(args, out var options, allowOffline: true)) return 2;
+        var offline = options.ContainsKey("offline");
         var gameDirectory = MinecraftInstanceService.ResolveGameDirectory(options.GetValueOrDefault("game-dir"));
         var managed = ManagedInstanceService.Find(gameDirectory, version);
         if (managed is not null)
@@ -212,12 +219,22 @@ internal static class Program
             throw new InvalidDataException($"Instance '{managed.Name}' is incomplete. Reinstall it with mcm -S {managed.GameVersion} --instance {managed.Name}.");
         if (version.Equals("latest", StringComparison.OrdinalIgnoreCase) || !File.Exists(installedPath))
         {
+            if (offline)
+            {
+                Console.Error.WriteLine("Offline launch requires a locally installed, explicit version; no download was attempted.");
+                return 1;
+            }
             Console.WriteLine($"Minecraft {version} is not installed. Installing it now...");
             using var progress = new ConsoleInstallProgress("Preparing Minecraft installation");
             var installed = await installer.InstallAsync(version, gameDirectory, progress).ConfigureAwait(false);
             version = installed.VersionId;
         }
-        if (managed?.Imported == true)
+        if (offline)
+        {
+            using var progress = new ConsoleInstallProgress("Checking local files for offline launch");
+            await installer.ValidateOfflineInstallationAsync(version, gameDirectory, progress).ConfigureAwait(false);
+        }
+        else if (managed?.Imported == true)
         {
             using var progress = new ConsoleInstallProgress("Checking imported instance libraries for Linux");
             await installer.PrepareForLaunchAsync(version, gameDirectory, progress).ConfigureAwait(false);
@@ -242,12 +259,22 @@ internal static class Program
         var javaPath = matchingJava?.ExecutablePath;
         if (javaPath is null)
         {
+            if (offline)
+            {
+                Console.Error.WriteLine($"Offline launch requires a local Java {requiredMajor} runtime; no download was attempted. Reimport a complete offline bundle or select --java <path>.");
+                return 1;
+            }
             Console.WriteLine($"No Java {requiredMajor} runtime found. Installing Mojang's Linux runtime...");
             using var progress = new ConsoleInstallProgress($"Preparing Java {requiredMajor} installation");
             javaPath = await installer.InstallJavaRuntimeAsync(requiredMajor, gameDirectory, progress).ConfigureAwait(false);
         }
 
         var profile = await LauncherProfileStore.LoadAsync().ConfigureAwait(false);
+        if (offline && profile?.Type != "offline")
+        {
+            Console.Error.WriteLine("Offline launch never refreshes online accounts. First select an offline account with 'mcm login offline <name>'.");
+            return 1;
+        }
         MinecraftLaunchOptions launchOptions;
         if (profile?.Type == "offline")
             launchOptions = new MinecraftLaunchOptions(gameDirectory, javaPath, profile.UserName, profile.Uuid);
@@ -279,14 +306,20 @@ internal static class Program
         return process.ExitCode;
     }
 
-    private static bool TryParseOptions(string[] args, out Dictionary<string, string> options)
+    private static bool TryParseOptions(string[] args, out Dictionary<string, string> options, bool allowOffline = false)
     {
         options = new Dictionary<string, string>(StringComparer.Ordinal);
-        for (var i = 0; i < args.Length; i += 2)
+        for (var i = 0; i < args.Length; i++)
         {
-            if (i + 1 >= args.Length || !args[i].StartsWith("--", StringComparison.Ordinal))
+            if (allowOffline && args[i] == "--offline")
             {
-                Console.Error.WriteLine("Options must be name/value pairs.");
+                if (options.TryAdd("offline", "true")) continue;
+                Console.Error.WriteLine("Duplicate option: --offline");
+                return false;
+            }
+            if (i + 1 >= args.Length || !args[i].StartsWith("--", StringComparison.Ordinal) || args[i + 1].StartsWith("--", StringComparison.Ordinal))
+            {
+                Console.Error.WriteLine("Options must be name/value pairs (except launch --offline).");
                 return false;
             }
             var key = args[i][2..];
@@ -295,6 +328,7 @@ internal static class Program
                 Console.Error.WriteLine($"Unknown or duplicate option: {args[i]}");
                 return false;
             }
+            i++;
         }
         return true;
     }

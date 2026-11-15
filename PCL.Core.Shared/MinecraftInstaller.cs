@@ -22,7 +22,7 @@ public sealed record MinecraftLaunchOptions(
     string? AuthServer = null,
     string LauncherName = "PCL");
 
-public sealed class MinecraftInstaller(HttpClient? httpClient = null)
+public sealed partial class MinecraftInstaller(HttpClient? httpClient = null)
 {
     private readonly HttpClient _http = httpClient ?? Http;
     private const string VersionManifestUrl = "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json";

@@ -42,6 +42,97 @@ Modrinth `.mrpack`、CurseForge 标准 manifest ZIP、HMCL、MCBBS 和 MultiMC �
 
 Release 的应用级 CurseForge key 由 GitHub Actions Secret `CURSEFORGE_API_KEY` 注入发布构建。Linux 生成器只允许读取此 key，以编码字节编译进二进制以降低明文误泄漏；不枚举其他环境变量，也不提供运行时环境回退。不将 key 写入源码、配置、日志或发布说明。普通本地构建不带 key；缺少 key 时 Modrinth 仍可使用，显式请求 CurseForge 会给出配置错误。编码不是加密，随客户端分发的应用 key 仍可被逆向提取，不能用于存放用户凭据。
 
+## 完整离线安装（首期：Linux x86_64 / glibc）
+
+`pack export` 的标准整合包通常只有下载清单，**不是完整离线包**。新增 `offline` 命令把已准备好的命名实例、完整 Java 运行时及 self-contained 单文件 MCM 放进同一个 ZIP。目标电脑不需要预装 Java、.NET 或 MCM，也不需要公网；但必须具有兼容的 Linux 系统、基本命令和图形驱动。首期不支持 Windows、ARM、musl/Alpine，也不把 Windows 安装目录自动转换成 Linux 离线包。Windows UI 保持不变，后续再接入。
+
+### 在有网的来源电脑准备并打包
+
+请使用 self-contained 的单文件 MCM 发布版；`dotnet run` / 普通 framework-dependent 构建不能生成包含完整启动器的离线包。
+
+```sh
+mcm -S 1.21.1 --instance Travel --loader fabric
+# 安装需要的模组、资源包与配置；建议先在来源电脑实际启动一次。
+# Java 必须先准备好：1.21.1 通常使用 Java 21，其他版本按 CLI 提示选择。
+mcm java install 21
+mcm offline export ./Travel-offline.zip --instance Travel
+mcm offline inspect ./Travel-offline.zip
+```
+
+`export`、`inspect` 和 `import` 都不联网。导出会检查本地客户端 JAR、启动依赖、assets 及旧 LWJGL 的已解压 natives；缺少文件或已知 SHA-1 不匹配会直接失败，必须先在来源电脑补齐。默认从实例自己的 `runtime/`，然后从游戏根的 `runtime/` 查找对应 Java；也可指定 `--java /path/to/portable-java-home` 或其 `bin/java`。使用自定义 `--game-dir` 时，准备 Java 也应设置同一 `MCM_GAME_DIR`。不支持只给一个 Java 二进制文件、复制 `/usr/bin/java` 而不带完整运行时，或含有指向 Java home 以外文件（例如 `/etc`）的发行版 JDK；请改用独立、可再分发的完整 Java 发行包。
+
+包内包含：
+
+- `versions/`、`libraries/`、`assets/`、`mods/` 及运行所需的本地文件；加载器必须已安装完成。
+- `config/`、`defaultconfigs/`、`kubejs/`、`scripts/`、`resourcepacks/`、`shaderpacks/`、旧版 `resources/`、常用选项与模组跟踪信息。
+- 完整 Java home（含库和许可证），以及内置 .NET Runtime 的单文件 MCM。
+
+不包含账户、已知令牌文件、存档、日志、截图或其他未列出的自定义目录。Java 内部的普通文件链接会复制成普通文件；游戏文件链接、目录链接以及指向 Java home 外部的链接会被拒绝。导出时请关闭游戏、模组安装和自动更新，避免来源文件同时变化。**模组的任意配置可能自行保存密码、服务器地址或其他隐私，分享前仍需人工检查。** 这是个人备份/迁移功能，不代表取得游戏、模组或 Java 的公开再分发许可，请遵守相关许可证。
+
+### 拷贝到完全断网的电脑
+
+用 U 盘等拷贝整个 ZIP。目标电脑若没有 MCM，可用系统已有解压工具取出包内的 `bootstrap/mcm`，例如：
+
+```sh
+unzip ./Travel-offline.zip bootstrap/mcm -d ./offline-bootstrap
+chmod +x ./offline-bootstrap/bootstrap/mcm
+./offline-bootstrap/bootstrap/mcm offline import ./Travel-offline.zip --instance Travel
+# 也可把这个 self-contained mcm 放入 ~/.local/bin。
+./offline-bootstrap/bootstrap/mcm login offline MyPlayer
+./offline-bootstrap/bootstrap/mcm launch Travel --offline
+```
+
+如果目标机连解压工具也没有，可以在来源电脑取出包里的 `bootstrap/mcm`，与 ZIP 一起拷贝；不需要再去目标机下载任何运行时。`--game-dir <path>` 可指定目标游戏根，`--instance <name>` 可重命名。导入按文件检查 SHA-256，校验本地游戏依赖和 Java 版本，在同一磁盘的临时目录完成后才登记实例；出错或取消会清理临时实例。**不会覆盖同名实例，也不会覆盖已有导出文件。** 请预留 ZIP、展开后的实例及临时文件所需空间。
+
+`launch --offline` 是明确的禁止联网模式：不自动安装/修补游戏或 Java，不刷新 Microsoft/第三方账户；必须先 `login offline <玩家名>`。普通 `launch` 保留原有账户和自动安装行为。离线账户不等于 Microsoft 离线令牌，也不会绕过在线服务器的正版验证；有些模组自己的首次下载、授权或在线服务不受启动器控制，应在断网前验证整套实例。
+
+### 局域网一键安装（无公网）
+
+来源电脑先生成完整离线包，再启动只读分发服务：
+
+```sh
+mcm offline serve ./Travel-offline.zip
+# 默认监听本机接口的 5078 端口，也可 --bind 192.168.1.10 --port 5078。
+```
+
+同一可信局域网的目标电脑执行（换成服务端实际 IP；可无互联网）：
+
+```sh
+curl -fS --noproxy '*' http://192.168.1.10:5078/ | bash
+```
+
+脚本仅从该局域网端口下载包内的 MCM 和完整离线包，先校验 SHA-256，再安装到 `~/.local/bin/mcm` 和 `~/.minecraft/instances/<包内实例名>/`；不调用软件源、GitHub、Mojang、模组平台或在线登录，不自动启动游戏，也不修改账户。来源服务启动前会校验整包，启动后请勿修改原 ZIP。已有不同版本的 `mcm` 不会被覆盖，相同二进制可复用；已有实例仍会拒绝覆盖。
+
+可用环境变量指定安装位置和新实例名（变量要传给管道右侧的 Bash）：
+
+```sh
+curl -fS --noproxy '*' http://192.168.1.10:5078/ | \
+  MCM_INSTALL_DIR="$HOME/offline-bin" MCM_GAME_DIR="$HOME/Games/Minecraft" MCM_INSTANCE=TravelCopy bash
+```
+
+目标系统需已有 Bash、curl 和 coreutils；USB 导入则不需要 curl。服务只接受回环、RFC 1918 私网、链路本地和 IPv6 ULA 地址，只提供 `/`、`/install.sh`、`/mcm`、`/bundle.zip` 的 GET/HEAD，不提供上传或目录浏览。默认最多同时处理 8 个请求，单次传输限时 30 分钟，Ctrl+C 停止服务。
+
+**HTTP 不加密、不认证，SHA-256 只能发现损坏，不能证明分发者可信。只在可信局域网使用，不要映射到公网，也不要执行陌生服务器的 `curl | bash`。** 可先将根路径脚本下载为本地文件，人工检查后再执行。防火墙只需向可信局域网开放服务端选定端口，不应关闭整个防火墙。
+
+### 显卡驱动、系统库和断网前检查
+
+```sh
+mcm offline doctor --instance Travel
+```
+
+该命令不联网，检查本地游戏文件、内置 Java 是否能运行、Linux OpenGL/X11/Wayland/音频库能否加载及图形会话环境变量。检查失败返回非零；通过也**不代表**已经创建 OpenGL 上下文或实际验证游戏画面，较老的 Minecraft/LWJGL 在 Wayland 桌面下仍可能需要 XWayland。
+
+| 内容 | 是否打包 / 处理方法 |
+| --- | --- |
+| 游戏、加载器、模组、资源、完整 Java、MCM/.NET Runtime | 包含在离线包中，不从公网补下载。 |
+| glibc、ICU、OpenSSL、zlib 等 Linux/.NET/Java 系统依赖 | 由目标发行版提供，不能从来源机器随意复制系统 `.so`；按目标发行版及版本准备离线安装介质或完整依赖包缓存。 |
+| NVIDIA/AMD/Intel 驱动、Mesa/OpenGL、X11/Wayland/XWayland、音频库 | 依赖目标 GPU、内核、发行版和版本，不复制来源电脑的驱动，不自动 `sudo` 或修改系统。 |
+| 不支持所需 OpenGL 的老显卡 | 打包无法修复硬件能力；需要兼容的驱动/游戏版本或更换硬件。 |
+
+推荐先确认目标机的发行版、版本、CPU 架构、GPU 和内核，再在相同环境的有网机器/虚拟机中准备发行版原生离线软件包及**全部传递依赖**，或使用发行版安装介质。NVIDIA 内核模块尤其需要匹配目标内核；AMD/Intel 通常由发行版内核与 Mesa 提供用户态支持，但仍须在目标机实测。不要因为来源电脑能玩，就把它的 `/usr/lib` 或显卡驱动拷过去。
+
+参考：[.NET Linux 部署依赖](https://learn.microsoft.com/en-us/dotnet/core/install/linux)、[GLFW 平台与 OpenGL 兼容性](https://www.glfw.org/docs/latest/compat_guide.html)。协议与安全边界见 [离线包格式说明](../docs/offline-bundles.md)。
+
 ## 目录扫描与旧 PCL 迁移
 
 游戏根目录按 `--game-dir`、环境变量 `MCM_GAME_DIR`（兼容旧变量 `PCL_GAME_DIR`）、用户主目录的 `~/.minecraft`、可执行文件旁的 `.minecraft` 依次选择。最后两个位置取第一个已存在的目录；两者都不存在时以 `~/.minecraft` 作为新安装目录。这里的“可执行文件旁”不是终端当前工作目录。主目录中的 `.minecraft` 即使没有版本，仍优先于同级目录。
@@ -64,11 +155,13 @@ Linux CLI 支持原版 Minecraft 元数据、文件校验和启动；Forge、Neo
 
 当前不支持 Windows 桌面 UI/TUI、OptiFine、旧版/变体加载器、整合包在线搜索、MultiMC JSON patch 的完整迁移、传统包内启动参数/实例设置迁移，以及 CurseForge 未提供下载 URL 的文件。`-S` 模组安装与 `mod update` 会解析必需模组依赖；整合包按清单下载文件，不递归改写包的固定依赖。远端 CurseForge 模组保留项目和文件 ID，Modrinth 模组按 SHA-1 查询来源；可识别来源的导入模组可继续更新和导出，未识别或包内自带的 JAR 仅支持本地维护（导出需要来源元数据）。Linux CLI 仍不等同 Windows 桌面端全部功能，也不支持 Yggdrasil Connect。
 
-`mcm launch` 使用所选账户启动实例。离线账户、Microsoft device-code flow 和传统 Yggdrasil/authlib-injector 已支持。第三方登录密码仅在交互终端隐藏输入；访问令牌保存在用户配置目录并限制权限。首次下载后会校验内容；Java 版本不足时才从 Mojang 官方清单下载 Linux runtime。需要可用图形会话、显卡驱动和已授权账号才能验收实际游戏画面。
+`mcm launch` 使用所选账户启动实例。离线账户、Microsoft device-code flow 和传统 Yggdrasil/authlib-injector 已支持。第三方登录密码仅在交互终端隐藏输入；访问令牌保存在用户配置目录并限制权限。首次下载后会校验内容；普通启动缺少对应 Java 时才从 Mojang 官方清单下载 Linux runtime；`--offline` 明确禁止该行为。需要可用图形会话、显卡驱动和已授权账号才能验收实际游戏画面。
 
 ## 本地开发
 
 ```sh
 dotnet build PCL.Linux.Cli/PCL.Linux.Cli.csproj
 dotnet test PCL.Core.Shared.Tests/PCL.Core.Shared.Tests.csproj
+# 对 self-contained 单文件发布产物执行，无真实账户/公网依赖：
+python3 scripts/check_mcm_offline.py /absolute/path/to/mcm
 ```

@@ -9,6 +9,9 @@
   </PropertyGroup>
   <ItemGroup>
     <AssemblyMetadata Include="McmReleaseVersion" Value="$(McmReleaseVersion)" />
+    <AssemblyMetadata Include="McmOfflineSelfContained" Value="$(SelfContained)" />
+    <AssemblyMetadata Include="McmOfflineSingleFile" Value="$(PublishSingleFile)" />
+    <AssemblyMetadata Include="McmOfflineNativeBundle" Value="$(IncludeNativeLibrariesForSelfExtract)" />
     <ProjectReference Include="..\PCL.Core.Shared\PCL.Core.Shared.csproj" />
     <ProjectReference Include="..\PCL.Core.SecretsGenerator\PCL.Core.SecretsGenerator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>

@@ -16,5 +16,6 @@
     <Compile Include="..\PCL.Linux.Cli\LinuxSelfUpdater.cs" Link="LinuxSelfUpdater.cs" />
     <Compile Include="..\PCL.Linux.Cli\InstanceCommands.cs" Link="InstanceCommands.cs" />
     <Compile Include="..\PCL.Linux.Cli\ConsoleInstallProgress.cs" Link="ConsoleInstallProgress.cs" />
+    <Compile Include="..\PCL.Linux.Cli\OfflineInstallServer.cs" Link="OfflineInstallServer.cs" />
   </ItemGroup>
 </Project>

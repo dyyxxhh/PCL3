@@ -156,6 +156,7 @@ jobs:
             -o ./linux-artifact
           test -x ./linux-artifact/mcm
           python3 scripts/check_mcm_cli.py ./linux-artifact/mcm
+          python3 scripts/check_mcm_offline.py ./linux-artifact/mcm
           cp PCL.Linux.Cli/README.md ./linux-artifact/README.md
           cp LICENSE ./linux-artifact/LICENSE
           tar -C ./linux-artifact -czf "MCM_${{ inputs.configuration }}_linux-x64.tar.gz" mcm README.md LICENSE
