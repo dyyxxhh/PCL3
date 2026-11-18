@@ -27,14 +27,23 @@ jobs:
         include:
           - configuration: CI
             architecture: x64
+            variant: framework
           - configuration: CI
             architecture: ARM64
+            variant: framework
+          - configuration: CI
+            architecture: x64
+            variant: selfcontained
+          - configuration: CI
+            architecture: ARM64
+            variant: selfcontained
       fail-fast: false
 
     uses: ./.github/workflows/reusable-build.yml
     with:
       configuration: ${{ matrix.configuration }}
       architecture: ${{ matrix.architecture }}
+      variant: ${{ matrix.variant }}
     secrets: inherit
 
   linux-cli:

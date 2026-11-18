@@ -27,14 +27,23 @@ jobs:
         include:
           - configuration: ${{ inputs.configuration }}
             architecture: x64
+            variant: framework
           - configuration: ${{ inputs.configuration }}
             architecture: ARM64
+            variant: framework
+          - configuration: ${{ inputs.configuration }}
+            architecture: x64
+            variant: selfcontained
+          - configuration: ${{ inputs.configuration }}
+            architecture: ARM64
+            variant: selfcontained
       fail-fast: false
 
     uses: ./.github/workflows/reusable-build.yml
     with:
       configuration: ${{ matrix.configuration }}
       architecture: ${{ matrix.architecture }}
+      variant: ${{ matrix.variant }}
     secrets: inherit
 
   changelog:
@@ -64,6 +73,20 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Append download guide
+        run: |
+          cat >> CHANGELOG.md <<'EOF'
+
+          ## 下载说明 (Download)
+
+          主发布为框架依赖版，体积约 22 MB；自带运行时的压缩单文件版体积约 98 MB。
+
+          - `PCL3_${{ inputs.configuration }}_<架构>.exe`：框架依赖版，需要预先安装 [.NET 10 Desktop Runtime](https://get.dot.net/10)。自动更新默认下载该资产。
+          - `PCL3_${{ inputs.configuration }}_<架构>_selfcontained.exe`：自带运行时压缩版，无需安装 .NET；没有 .NET 的电脑、以及在框架依赖版上导出完整 Windows 离线包时使用。
+
+          每个 `.exe` 都有对应的 `.sha256` 校验文件和 `.sigstore.json` 签名。
+          EOF
+
       - name: Create or update release
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
@@ -88,26 +111,40 @@ jobs:
         include:
           - configuration: ${{ inputs.configuration }}
             architecture: x64
+            variant: framework
+            asset_suffix: ''
           - configuration: ${{ inputs.configuration }}
             architecture: ARM64
+            variant: framework
+            asset_suffix: ''
+          - configuration: ${{ inputs.configuration }}
+            architecture: x64
+            variant: selfcontained
+            asset_suffix: _selfcontained
+          - configuration: ${{ inputs.configuration }}
+            architecture: ARM64
+            variant: selfcontained
+            asset_suffix: _selfcontained
+    env:
+      ASSET_NAME: PCL3_${{ inputs.configuration }}_${{ matrix.architecture }}${{ matrix.asset_suffix }}
     steps:
       - name: Download Build Artifact
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          name: PCL3_${{ matrix.configuration }}_${{ matrix.architecture }}
+          name: PCL3_${{ inputs.configuration }}_${{ matrix.architecture }}${{ matrix.asset_suffix }}
           path: ./artifact
 
       - name: Rename binaries
         run: |
-          mv "./artifact/Plain Craft Launcher 2.exe" "PCL3_${{ matrix.configuration }}_${{ matrix.architecture }}.exe"
+          mv "./artifact/Plain Craft Launcher 2.exe" "${ASSET_NAME}.exe"
 
       - name: Create SHA-256 manifest
-        run: sha256sum "PCL3_${{ matrix.configuration }}_${{ matrix.architecture }}.exe" > "PCL3_${{ matrix.configuration }}_${{ matrix.architecture }}.sha256"
+        run: sha256sum "${ASSET_NAME}.exe" > "${ASSET_NAME}.sha256"
 
       - name: Sign the binary
         uses: sigstore/gh-action-sigstore-python@790bc6befb9d733738f18d8f895854b453640ec9 # v3.5.0
         with:
-          inputs: PCL3_${{ matrix.configuration }}_${{ matrix.architecture }}.exe
+          inputs: PCL3_${{ inputs.configuration }}_${{ matrix.architecture }}${{ matrix.asset_suffix }}.exe
           verify: true
           verify-cert-identity: https://github.com/${{ github.repository }}/.github/workflows/release-publish.yml@${{ github.ref }}
           verify-oidc-issuer: https://token.actions.githubusercontent.com
@@ -119,9 +156,9 @@ jobs:
           target_commitish: ${{ github.sha }}
           tag_name: v${{ inputs.version }}
           files: |
-            PCL3_${{ matrix.configuration }}_${{ matrix.architecture }}.exe
-            PCL3_${{ matrix.configuration }}_${{ matrix.architecture }}.exe.sigstore.json
-            PCL3_${{ matrix.configuration }}_${{ matrix.architecture }}.sha256
+            PCL3_${{ inputs.configuration }}_${{ matrix.architecture }}${{ matrix.asset_suffix }}.exe
+            PCL3_${{ inputs.configuration }}_${{ matrix.architecture }}${{ matrix.asset_suffix }}.exe.sigstore.json
+            PCL3_${{ inputs.configuration }}_${{ matrix.architecture }}${{ matrix.asset_suffix }}.sha256
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

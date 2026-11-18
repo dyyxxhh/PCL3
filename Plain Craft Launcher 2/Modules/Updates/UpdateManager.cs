@@ -14,7 +14,8 @@ public static class UpdateManager
 
     public static readonly UpdatesWrapperModel remoteServer = new(new List<IUpdateSource>
     {
-        new UpdatesGithubReleaseModel()
+        // 自带运行时的发布版必须更新到同名变体，否则替换后会因缺少系统 .NET 运行时无法启动
+        new UpdatesGithubReleaseModel(BuildVariant.IsSelfContainedSingleFile)
     });
 
     public static UpdateEnums.VersionStatus GetVersionStatus()

@@ -34,7 +34,8 @@ assert "ShowCEAnnounce();" not in (APP / "FormMain.xaml.cs").read_text(encoding=
 assert "AnnouncementService.Load();" not in update_manager
 assert 'https://s3.pysio.online/pcl2-ce/apiv2/pages/announce.xaml' not in homepage
 assert 'case 14:' in homepage and 'content = "";' in homepage
-assert 'new UpdatesGithubReleaseModel()' in update_manager
+# 更新源必须是本仓库的 GitHub Releases，并按当前发布形态选择资产
+assert 'new UpdatesGithubReleaseModel(BuildVariant.IsSelfContainedSingleFile)' in update_manager
 # The easter egg belongs to Tools only, without stale global-button references.
 assert "BtnExtraNeverClick" not in main_xaml
 assert "BtnExtraNeverClick" not in (APP / "FormMain.xaml.cs").read_text(encoding="utf-8")

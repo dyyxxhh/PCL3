@@ -117,7 +117,10 @@ public partial class PageInstanceExport : IRefreshable, IPageView
         BtnWindowsOfflineExport.IsEnabled = false;
         try
         {
-            var manifest = await Task.Run(() => WindowsOfflineBundleExporter.ExportAsync(instance, destination).GetAwaiter().GetResult());
+            // 框架依赖版会先获取同版本的自带运行时压缩版作为离线包启动器
+            var launcherPath = await WindowsOfflineLauncherProvider.ResolveAsync();
+            var manifest = await Task.Run(() =>
+                WindowsOfflineBundleExporter.ExportAsync(instance, destination, launcherPath).GetAwaiter().GetResult());
             var address = NetworkInterface.GetAllNetworkInterfaces()
                 .Where(adapter => adapter.OperationalStatus == OperationalStatus.Up)
                 .SelectMany(adapter => adapter.GetIPProperties().UnicastAddresses)
@@ -126,10 +129,8 @@ public partial class PageInstanceExport : IRefreshable, IPageView
                     && WindowsOfflineDistributionServer.IsLanAddress(item) && !IPAddress.IsLoopback(item))
                 ?? throw new InvalidOperationException("No private LAN network adapter is active.");
             if (_offlineServer is not null) await _offlineServer.DisposeAsync();
-            var executable = System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName
-                ?? throw new InvalidOperationException("Cannot locate the PCL₃ executable.");
             _offlineServer = await WindowsOfflineDistributionServer.StartAsync(
-                new WindowsOfflineDistributionPackage(destination, executable, manifest.TargetRuntime, manifest.Instance.Name), address);
+                new WindowsOfflineDistributionPackage(destination, launcherPath, manifest.TargetRuntime, manifest.Instance.Name), address);
             var commandText = $"PowerShell:\r\n{_offlineServer.PowerShellCommand}\r\n\r\nCMD:\r\n{_offlineServer.CmdCommand}\r\n\r\n仅限可信局域网。SHA-256 校验不能验证分发者身份。服务地址：{_offlineServer.Origin}";
             switch (Launcher.MyMsgBox(commandText, "离线包已就绪", "复制 PowerShell 命令", "复制 CMD 命令", "停止局域网共享"))
             {
@@ -137,6 +138,10 @@ public partial class PageInstanceExport : IRefreshable, IPageView
                 case 2: Clipboard.SetText(_offlineServer.CmdCommand); HintService.Hint("CMD 命令已复制"); break;
                 case 3: await _offlineServer.DisposeAsync(); _offlineServer = null; break;
             }
+        }
+        catch (Exception ex) when (ex is OperationCanceledException or ThreadInterruptedException)
+        {
+            HintService.Hint("已取消导出完整 Windows 离线包", HintType.Error);
         }
         catch (Exception ex)
         {

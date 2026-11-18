@@ -262,7 +262,7 @@
                 <local:MyCard Margin="0,0,0,15">
                     <StackPanel Margin="18,12">
                         <TextBlock Text="完整 Windows 离线包" FontWeight="SemiBold" />
-                        <TextBlock Margin="0,5,0,10" Text="打包当前版本与 Java，并生成可在 PowerShell 或 CMD 粘贴的一键局域网安装命令。" TextWrapping="Wrap" />
+                        <TextBlock Margin="0,5,0,10" Text="打包当前版本与 Java，并生成可在 PowerShell 或 CMD 粘贴的一键局域网安装命令。框架依赖版会先下载同版本的自带运行时压缩版（约 98 MB）作为离线包启动器。" TextWrapping="Wrap" />
                         <local:MyButton x:Name="BtnWindowsOfflineExport" HorizontalAlignment="Left" MinWidth="210"
                                         Text="导出并开启局域网安装" />
                     </StackPanel>

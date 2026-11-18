@@ -54,7 +54,10 @@ PCL₃ 是 [PCL CE](https://github.com/PCL-Community/PCL-CE) 的個人改編版�
 | Windows 7 或更低版本 | ❌ 不支援 | / |
 | macOS / Linux | 僅交叉編譯開發支援 | [.NET 10 SDK](https://get.dot.net/10) |
 
-Release 提供 x64 與 ARM64 兩個架構的依賴框架版本，需系統已安裝 .NET 10 Desktop Runtime。
+Windows Release 為每個架構提供兩個版本：
+
+- `PCL3_Release_<架構>.exe`：依賴框架版（約 22 MB），需系統已安裝 .NET 10 Desktop Runtime；自動更新預設使用該版本。
+- `PCL3_Release_<架構>_selfcontained.exe`：自帶執行階段壓縮單檔案版（約 98 MB），無需安裝 .NET；沒有 .NET 的電腦請用它，在依賴框架版上匯出完整 Windows 離線包時也會自動下載並校驗它作為離線包啟動器。
 
 ## 與上游同步
 

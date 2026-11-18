@@ -76,6 +76,18 @@ foreach (var (version, code, previousVersion, previousCode) in new[]
         finally { Requester.LatestHtml = originalHtml; }
     });
 }
+Test("self-contained build updates to the self-contained release assets", () =>
+{
+    Requester.LatestHtml = "<link rel=\"canonical\" href=\"https://github.com/dyyxxhh/PCL3/releases/tag/v0.3.7\">";
+    Requester.Sha256 = new string('d', 64);
+    var model = new UpdatesGithubReleaseModel(selfContained: true);
+    var release = model.GetLatestVersion(UpdateChannel.stable, UpdateArch.x64);
+    Assert(Requester.LastAssetUrl == "https://github.com/dyyxxhh/PCL3/releases/download/v0.3.7/PCL3_Release_x64_selfcontained.sha256", $"self-contained checksum asset URL changed: {Requester.LastAssetUrl}");
+    Assert(release.Sha256 == Requester.Sha256, "self-contained checksum missing");
+    var loaders = model.GetDownloadLoader(UpdateChannel.stable, UpdateArch.arm64, "update.exe");
+    var downloader = (PCL.Network.Loaders.LoaderDownload)loaders.Single();
+    Assert(downloader.Files.Single().Urls.Single() == "https://github.com/dyyxxhh/PCL3/releases/download/v0.3.7/PCL3_Release_ARM64_selfcontained.exe", "self-contained launcher asset URL changed");
+});
 Environment.ExitCode = failed == 0 ? 0 : 1;
 
 namespace PCL.Core.App { }
@@ -89,11 +101,18 @@ namespace PCL
         public static void Log(Exception ex, string text, LogLevel level = LogLevel.Normal) { }
     }
     public static class Loading { public class LoaderBase { } }
-    public class DownloadFile(string[] urls, string output) { }
+    public class DownloadFile(string[] urls, string output)
+    {
+        public string[] Urls = urls;
+        public string Output = output;
+    }
 }
 namespace PCL.Network.Loaders
 {
-    public class LoaderDownload(string name, List<PCL.DownloadFile> files) : PCL.Loading.LoaderBase { }
+    public class LoaderDownload(string name, List<PCL.DownloadFile> files) : PCL.Loading.LoaderBase
+    {
+        public List<PCL.DownloadFile> Files = files;
+    }
 }
 namespace PCL.Network
 {

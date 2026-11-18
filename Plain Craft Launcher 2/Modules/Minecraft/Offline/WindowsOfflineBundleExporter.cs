@@ -1,7 +1,4 @@
-using System.Diagnostics;
 using System.IO;
-using System.Reflection;
-using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text.Json.Nodes;
 using PCL.Core.Shared.Java;
@@ -12,15 +9,14 @@ namespace PCL;
 internal static class WindowsOfflineBundleExporter
 {
     public static async Task<OfflineBundleManifest> ExportAsync(McInstance instance, string destination,
-        IProgress<DownloadProgress>? progress = null, CancellationToken cancellationToken = default, string? javaExecutable = null)
+        string launcherPath, IProgress<DownloadProgress>? progress = null, CancellationToken cancellationToken = default,
+        string? javaExecutable = null)
     {
         if (!OperatingSystem.IsWindows()) throw new PlatformNotSupportedException();
         instance.Load();
         if (instance.state == McInstanceState.Error) throw new InvalidOperationException("请先选择已安装且有效的游戏版本。");
-        var executable = Environment.ProcessPath ?? throw new InvalidOperationException("找不到当前启动器。");
-        if (!string.IsNullOrEmpty(Assembly.GetExecutingAssembly().Location)
-            || AppContext.GetData("APP_CONTEXT_DEPS_FILES") is string deps && !string.IsNullOrEmpty(deps))
-            throw new InvalidOperationException("请使用自带 .NET 的单文件 PCL₃ 发布版导出完整离线包。");
+        var executable = Path.GetFullPath(launcherPath);
+        if (!File.Exists(executable)) throw new FileNotFoundException("找不到离线包使用的启动器。", executable);
         if (instance.Info.HasOptiFine || instance.Info.HasLiteLoader || instance.Info.HasLegacyFabric
             || instance.Info.HasCleanroom || instance.Info.HasLabyMod)
             throw new NotSupportedException("完整离线包当前支持原版、Fabric、Quilt、Forge 和 NeoForge。");

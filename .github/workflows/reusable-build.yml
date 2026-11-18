@@ -12,10 +12,14 @@ on:
       architecture:
         required: true
         type: string
+      variant:
+        description: 'Launcher build variant: framework (framework-dependent) or selfcontained (compressed, self-contained)'
+        required: true
+        type: string
 
 jobs:
   build:
-    name: Build
+    name: Build (${{ inputs.variant }})
     runs-on: ubuntu-latest
     env:
       LANG: en_US.UTF-8
@@ -55,14 +59,40 @@ jobs:
           PCL_LOBBY_DEFAULT_SECRET: ${{ secrets.LOBBY_DEFAULT_SECRET }}
           PCL_GITHUB_SHA: ${{ github.sha }}
         run: |
-          dotnet publish "Plain Craft Launcher 2/Plain Craft Launcher 2.csproj" \
-          -p:Configuration=${{ inputs.configuration }} -p:Platform=${{ inputs.architecture }} \
-          --runtime ${{ inputs.architecture == 'ARM64' && 'win-arm64' || 'win-x64' }} --self-contained true \
-          -p:IncludeNativeLibrariesForSelfExtract=true \
-          -p:DeleteExistingFiles=true -o ./artifact
+          if [ "${{ inputs.variant }}" = "selfcontained" ]; then
+            dotnet publish "Plain Craft Launcher 2/Plain Craft Launcher 2.csproj" \
+            -p:Configuration=${{ inputs.configuration }} -p:Platform=${{ inputs.architecture }} \
+            --runtime ${{ inputs.architecture == 'ARM64' && 'win-arm64' || 'win-x64' }} --self-contained true \
+            -p:IncludeNativeLibrariesForSelfExtract=true \
+            -p:EnableCompressionInSingleFile=true \
+            -p:DeleteExistingFiles=true -o ./artifact
+          elif [ "${{ inputs.variant }}" = "framework" ]; then
+            dotnet publish "Plain Craft Launcher 2/Plain Craft Launcher 2.csproj" \
+            -p:Configuration=${{ inputs.configuration }} -p:Platform=${{ inputs.architecture }} \
+            --no-self-contained \
+            -p:DeleteExistingFiles=true -o ./artifact
+          else
+            echo "::error::Unknown launcher build variant: ${{ inputs.variant }}"
+            exit 1
+          fi
+
+      - name: Verify launcher artifact
+        run: |
+          exe="./artifact/Plain Craft Launcher 2.exe"
+          test -f "$exe"
+          size=$(stat -c%s "$exe")
+          echo "Launcher size: $size bytes (variant: ${{ inputs.variant }})"
+          if [ "${{ inputs.variant }}" = "selfcontained" ]; then
+            # 自带运行时 + 压缩单文件：约 98 MB；明显偏离说明压缩开关或发布方式被改坏
+            test "$size" -gt 60000000
+            test "$size" -lt 160000000
+          else
+            # 框架依赖版：约 22 MB；超过 40 MB 说明又被打成了自带运行时
+            test "$size" -lt 40000000
+          fi
 
       - name: Upload the Build Artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: PCL3_${{ inputs.configuration }}_${{ inputs.architecture }}
+          name: PCL3_${{ inputs.configuration }}_${{ inputs.architecture }}${{ inputs.variant == 'selfcontained' && '_selfcontained' || '' }}
           path: artifact/**

@@ -1,6 +1,6 @@
 # MCM 完整离线包 v1
 
-本说明的 v1 包继续支持 **Linux x86_64 / glibc**。Windows 新增 v2 包适配、版本导出页入口及 PowerShell/CMD 局域网安装脚本；Windows 文件布局和 Java 选择仍由 Windows 前端处理，不能据此声称 Windows/Linux 已共享所有安装或启动逻辑。Windows 使用与验证限制见 `windows-offline-install.md`。
+本说明的 v1 包继续支持 **Linux x86_64 / glibc**。Windows 新增 v2 包适配、版本导出页入口及 PowerShell/CMD 局域网安装脚本。Windows 离线包内的启动器固定使用自带运行时的压缩单文件版；框架依赖版导出时会按当前版本与架构从 GitHub Release 下载并校验该产物（缓存在 `PCL\Offline\`），因此首次导出需要联网。Windows 文件布局和 Java 选择仍由 Windows 前端处理，不能据此声称 Windows/Linux 已共享所有安装或启动逻辑。Windows 使用与验证限制见 `windows-offline-install.md`。
 
 ## 格式
 
@@ -81,7 +81,7 @@ Windows v2 清单使用 `formatVersion = 2`、`layout = "pcl-windows"`，目标�
 
 v2 保留逐文件 SHA-256 清单，但使用 Windows 的版本目录和 Java 可执行文件布局。包来源必须是可信的 Windows 同架构电脑；校验和只检测传输损坏，不验证分发者身份。Linux 安装器拒绝 Windows 布局，Windows 安装器拒绝 Linux 包和架构不匹配的 Windows 包。
 
-来源机通过导出页启动只读 LAN 服务后，可直接复制 PowerShell 或 CMD 命令。命令下载并校验 PCL₃ self-contained 启动器与完整离线 ZIP，再调用不启动 GUI、不联网的导入入口。它不要求 Bash、curl、管理员权限或永久调整执行策略。安装脚本的 PowerShell 5.1/7、CMD 执行及真实游戏启动必须在 Windows 环境验收，Linux 交叉构建不能替代。
+来源机通过导出页启动只读 LAN 服务后，可直接复制 PowerShell 或 CMD 命令。命令下载并校验 PCL₃ 自带运行时压缩单文件启动器与完整离线 ZIP，再调用不启动 GUI、不联网的导入入口。它不要求 Bash、curl、管理员权限或永久调整执行策略。安装脚本的 PowerShell 5.1/7、CMD 执行及真实游戏启动必须在 Windows 环境验收，Linux 交叉构建不能替代。
 
 当前 Windows 归档和导入适配位于 `PCL.Core.Shared/OfflineBundleService.Windows.cs`；普通目录映射、Java 运行能力和已验证的合并版本 JSON 应由 Windows 端准备。启动器、Java、Windows 原生 DLL、显卡驱动及 OpenGL 能力仍需目标电脑提供或验证；离线包不能替代系统驱动。
 

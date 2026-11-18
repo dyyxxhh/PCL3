@@ -54,7 +54,10 @@ See the [PCL CE repository](https://github.com/PCL-Community/PCL-CE) for details
 | Windows 7 or earlier | ❌ Not supported | N/A |
 | macOS / Linux | Cross-compilation only | [.NET 10 SDK](https://get.dot.net/10) |
 
-Releases provide framework-dependent x64 and ARM64 builds; the .NET 10 Desktop Runtime must be installed.
+Each Windows release ships two variants per architecture:
+
+- `PCL3_Release_<arch>.exe`: framework-dependent (about 22 MB), requires the .NET 10 Desktop Runtime; this is what auto-update downloads.
+- `PCL3_Release_<arch>_selfcontained.exe`: compressed, self-contained single file (about 98 MB), needs no .NET installation. Use it on machines without .NET; a framework-dependent build also downloads and verifies it automatically as the launcher for full offline Windows bundles.
 
 ## Staying in sync with upstream
 

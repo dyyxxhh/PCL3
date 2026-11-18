@@ -8,15 +8,14 @@ using PCL.Network.Loaders;
 namespace PCL;
 
 /// <summary>GitHub Releases 更新源，供本分支使用，不依赖受限 GitHub REST API。</summary>
-public sealed class UpdatesGithubReleaseModel : IUpdateSource
+/// <param name="selfContained">当前是否为自带运行时的发布版；为 True 时下载对应的压缩单文件资产。</param>
+/// <param name="name">更新源显示名称。</param>
+public sealed class UpdatesGithubReleaseModel(bool selfContained = false, string name = "PCL₃ GitHub Releases")
+    : IUpdateSource
 {
-    private const string RepositoryUrl = "https://github.com/dyyxxhh/PCL3";
-    private const string LatestReleaseUrl = RepositoryUrl + "/releases/latest";
     private string? _latestTag;
 
-    public UpdatesGithubReleaseModel(string name = "PCL₃ GitHub Releases") => SourceName = name;
-
-    public string SourceName { get; set; }
+    public string SourceName { get; set; } = name;
 
     public bool IsAvailable() => true;
 
@@ -30,8 +29,7 @@ public sealed class UpdatesGithubReleaseModel : IUpdateSource
     {
         var tag = _latestTag ??= GetLatestTag();
         var version = NormalizeVersion(tag);
-        var shaName = GetAssetName(arch, ".sha256");
-        var shaUrl = $"{RepositoryUrl}/releases/download/{Uri.EscapeDataString(tag)}/{shaName}";
+        var shaUrl = ReleaseAssets.GetDownloadUrl(tag, GetAssetName(arch, ".sha256"));
         var sha256 = Requester.FetchString(shaUrl, RequestParam.WithRetry)
             .Split(new[] { ' ', '\t', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
             .FirstOrDefault();
@@ -59,7 +57,7 @@ public sealed class UpdatesGithubReleaseModel : IUpdateSource
     public List<Loading.LoaderBase> GetDownloadLoader(UpdateChannel channel, UpdateArch arch, string output)
     {
         var tag = _latestTag ??= GetLatestTag();
-        var url = $"{RepositoryUrl}/releases/download/{Uri.EscapeDataString(tag)}/{GetAssetName(arch, ".exe")}";
+        var url = ReleaseAssets.GetDownloadUrl(tag, GetAssetName(arch, ".exe"));
         return new List<Loading.LoaderBase>
         {
             new LoaderDownload(Lang.Text("Update.Task.DownloadUpdateFile"),
@@ -71,7 +69,7 @@ public sealed class UpdatesGithubReleaseModel : IUpdateSource
     {
         var htmlParam = RequestParam.WithRetry;
         htmlParam.UseBrowserUserAgent = true;
-        var html = Requester.FetchString(LatestReleaseUrl, htmlParam);
+        var html = Requester.FetchString(ReleaseAssets.LatestReleaseUrl, htmlParam);
         var patterns = new[]
         {
             """<meta\b(?=[^>]*\bproperty\s*=\s*["']og:url["'])(?=[^>]*\bcontent\s*=\s*["']https://github\.com/dyyxxhh/PCL3/releases/tag/(?<tag>[^"'#?&<>\s]+)["'])[^>]*>""",
@@ -86,10 +84,9 @@ public sealed class UpdatesGithubReleaseModel : IUpdateSource
         throw new Exception("GitHub Release 页面未包含最新版本标记");
     }
 
-    private static string GetAssetName(UpdateArch arch, string suffix)
+    private string GetAssetName(UpdateArch arch, string suffix)
     {
-        var architecture = arch == UpdateArch.arm64 ? "ARM64" : "x64";
-        return $"PCL3_Release_{architecture}{suffix}";
+        return ReleaseAssets.GetAssetName(arch, "Release", selfContained, suffix);
     }
 
     private static string NormalizeVersion(string tag)
