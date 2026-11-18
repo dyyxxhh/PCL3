@@ -83,6 +83,9 @@ assert 'BuildVariant.IsSelfContainedSingleFile' in provider
 assert 'ReleaseAssets.GetAssetName(architecture, configuration, true, ".exe")' in provider
 assert 'new Common.FileChecker(hash: sha256)' in provider
 assert 'Common.GetFileSha256(cachePath)' in provider
+# 发布页的校验文件是 PCL3_<配置>_<架构>_selfcontained.sha256，不能拼成 .exe.sha256
+assert 'ReleaseAssets.GetAssetName(architecture, configuration, true, ".sha256")' in provider
+assert 'assetName + ".sha256"' not in provider
 exporter = (APP / 'Modules/Minecraft/Offline/WindowsOfflineBundleExporter.cs').read_text(encoding='utf-8-sig')
 assert 'string launcherPath' in exporter
 assert 'Environment.ProcessPath' not in exporter

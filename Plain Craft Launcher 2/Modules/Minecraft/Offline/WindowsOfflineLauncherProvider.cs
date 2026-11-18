@@ -43,7 +43,9 @@ internal static class WindowsOfflineLauncherProvider
         var tag = "v" + version;
         var assetName = ReleaseAssets.GetAssetName(architecture, configuration, true, ".exe");
         var assetUrl = ReleaseAssets.GetDownloadUrl(tag, assetName);
-        var shaUrl = ReleaseAssets.GetDownloadUrl(tag, assetName + ".sha256");
+        // 与发布页一致：校验文件是 ..._selfcontained.sha256，不是 ..._selfcontained.exe.sha256
+        var shaName = ReleaseAssets.GetAssetName(architecture, configuration, true, ".sha256");
+        var shaUrl = ReleaseAssets.GetDownloadUrl(tag, shaName);
         var cacheDirectory = Path.Combine(Common.ExePath, "PCL", CacheFolderName);
         var cachePath = Path.Combine(cacheDirectory, assetName);
 
