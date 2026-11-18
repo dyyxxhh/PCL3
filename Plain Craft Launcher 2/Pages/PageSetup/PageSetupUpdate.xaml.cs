@@ -128,7 +128,7 @@ public partial class PageSetupUpdate : IPageView
 
                 if (UpdateManager.updateLoader is not null && UpdateManager.updateLoader.State == Common.LoadState.Loading)
                 {
-                    BtnUpdate_Timer();
+                    await BtnUpdate_Timer();
                     BtnUpdate.IsEnabled = false;
                 }
                 else if (UpdateManager.isUpdateWaitingRestart)
@@ -167,12 +167,12 @@ public partial class PageSetupUpdate : IPageView
         }
     }
 
-    public void BtnUpdate_Timer()
+    public async Task BtnUpdate_Timer()
     {
         while (UpdateManager.updateLoader is not null && UpdateManager.updateLoader.State == Common.LoadState.Loading)
         {
             Common.RunInUi(() => BtnUpdate.Text = Lang.Number(UpdateManager.updateLoader.Progress, "P2"));
-            Thread.Sleep(200);
+            await Task.Delay(200);
         }
     }
 

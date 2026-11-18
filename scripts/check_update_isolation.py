@@ -43,6 +43,11 @@ ET.parse(page)
 page_cs = page.with_suffix('.xaml.cs').read_text(encoding='utf-8-sig')
 assert 'https://github.com/dyyxxhh/PCL3/releases/tag/v' in page_cs
 assert 'ComboSystemUpdateMode' in page.read_text(encoding='utf-8-sig')
+assert 'UpdateStart(UpdateEnums.UpdateType.UpdateNow)' in page_cs
+assert 'await BtnUpdate_Timer();' in page_cs
+# Waiting for a background update from the WPF UI thread must yield to the dispatcher.
+assert 'await Task.Delay(200)' in page_cs
+assert 'Thread.Sleep(200)' not in page_cs
 for path in (CORE / 'App/Localization/Languages').glob('*.xaml'):
     ET.parse(path)
 metadata = json.loads((APP / 'metadata.json').read_text(encoding='utf-8'))

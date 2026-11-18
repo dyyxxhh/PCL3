@@ -1,45 +1,29 @@
 # AGENTS.md
 
-## 项目概况
+## 项目与边界
+- PCL₃ 是 Minecraft Java 启动器 fork：Windows 为 .NET 10 WPF，Linux 为独立的 MCM CLI。
+- `Plain Craft Launcher 2/` 是 Windows 前端；`PCL.Core/` 是 Windows 核心，不能直接当跨平台库。
+- `PCL.Core.Shared/` 只承载明确可复用的领域逻辑；不得声称 Windows/Linux 已共享全部启动、认证或安装逻辑。
+- `PCL.Linux.Cli/`、`PCL.Core.Shared.Tests/`、`PCL.Core.Test/`、`tests/UpdateRegression/` 分别是 Linux CLI、共享测试、Windows 测试和更新回归。
+- `.github/workflows/` 管理 CI、Windows 构建和 Release；保留 `PCL3_`、`MCM_` 资源命名约定。
+- 保留 `docs/research/` 中已有文件，包括未跟踪研究记录。
 
-PCL₃ 是基于 PCL Community Edition 的 Minecraft Java 版启动器 fork。Windows 主程序为 .NET 10 WPF；Linux 有独立的、仍在开发中的命令行客户端。保持 Windows UI 和现有行为不变，除非任务明确要求修改。不要将 Linux 客户端描述为已具备 Windows 全部功能。
+## 修改与安全
+- 开始前检查工作树、分支和未跟踪文件；不得覆盖、删除或提交无关修改。
+- 保持现有 Windows/Linux 行为；UI、启动、认证、更新和发布改动必须补相应回归。
+- 路径使用 `Path` API；下载内容校验哈希、长度、架构并防止目录穿越和重解析点攻击。
+- 不输出、读取、提交或传播密码、令牌、客户端密钥、Cookies 或 GitHub Secrets；测试使用独立 mock。
+- 不提交 `bin/`、`obj/`、SDK、临时目录或本地发布产物。
 
-## 项目结构
+## 验证
+- 默认运行：`dotnet build PCL.Linux.Cli/PCL.Linux.Cli.csproj`、共享测试、Windows WPF 构建，以及三个 `scripts/check_*.py` 回归脚本。
+- 发布前按改动范围增加测试；Linux 交叉编译不能证明 Windows WPF、PowerShell、CMD、图形启动或真实认证可用。
+- 区分历史警告与新增错误；所有编译错误和回归失败必须修复后再继续。
 
-- `Plain Craft Launcher 2/`：Windows WPF 入口、页面、控件、Minecraft 下载/启动模块及资源；项目文件为 `Plain Craft Launcher 2.csproj`。
-- `PCL.Core/`：现有 Windows 核心，目标 `net10.0-windows`，包含业务、WPF UI 和平台服务，不能直接作为跨平台库使用。
-- `PCL.Core.Shared/`：`net10.0` 共享代码，包括 Linux 原版安装、Java 发现、启动和认证。Windows 当前仅部分使用该库（例如 Java 版本规则），不要误称所有启动逻辑已经共享。
-- `PCL.Linux.Cli/`：MCM Linux CLI 命令、终端交互，可执行文件为 `mcm`；详细命令参见其 README。
-- `PCL.Core.Shared.Tests/`：共享核心 MSTest 测试。
-- `PCL.Core.Test/`：Windows 核心测试；`PCL.Core.SourceGenerators/`：源生成器；`tests/UpdateRegression/`：更新回归测试。
-- `.github/workflows/`：CI、复用 Windows 构建和手动 Release workflow；Windows 发布资源使用 `PCL3_` 前缀，MCM Linux CLI 使用 `MCM_` 前缀。
-- `docs/research/`：研究记录；注意保留现有未跟踪文件。
-
-## 构建与验证
-
-需要 .NET 10 SDK。在仓库根目录运行：
-
-```sh
-dotnet build PCL.Linux.Cli/PCL.Linux.Cli.csproj
-dotnet test PCL.Core.Shared.Tests/PCL.Core.Shared.Tests.csproj
-dotnet publish PCL.Linux.Cli/PCL.Linux.Cli.csproj -c Release -r linux-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o ./artifact-linux
-python3 scripts/check_mcm_cli.py ./artifact-linux/mcm
-dotnet build "Plain Craft Launcher 2/Plain Craft Launcher 2.csproj"
-python3 scripts/check_launcher_fixes.py
-python3 scripts/check_update_isolation.py
-python3 scripts/check_fork_privacy.py
-```
-
-Linux 可交叉编译 Windows 目标，但不能以此证明 WPF 在 Windows 的运行行为无回归。完整图形游戏启动、微软认证和第三方验证需对应的桌面环境/真实账户验证。已有 Windows 源码会产生大量编译警告，应区分历史警告与新问题。不要提交 `bin/`、`obj/`、SDK 或发布产物。
-
-## 登录与安全
-
-Linux CLI 支持离线账户和传统 Yggdrasil/authlib-injector 第三方验证，使用当前选中账户启动。第三方密码只在交互式终端输入，不应放入命令行参数、日志、测试记录或配置文件。账户令牌文件保存在用户配置目录，必须限制访问权限；它们是敏感数据。不要打印或提交任何凭据、令牌、客户端密钥或 GitHub Secrets。服务器测试使用独立 mock，避免访问真实账户。
-
-## 架构和维护约定
-
-- 优先把可跨平台复用的领域逻辑放在共享核心，前端保留平台/UI 适配；不能声称将 Windows 和 Linux 的所有功能都迁入同一内核。
-- 任何 Windows UI 或业务改动须保留原有体验并运行相应回归；不要用删除原平台能力换取编译成功。
-- 路径使用 `Path` API，Linux 文件名区分大小写；下载内容须验证哈希并避免目录穿越。
-- 变更认证、启动参数、版本或 Release 文件名时添加回归测试，检查 Windows 更新器与 Actions 保持一致。
-- 运行 Git 命令前先检查工作树；不要覆盖或删除非本任务的修改、文件或未跟踪内容。
+## 完成、推送与正式 Release
+- 完成实现后必须修复验证中发现的问题，重新验证，不能只报告失败就结束；禁止无进展重复同一失败操作。
+- 默认从 `Plain Craft Launcher 2/metadata.json` 读取 `x.y.z`，递增 patch 为 `x.y.(z+1)`；异常格式、预发布后缀或版本策略不明确时先询问。
+- 同步 `metadata.json`、`AssemblyVersion`、`FileVersion`、tag 与 workflow 输入；tag 使用 `vX.Y.Z`。
+- 验证通过后提交并推送分支和 tag；必须使用 GitHub Actions 构建和上传 Release 资源，不用本地产物替代。
+- 默认创建正式 Release；只有 Actions 构建、测试、签名和上传全部成功才算发布完成。
+- Actions 失败时读取日志、修复根因、重新验证、推送修复并重新运行；遇到权限、凭据、破坏性操作或需要选择的策略时暂停询问。
