@@ -12,6 +12,12 @@
     <PackageReference Include="MSTest.TestFramework" Version="4.3.0" />
   </ItemGroup>
   <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="..\Plain Craft Launcher 2\Modules\Minecraft\Offline\Distribution\WindowsOfflineDistributionServer.cs" Link="WindowsOfflineDistributionServer.cs" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\PCL.Core.Shared\PCL.Core.Shared.csproj" />
     <Compile Include="..\PCL.Linux.Cli\McmInfo.cs" Link="McmInfo.cs" />
     <Compile Include="..\PCL.Linux.Cli\ConsoleDownloadProgress.cs" Link="ConsoleDownloadProgress.cs" />

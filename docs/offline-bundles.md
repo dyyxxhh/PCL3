@@ -1,6 +1,6 @@
 # MCM 完整离线包 v1
 
-首期仅提供 **Linux x86_64 / glibc** 的导出、导入、只读 LAN 分发与显式离线启动。Windows WPF 未接入本功能，不能据此声称 Windows/Linux 已共享所有安装或启动逻辑。
+本说明的 v1 包继续支持 **Linux x86_64 / glibc**。Windows 新增 v2 包适配、版本导出页入口及 PowerShell/CMD 局域网安装脚本；Windows 文件布局和 Java 选择仍由 Windows 前端处理，不能据此声称 Windows/Linux 已共享所有安装或启动逻辑。Windows 使用与验证限制见 `windows-offline-install.md`。
 
 ## 格式
 
@@ -75,9 +75,15 @@ Bash 脚本使用目标机已有的 `bash`、`curl`、`coreutils`，不访问包
 - `OfflineInstallServerTests.cs`：本地 mock 服务、固定路由、Host 不可信、GET/HEAD/405、并发/取消、局域网边界、Bash 语法。
 - `scripts/check_mcm_offline.py`：self-contained 发布产物端到端测试。临时 HOME/配置、假游戏、可探测版本的独立 Java fixture、无真实账户、无公网依赖；从 ZIP 提取的 MCM 导入与显式离线启动，以及 loopback `curl | bash` 安装、重复实例保护、已有相同启动器复用和服务期间损坏包拒绝。
 
-这些测试不能替代不同发行版/GPU/内核上的真实桌面游戏验证。系统依赖与离线驱动准备方法见 Linux CLI README。
+Windows v2 清单使用 `formatVersion = 2`、`layout = "pcl-windows"`，目标为同架构 `win-x64` 或 `win-arm64`，Java 入口为 `instance/runtime/offline-java/bin/java.exe`，启动器为 `bootstrap/PCL3.exe`。共享归档校验器可检查 v2 包；Windows 导入适配实现同架构校验、暂存验证及版本目录安装。Windows 前端导出页已接入完整包与 PowerShell/CMD 局域网安装命令；显式离线启动和桌面端到端验证仍需补齐。不要把 Linux `mcm offline` 包当作 Windows 离线包使用。
 
-### 下载进度与日志
+## 5. Windows 包 v2（接入中）
+
+v2 保留逐文件 SHA-256 清单，但使用 Windows 的版本目录和 Java 可执行文件布局。包来源必须是可信的 Windows 同架构电脑；校验和只检测传输损坏，不验证分发者身份。Linux 安装器拒绝 Windows 布局，Windows 安装器拒绝 Linux 包和架构不匹配的 Windows 包。
+
+来源机通过导出页启动只读 LAN 服务后，可直接复制 PowerShell 或 CMD 命令。命令下载并校验 PCL₃ self-contained 启动器与完整离线 ZIP，再调用不启动 GUI、不联网的导入入口。它不要求 Bash、curl、管理员权限或永久调整执行策略。安装脚本的 PowerShell 5.1/7、CMD 执行及真实游戏启动必须在 Windows 环境验收，Linux 交叉构建不能替代。
+
+当前 Windows 归档和导入适配位于 `PCL.Core.Shared/OfflineBundleService.Windows.cs`；普通目录映射、Java 运行能力和已验证的合并版本 JSON 应由 Windows 端准备。启动器、Java、Windows 原生 DLL、显卡驱动及 OpenGL 能力仍需目标电脑提供或验证；离线包不能替代系统驱动。
 
 客户端按已知文件长度分段并行下载（默认 4 连接，`MCM_DOWNLOAD_CONNECTIONS=1..8`；不足 4 MiB 使用单连接），每 250 ms 汇总一次已下载字节并向 stderr 显示百分比、速度和 ETA。检查每段 HTTP 状态与长度，再按顺序合并，最后验证完整文件 SHA-256。分段失败回退单连接一次；取消时先停止并等待后台 curl，再删除临时文件，不留下继续写入的后台下载。
 

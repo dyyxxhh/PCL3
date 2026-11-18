@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using System.IO;
 using System.IO.Compression;
 using System.Text.RegularExpressions;
@@ -144,6 +144,7 @@ public class McInstance
         {
             get
             {
+                if (File.Exists(Path.Combine(PathInstance, "pcl-offline.json"))) return PathInstance;
                 if (Config.Instance.IndieV2Config.IsDefault(PathInstance))
                 {
                     if (!IsLoaded)

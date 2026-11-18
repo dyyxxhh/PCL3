@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -305,6 +305,17 @@ public partial class PageSelectLeft : IRefreshable
             ToolTipService.SetPlacement(itemInstall, PlacementMode.Right);
             itemInstall.Click += (_, _) => Modpack.ModpackInstall();
             Launcher.frmSelectLeft.PanList.Children.Add(itemInstall);
+
+            var itemOffline = new MyListItem
+            {
+                IsScaleAnimationEnabled = false,
+                Type = MyListItem.CheckType.Clickable,
+                Height = 34,
+                SvgIcon = "lucide/package-plus",
+                Title = "导入 Windows 离线包"
+            };
+            itemOffline.Click += (_, _) => Launcher.frmSelectLeft.ImportWindowsOfflineBundle(itemOffline);
+            Launcher.frmSelectLeft.PanList.Children.Add(itemOffline);
 
             // 边距
             Launcher.frmSelectLeft.PanList.Children.Add(new FrameworkElement { Height = 10, IsHitTestVisible = false });
@@ -744,6 +755,45 @@ public partial class PageSelectLeft : IRefreshable
         var data = (GameFolders.McFolder)((MyListItem)((Popup)((ContextMenu)((MyMenuItem)sender).Parent).Parent)
             .PlacementTarget).Tag;
         RefreshCurrent(data.Location);
+    }
+
+    private bool _importingOfflineBundle;
+
+    private async void ImportWindowsOfflineBundle(MyListItem button)
+    {
+        if (_importingOfflineBundle) return;
+        var gameDirectory = GameFolders.mcFolderSelected;
+        if (string.IsNullOrWhiteSpace(gameDirectory))
+        {
+            HintService.Hint("请先选择 Minecraft 游戏目录。", HintType.Error);
+            return;
+        }
+
+        var picker = new Microsoft.Win32.OpenFileDialog
+        {
+            Title = "选择可信来源的 Windows 离线包",
+            Filter = "Windows 离线包 (*.zip)|*.zip",
+            CheckFileExists = true
+        };
+        if (picker.ShowDialog() != true) return;
+
+        _importingOfflineBundle = true;
+        button.IsEnabled = false;
+        try
+        {
+            var imported = await Task.Run(() => PCL.Core.Shared.Minecraft.OfflineBundleService.ImportWindowsAsync(picker.FileName, gameDirectory));
+            RefreshCurrent(gameDirectory);
+            HintService.Hint($"离线包已导入：{imported.Instance.Name}", HintType.Info);
+        }
+        catch (Exception ex)
+        {
+            Common.Log(ex, "导入 Windows 离线包失败", Common.LogLevel.Hint);
+        }
+        finally
+        {
+            _importingOfflineBundle = false;
+            button.IsEnabled = true;
+        }
     }
 
     public void RefreshCurrent()

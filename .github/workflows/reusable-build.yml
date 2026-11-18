@@ -57,7 +57,9 @@ jobs:
         run: |
           dotnet publish "Plain Craft Launcher 2/Plain Craft Launcher 2.csproj" \
           -p:Configuration=${{ inputs.configuration }} -p:Platform=${{ inputs.architecture }} \
-          -p:DeleteExistingFiles=true -o ./artifact --no-self-contained
+          --runtime ${{ inputs.architecture == 'ARM64' && 'win-arm64' || 'win-x64' }} --self-contained true \
+          -p:IncludeNativeLibrariesForSelfExtract=true \
+          -p:DeleteExistingFiles=true -o ./artifact
 
       - name: Upload the Build Artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

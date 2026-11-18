@@ -4,12 +4,67 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json.Nodes;
 using PCL.Core.Shared.Minecraft;
+using PCL.Offline.Distribution;
 
 namespace PCL.Core.Shared.Tests;
 
 [TestClass]
 public sealed class OfflineBundleTests
 {
+    [TestMethod]
+    public void WindowsLanServerRestrictsPeersAndRanges()
+    {
+        Assert.IsTrue(WindowsOfflineDistributionServer.IsLanAddress(IPAddress.Loopback));
+        Assert.IsTrue(WindowsOfflineDistributionServer.IsLanAddress(IPAddress.Parse("192.168.1.20")));
+        Assert.IsTrue(WindowsOfflineDistributionServer.IsLanAddress(IPAddress.Parse("10.20.30.40")));
+        Assert.IsFalse(WindowsOfflineDistributionServer.IsLanAddress(IPAddress.Parse("8.8.8.8")));
+        Assert.IsTrue(WindowsOfflineDistributionServer.TryParseRange("bytes=10-19", 100, out var start, out var end));
+        Assert.AreEqual(10L, start);
+        Assert.AreEqual(19L, end);
+        Assert.IsTrue(WindowsOfflineDistributionServer.TryParseRange("bytes=-10", 100, out start, out end));
+        Assert.AreEqual(90L, start);
+        Assert.AreEqual(99L, end);
+        Assert.IsFalse(WindowsOfflineDistributionServer.TryParseRange("bytes=0-1,5-6", 100, out _, out _));
+        Assert.IsFalse(WindowsOfflineDistributionServer.TryParseRange("bytes=100-", 100, out _, out _));
+    }
+
+    [TestMethod]
+    public async Task WindowsBundleV2CanBeInspectedButNotImportedOnLinux()
+    {
+        if (!OperatingSystem.IsLinux()) Assert.Inconclusive("This assertion targets a Linux test host.");
+        var root = Path.Combine(Path.GetTempPath(), "pcl-windows-bundle-test-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        var bundle = Path.Combine(root, "windows.zip");
+        try
+        {
+            using (var zip = ZipFile.Open(bundle, ZipArchiveMode.Create))
+            {
+                var java = Add("instance/" + OfflineBundleService.WindowsJavaExecutable, "java.exe");
+                var launcher = Add(OfflineBundleService.WindowsLauncherPath, "PCL3.exe");
+                var version = Add("instance/versions/1.20.1/1.20.1.json", "{\"mainClass\":\"example.Main\"}");
+                var manifest = new OfflineBundleManifest("mcm-offline", 2, "win-x64", DateTimeOffset.UtcNow,
+                    new OfflineInstanceMetadata("Fixture", "1.20.1", null, null, "1.20.1"), 17,
+                    OfflineBundleService.WindowsJavaExecutable, OfflineBundleService.WindowsLauncherPath, [java, launcher, version])
+                { Layout = "pcl-windows" };
+                using var writer = new StreamWriter(zip.CreateEntry(OfflineBundleService.ManifestPath).Open());
+                await System.Text.Json.JsonSerializer.SerializeAsync(writer.BaseStream, manifest, new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web));
+
+                OfflineBundleFile Add(string path, string value)
+                {
+                    var bytes = Encoding.UTF8.GetBytes(value);
+                    using var stream = zip.CreateEntry(path).Open();
+                    stream.Write(bytes);
+                    return new OfflineBundleFile(path, bytes.Length, Convert.ToHexString(SHA256.HashData(bytes)), false);
+                }
+            }
+            var inspected = await OfflineBundleService.VerifyAsync(bundle);
+            Assert.AreEqual("pcl-windows", inspected.Layout);
+            Assert.AreEqual("win-x64", inspected.TargetRuntime);
+            await Assert.ThrowsExactlyAsync<PlatformNotSupportedException>(() => OfflineBundleService.ImportWindowsAsync(bundle, Path.Combine(root, "game")));
+        }
+        finally { Directory.Delete(root, true); }
+    }
+
     [TestMethod]
     public async Task RoundTripIncludesFullJavaAndLauncherAndPreservesLoaderProfile()
     {

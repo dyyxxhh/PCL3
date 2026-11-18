@@ -52,7 +52,7 @@ Release 的应用级 CurseForge key 由 GitHub Actions Secret `CURSEFORGE_API_KE
 
 ## 完整离线安装（首期：Linux x86_64 / glibc）
 
-`pack export` 的标准整合包通常只有下载清单，**不是完整离线包**。新增 `offline` 命令把已准备好的命名实例、完整 Java 运行时及 self-contained 单文件 MCM 放进同一个 ZIP。目标电脑不需要预装 Java、.NET 或 MCM，也不需要公网；但必须具有兼容的 Linux 系统、基本命令和图形驱动。首期不支持 Windows、ARM、musl/Alpine，也不把 Windows 安装目录自动转换成 Linux 离线包。Windows UI 保持不变，后续再接入。
+`pack export` 的标准整合包通常只有下载清单，**不是完整离线包**。新增 `offline` 命令把已准备好的命名实例、完整 Java 运行时及 self-contained 单文件 MCM 放进同一个 ZIP。目标电脑不需要预装 Java、.NET 或 MCM，也不需要公网；但必须具有兼容的 Linux 系统、基本命令和图形驱动。此命令不支持 Windows、ARM、musl/Alpine，也不把 Windows 安装目录自动转换成 Linux 离线包。Windows 版使用独立的 v2 包适配、导出页和 PowerShell/CMD 局域网安装脚本，不能导入此 Linux v1 包；详情见 `docs/windows-offline-install.md`。
 
 ### 在有网的来源电脑准备并打包
 

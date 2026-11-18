@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using PCL.Core.App;
 using PCL.Core.App.Localization;
 using PCL.Core.Minecraft.Profile;
@@ -91,6 +91,8 @@ public static partial class GameLaunch
         var checkResult = "";
         Common.RunInUiWait(() => checkResult = ProfileUi.IsProfileValid());
         var selectedProfile = ProfileService.Current;
+        if (currentLaunchOptions?.Offline == true && selectedProfile?.ProfileType != ProfileType.Offline)
+            throw new InvalidOperationException("离线启动需要先选择离线账户。");
 
         if (selectedProfile is null)
             checkResult = Lang.Text("Minecraft.Launch.Precheck.NoProfile");
@@ -217,6 +219,8 @@ public static partial class GameLaunch
         ///     如果是，则显示游戏实时日志。
         /// </summary>
         public bool IsTest = false;
+
+        public bool Offline = false;
 
         /// <summary>
         ///     将启动脚本保存到该地址，然后取消启动。这同时会改变启动时的提示等。
@@ -350,7 +354,7 @@ public static partial class GameLaunch
 
         try
         {
-            var launchLoader = _CreateLaunchLoader(false);
+            var launchLoader = _CreateLaunchLoader(currentLaunchOptions?.Offline == true);
             if (mcLoginLoader.State == Common.LoadState.Finished)
                 mcLoginLoader.State = Common.LoadState.Waiting;
             mcLaunchLoaderReal = launchLoader;

@@ -1,5 +1,7 @@
 using System.IO;
 using System.IO.Compression;
+using System.Net;
+using System.Net.NetworkInformation;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
@@ -8,6 +10,7 @@ using PCL.Core.App;
 using PCL.Core.UI;
 using PCL.Core.App.Localization;
 using PCL.Core.Utils;
+using PCL.Offline.Distribution;
 
 namespace PCL;
 
@@ -66,6 +69,7 @@ public partial class PageInstanceExport : IRefreshable, IPageView
         BtnAdvancedExport.Click += ExportConfig;
         BtnAdvancedImport.Click += ImportConfig;
         BtnExport.Click += StartExport;
+        BtnWindowsOfflineExport.Click += StartWindowsOfflineExport;
         TextExportName.GotFocus += TextExportName_GotFocus;
         CheckAdvancedModrinth.Change += CheckAdvancedModrinth_Change;
         CheckAdvancedInclude.Change += CheckAdvancedInclude_Change;
@@ -101,6 +105,44 @@ public partial class PageInstanceExport : IRefreshable, IPageView
         if (_vm.CurrentVersion != (PageInstanceLeft.McInstance.PathInstance ?? ""))
             RefreshAll(); // 切换到了另一个实例，重置页面
         Animations.AniEndControl();
+    }
+
+    private static WindowsOfflineDistributionServer? _offlineServer;
+
+    private async void StartWindowsOfflineExport(object sender, RoutedEventArgs e)
+    {
+        var instance = PageInstanceLeft.McInstance;
+        var destination = SystemDialogs.SelectSaveFile("导出完整 Windows 离线包", $"{instance.Name}-offline.zip", "ZIP 离线包|*.zip");
+        if (string.IsNullOrWhiteSpace(destination)) return;
+        BtnWindowsOfflineExport.IsEnabled = false;
+        try
+        {
+            var manifest = await Task.Run(() => WindowsOfflineBundleExporter.ExportAsync(instance, destination).GetAwaiter().GetResult());
+            var address = NetworkInterface.GetAllNetworkInterfaces()
+                .Where(adapter => adapter.OperationalStatus == OperationalStatus.Up)
+                .SelectMany(adapter => adapter.GetIPProperties().UnicastAddresses)
+                .Select(item => item.Address)
+                .FirstOrDefault(item => item.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork
+                    && WindowsOfflineDistributionServer.IsLanAddress(item) && !IPAddress.IsLoopback(item))
+                ?? throw new InvalidOperationException("No private LAN network adapter is active.");
+            if (_offlineServer is not null) await _offlineServer.DisposeAsync();
+            var executable = System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName
+                ?? throw new InvalidOperationException("Cannot locate the PCL₃ executable.");
+            _offlineServer = await WindowsOfflineDistributionServer.StartAsync(
+                new WindowsOfflineDistributionPackage(destination, executable, manifest.TargetRuntime, manifest.Instance.Name), address);
+            var commandText = $"PowerShell:\r\n{_offlineServer.PowerShellCommand}\r\n\r\nCMD:\r\n{_offlineServer.CmdCommand}\r\n\r\n仅限可信局域网。SHA-256 校验不能验证分发者身份。服务地址：{_offlineServer.Origin}";
+            switch (Launcher.MyMsgBox(commandText, "离线包已就绪", "复制 PowerShell 命令", "复制 CMD 命令", "停止局域网共享"))
+            {
+                case 1: Clipboard.SetText(_offlineServer.PowerShellCommand); HintService.Hint("PowerShell 命令已复制"); break;
+                case 2: Clipboard.SetText(_offlineServer.CmdCommand); HintService.Hint("CMD 命令已复制"); break;
+                case 3: await _offlineServer.DisposeAsync(); _offlineServer = null; break;
+            }
+        }
+        catch (Exception ex)
+        {
+            Launcher.MyMsgBox($"完整离线包导出或局域网服务启动失败：{ex.Message}", "离线安装失败", isWarn: true);
+        }
+        finally { BtnWindowsOfflineExport.IsEnabled = true; }
     }
 
     public void RefreshAll()

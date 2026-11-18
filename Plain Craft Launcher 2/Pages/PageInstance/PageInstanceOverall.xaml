@@ -1,4 +1,4 @@
-﻿<local:MyPageRight
+<local:MyPageRight
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:local="clr-namespace:PCL" xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -14,6 +14,13 @@
             <local:MyCard Margin="0,0,0,15" Title="{loc:Loc Instance.Overall.Info.Title}">
                 <StackPanel x:Name="PanInfo" Margin="15,40,25,5">
                     <local:MyLoading x:Name="LabInfoLoading" Text="{Binding InfoLoadingText}" Margin="0,0,0,10" />
+                </StackPanel>
+            </local:MyCard>
+            <local:MyCard Margin="0,0,0,15">
+                <StackPanel Margin="18,12">
+                    <TextBlock Text="离线启动" FontWeight="SemiBold" />
+                    <TextBlock Text="使用当前选定的离线账户和本地文件启动；缺少 Java 或游戏文件时停止，不联网修复。" TextWrapping="Wrap" Margin="0,5,0,10" />
+                    <local:MyButton x:Name="BtnOfflineLaunch" Text="离线启动当前版本" HorizontalAlignment="Left" MinWidth="180" />
                 </StackPanel>
             </local:MyCard>
             <local:MyCard Margin="0,0,0,15" Title="{loc:Loc Instance.Overall.Personalization.Title}" x:Name="PanDisplay">

@@ -1,4 +1,4 @@
-﻿using System.Collections.ObjectModel;
+using System.Collections.ObjectModel;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
@@ -50,6 +50,11 @@ public partial class PageInstanceOverall : IPageView
         BtnManageTest.Click += BtnManageTest_Click;
         BtnManageDelete.Click += BtnManageDelete_Click;
         BtnManagePatch.Click += BtnManagePatch_Click;
+        BtnOfflineLaunch.Click += (_, _) => GameLaunch.McLaunchStart(new GameLaunch.McLaunchOptions
+        {
+            instance = PageInstanceLeft.McInstance,
+            Offline = true
+        });
     }
 
     public PageInstanceOverallViewModel ViewModel => _vm;

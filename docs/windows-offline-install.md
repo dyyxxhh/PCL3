@@ -1,0 +1,9 @@
+# Windows Offline Installation
+
+Windows offline bundles use the same versioned ZIP transport with a Windows-specific layout. Export from a Windows PCL₃ release matching the target architecture. The package contains one prepared version, its Java runtime, and the self-contained PCL₃ executable; it excludes accounts, saves, logs, and launcher settings.
+
+On the source computer, use the version export page's **完整 Windows 离线包** control. The launcher verifies local dependencies, builds the ZIP, starts a read-only server on the selected private LAN address, and displays a copyable PowerShell command and CMD command. Paste either command into a terminal on the target computer. It downloads the launcher and package, verifies SHA-256 and length, then invokes the launcher's non-GUI offline importer. No Java, .NET, curl, Bash, administrator rights, or permanent execution-policy changes are required on the target. Use the service only on a trusted LAN; the checksum detects accidental or in-transit changes, not a malicious server.
+
+The current importer installs the version under `<game directory>\versions\<instance name>`, places its Java under the version folder, and merges libraries/assets only when existing content has matching SHA-256. Conflicts and existing version names are rejected. The offline import command is `PCL3.exe offline-import --bundle <zip> --game-dir <directory> [--instance <name>]`.
+
+PowerShell and CMD bootstrap commands use the same generated script. Optional script parameters are `-InstallDirectory`, `-GameDirectory`, `-InstanceName`, and `-Connections` (1 through 8). The default is four connections. LAN server transfers support GET/HEAD and a single byte range; only fixed routes are served. Network drivers and graphics capabilities remain target-system requirements. The current integration does not enable the install button for unsupported versions or architectures until their dependency closure can be validated.

@@ -1,4 +1,5 @@
-﻿using PCL.Core.App.Localization;
+using System.IO;
+using PCL.Core.App.Localization;
 using PCL.Core.Minecraft;
 using PCL.Core.Utils;
 
@@ -7,6 +8,27 @@ namespace PCL;
 public static partial class GameLaunch
 {
     public static JavaEntry? mcLaunchJavaSelected;
+
+    internal static JavaEntry SelectOfflineExportJava(McInstance instance, string? executable = null)
+    {
+        var (minimum, maximum) = _GetMinecraftJavaVersionRange(instance);
+        _ApplyRecommendedJavaVersion(ref minimum, instance);
+        _ApplyModLoaderJavaRange(ref minimum, ref maximum, instance);
+        var majors = _ApplyJsonJavaRequirements(ref minimum, ref maximum, instance);
+        lock (JavaRuntime.JavaLock)
+        {
+            if (!string.IsNullOrWhiteSpace(executable))
+            {
+                var selected = JavaRuntime.Javas.AddOrGet(executable);
+                if (selected is null || !selected.IsEnabled || selected.Installation.Version < minimum || selected.Installation.Version > maximum
+                    || majors is not null && !majors.Contains(selected.Installation.MajorVersion))
+                    throw new InvalidOperationException("指定的 Java 不满足当前版本及加载器要求。");
+                return selected;
+            }
+            return JavaRuntime.JavaSelect("未找到兼容的本地 Java，请指定 java.exe。", minimum, maximum, instance, true, majors)
+                ?? throw new InvalidOperationException("未找到兼容的本地 Java，请指定 java.exe。");
+        }
+    }
 
     private static void McLaunchJava(Loading.LoaderTask<int, int> task)
     {
@@ -26,9 +48,9 @@ public static partial class GameLaunch
         }
     }
 
-    private static (Version Min, Version Max) _GetMinecraftJavaVersionRange()
+    private static (Version Min, Version Max) _GetMinecraftJavaVersionRange(McInstance? target = null)
     {
-        var instance = InstanceList.McMcInstanceSelected!;
+        var instance = target ?? InstanceList.McMcInstanceSelected!;
         var info = instance.Info;
         var releaseTime = instance.releaseTime;
         var minVer = new Version(0, 0, 0, 0);
@@ -72,9 +94,9 @@ public static partial class GameLaunch
         return (minVer, maxVer);
     }
 
-    private static string? _ApplyRecommendedJavaVersion(ref Version minVer)
+    private static string? _ApplyRecommendedJavaVersion(ref Version minVer, McInstance? target = null)
     {
-        var instance = InstanceList.McMcInstanceSelected!;
+        var instance = target ?? InstanceList.McMcInstanceSelected!;
         var recommendedCode =
             instance.JsonObject?["javaVersion"]?["majorVersion"]?.ToObject<int>()
             ?? instance.JsonVersion?["java_version"]?.ToObject<int>()
@@ -91,19 +113,19 @@ public static partial class GameLaunch
         return string.IsNullOrEmpty(recommendedComponent) ? null : recommendedComponent;
     }
 
-    private static void _ApplyModLoaderJavaRange(ref Version minVer, ref Version maxVer)
+    private static void _ApplyModLoaderJavaRange(ref Version minVer, ref Version maxVer, McInstance? target = null)
     {
-        _ApplyOptiFineJavaRange(ref minVer, ref maxVer);
-        _ApplyForgeJavaRange(ref minVer, ref maxVer);
-        _ApplyCleanroomJavaRange(ref minVer);
-        _ApplyFabricJavaRange(ref minVer);
-        _ApplyLiteLoaderJavaRange(ref maxVer);
-        _ApplyLabyModJavaRange(ref minVer, ref maxVer);
+        _ApplyOptiFineJavaRange(ref minVer, ref maxVer, target);
+        _ApplyForgeJavaRange(ref minVer, ref maxVer, target);
+        _ApplyCleanroomJavaRange(ref minVer, target);
+        _ApplyFabricJavaRange(ref minVer, target);
+        _ApplyLiteLoaderJavaRange(ref maxVer, target);
+        _ApplyLabyModJavaRange(ref minVer, ref maxVer, target);
     }
 
-    private static void _ApplyOptiFineJavaRange(ref Version minVer, ref Version maxVer)
+    private static void _ApplyOptiFineJavaRange(ref Version minVer, ref Version maxVer, McInstance? target = null)
     {
-        var info = InstanceList.McMcInstanceSelected!.Info;
+        var info = (target ?? InstanceList.McMcInstanceSelected!).Info;
         if (!info.HasOptiFine || !info.Valid)
             return;
 
@@ -122,9 +144,9 @@ public static partial class GameLaunch
         }
     }
 
-    private static void _ApplyForgeJavaRange(ref Version minVer, ref Version maxVer)
+    private static void _ApplyForgeJavaRange(ref Version minVer, ref Version maxVer, McInstance? target = null)
     {
-        var info = InstanceList.McMcInstanceSelected!.Info;
+        var info = (target ?? InstanceList.McMcInstanceSelected!).Info;
         if (!info.HasForge)
             return;
 
@@ -164,9 +186,9 @@ public static partial class GameLaunch
         }
     }
 
-    private static void _ApplyCleanroomJavaRange(ref Version minVer)
+    private static void _ApplyCleanroomJavaRange(ref Version minVer, McInstance? target = null)
     {
-        var info = InstanceList.McMcInstanceSelected!.Info;
+        var info = (target ?? InstanceList.McMcInstanceSelected!).Info;
         if (!info.HasCleanroom)
             return;
 
@@ -192,9 +214,9 @@ public static partial class GameLaunch
         }
     }
 
-    private static void _ApplyFabricJavaRange(ref Version minVer)
+    private static void _ApplyFabricJavaRange(ref Version minVer, McInstance? target = null)
     {
-        var info = InstanceList.McMcInstanceSelected!.Info;
+        var info = (target ?? InstanceList.McMcInstanceSelected!).Info;
         if (!info.HasFabric || !info.Valid)
             return;
 
@@ -206,9 +228,9 @@ public static partial class GameLaunch
         };
     }
 
-    private static void _ApplyLiteLoaderJavaRange(ref Version maxVer)
+    private static void _ApplyLiteLoaderJavaRange(ref Version maxVer, McInstance? target = null)
     {
-        var info = InstanceList.McMcInstanceSelected!.Info;
+        var info = (target ?? InstanceList.McMcInstanceSelected!).Info;
         if (!info.HasLiteLoader || !info.Valid)
             return;
 
@@ -217,9 +239,9 @@ public static partial class GameLaunch
         maxVer = _MinVersion(maxVer, new Version(8, 999, 999, 999));
     }
 
-    private static void _ApplyLabyModJavaRange(ref Version minVer, ref Version maxVer)
+    private static void _ApplyLabyModJavaRange(ref Version minVer, ref Version maxVer, McInstance? target = null)
     {
-        if (!InstanceList.McMcInstanceSelected!.Info.HasLabyMod)
+        if (!(target ?? InstanceList.McMcInstanceSelected!).Info.HasLabyMod)
             return;
 
         if (Common.modeDebug)
@@ -230,9 +252,9 @@ public static partial class GameLaunch
 
     private static IReadOnlySet<int>? _ApplyJsonJavaRequirements(
         ref Version minVer,
-        ref Version maxVer)
+        ref Version maxVer, McInstance? target = null)
     {
-        var instance = InstanceList.McMcInstanceSelected!;
+        var instance = target ?? InstanceList.McMcInstanceSelected!;
         _ApplyJsonJavaVersionRequirement(instance, ref minVer, ref maxVer);
         return _ApplyCompatibleJavaMajors(instance, ref minVer, ref maxVer);
     }
@@ -324,6 +346,8 @@ public static partial class GameLaunch
 
         if (task.IsAborted)
             return;
+        if (currentLaunchOptions?.Offline == true)
+            throw new InvalidOperationException("离线启动缺少兼容的本地 Java；请在来源电脑补齐后重新导出离线包。");
         McLaunchLog("无合适的 Java，需要确认是否自动下载");
 
         var javaCode = _GetJavaDownloadCode(minVer, maxVer, compatibleJavaMajorsSet);
@@ -362,11 +386,35 @@ public static partial class GameLaunch
         Version maxVer,
         IReadOnlySet<int>? compatibleJavaMajorsSet)
     {
+        var instance = InstanceList.McMcInstanceSelected;
+        if (instance is not null)
+        {
+            var markerPath = Path.Combine(instance.PathInstance, "pcl-offline.json");
+            if (File.Exists(markerPath))
+            {
+                var marker = JsonNode.Parse(File.ReadAllText(markerPath))?.AsObject()
+                    ?? throw new InvalidDataException("Offline version metadata is invalid.");
+                var relative = marker["java"]?.GetValue<string>()
+                    ?? throw new InvalidDataException("Offline version metadata has no Java path.");
+                if (Path.IsPathRooted(relative) || relative.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar).Any(segment => segment is "." or ".."))
+                    throw new InvalidDataException("Offline Java path is unsafe.");
+                var root = Path.GetFullPath(instance.PathInstance);
+                var javaPath = Path.GetFullPath(Path.Combine(root, relative));
+                if (!javaPath.StartsWith(root.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidDataException("Offline Java path escapes its version directory.");
+                var bundledJava = JavaRuntime.Javas.AddOrGet(javaPath);
+                if (bundledJava is null || !bundledJava.IsEnabled
+                    || bundledJava.Installation.Version < minVer || bundledJava.Installation.Version > maxVer
+                    || compatibleJavaMajorsSet is not null && !compatibleJavaMajorsSet.Contains(bundledJava.Installation.MajorVersion))
+                    throw new InvalidDataException("Bundled Java is missing or incompatible with this Minecraft version.");
+                return bundledJava;
+            }
+        }
         return JavaRuntime.JavaSelect(
             "$$",
             minVer,
             maxVer,
-            InstanceList.McMcInstanceSelected,
+            instance,
             false,
             compatibleJavaMajorsSet);
     }

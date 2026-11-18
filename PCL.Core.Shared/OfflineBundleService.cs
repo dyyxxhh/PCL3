@@ -10,16 +10,23 @@ namespace PCL.Core.Shared.Minecraft;
 public sealed record OfflineInstanceMetadata(string Name, string GameVersion, string? Loader, string? LoaderVersion, string LaunchVersion);
 public sealed record OfflineBundleFile(string Path, long Size, string Sha256, bool Executable);
 public sealed record OfflineBundleManifest(string Format, int FormatVersion, string TargetRuntime, DateTimeOffset CreatedAtUtc,
-    OfflineInstanceMetadata Instance, int JavaMajorVersion, string JavaExecutable, string LauncherPath, IReadOnlyList<OfflineBundleFile> Files);
+    OfflineInstanceMetadata Instance, int JavaMajorVersion, string JavaExecutable, string LauncherPath, IReadOnlyList<OfflineBundleFile> Files)
+{
+    public string? Layout { get; init; }
+}
+
+public sealed record OfflineBundleSource(string Path, string SourcePath, bool Executable = false);
 
 /// <summary>
 /// Versioned, self-contained instance transport, distinct from manifest-only modpacks.
-/// No method in this service makes network requests. Windows UI integration is not implemented.
+/// No method in this service makes network requests. Platform adapters validate game dependencies.
 /// </summary>
-public static class OfflineBundleService
+public static partial class OfflineBundleService
 {
     public const string ManifestPath = "mcm-offline.json";
     public const string LauncherPath = "bootstrap/mcm";
+    public const string WindowsLauncherPath = "bootstrap/PCL3.exe";
+    public const string WindowsJavaExecutable = "runtime/offline-java/bin/java.exe";
     public const string JavaExecutable = "runtime/offline-java/bin/java";
     public const int MaxFiles = 200_000;
     public const long MaxFileSize = 8L * 1024 * 1024 * 1024;
@@ -198,7 +205,7 @@ public static class OfflineBundleService
         EnsureNoLinks(destination);
         using var zip = ZipFile.OpenRead(bundlePath);
         var contents = await ReadContentsAsync(zip, cancellationToken).ConfigureAwait(false);
-        var file = contents.Manifest.Files.Single(file => file.Path == LauncherPath);
+        var file = contents.Manifest.Files.Single(file => file.Path == contents.Manifest.LauncherPath);
         var temporary = destination + ".tmp-" + Guid.NewGuid().ToString("N");
         try
         {
@@ -235,9 +242,9 @@ public static class OfflineBundleService
         await CopyAndHashAsync(manifestStream, manifestBuffer, manifestEntry.Length, cancellationToken).ConfigureAwait(false);
         var manifest = JsonSerializer.Deserialize<OfflineBundleManifest>(manifestBuffer.ToArray(), JsonOptions)
             ?? throw new InvalidDataException("Offline bundle manifest is empty.");
-        if (manifest.Format != "mcm-offline" || manifest.FormatVersion != 1 || manifest.Files is null
+        if (manifest.Format != "mcm-offline" || !IsSupportedLayout(manifest) || manifest.Files is null
             || manifest.Files.Count is < 1 or > MaxFiles || manifest.Instance is null
-            || manifest.JavaMajorVersion is < 8 or > 100 || manifest.JavaExecutable != JavaExecutable || manifest.LauncherPath != LauncherPath
+            || manifest.JavaMajorVersion is < 8 or > 100
             || manifest.TargetRuntime is not ("linux-x64" or "linux-arm64" or "win-x64" or "win-arm64"))
             throw new InvalidDataException("Unsupported or invalid offline bundle format.");
         ValidateMetadata(manifest.Instance);
@@ -253,6 +260,8 @@ public static class OfflineBundleService
                 throw new InvalidDataException("Offline bundle file list, size or checksum is invalid.");
             total += file.Size;
         }
+        if (manifest.Layout == "pcl-windows" && paths.Count != paths.Distinct(StringComparer.OrdinalIgnoreCase).Count())
+            throw new InvalidDataException("Windows offline bundle contains case-insensitive path collisions.");
         foreach (var path in paths)
         {
             var slash = path.LastIndexOf('/');
@@ -262,12 +271,13 @@ public static class OfflineBundleService
                 slash = path.LastIndexOf('/', slash - 1);
             }
         }
-        var launcherFile = manifest.Files.SingleOrDefault(file => file.Path == LauncherPath);
-        var javaFile = manifest.Files.SingleOrDefault(file => file.Path == "instance/" + JavaExecutable);
+        var launcherFile = manifest.Files.SingleOrDefault(file => file.Path == manifest.LauncherPath);
+        var javaFile = manifest.Files.SingleOrDefault(file => file.Path == "instance/" + manifest.JavaExecutable);
         if (entries.Count != paths.Count + 1 || launcherFile is null || javaFile is null
             || !manifest.Files.Any(file => file.Path == $"instance/versions/{manifest.Instance.LaunchVersion}/{manifest.Instance.LaunchVersion}.json")
-            || !launcherFile.Executable || launcherFile.Size == 0 || !javaFile.Executable || javaFile.Size == 0)
-            throw new InvalidDataException("Offline bundle is missing Java, MCM or the launch profile, or contains undeclared files.");
+            || launcherFile.Size == 0 || javaFile.Size == 0
+            || manifest.Layout is null && (!launcherFile.Executable || !javaFile.Executable))
+            throw new InvalidDataException("Offline bundle is missing Java, launcher or launch profile, or contains undeclared files.");
         return new BundleContents(manifest, entries);
     }
 
@@ -390,7 +400,7 @@ public static class OfflineBundleService
     private static void ValidatePayloadPath(string path)
     {
         ValidateRelativePath(path);
-        if (path == LauncherPath) return;
+        if (path == LauncherPath || path == WindowsLauncherPath) return;
         if (!path.StartsWith("instance/", StringComparison.Ordinal)) throw new InvalidDataException("Unexpected offline bundle payload path.");
         var relative = path[9..];
         if (relative.Split('/').Any(PrivateNames.Contains)) throw new InvalidDataException("Private files are not allowed in offline bundles.");
