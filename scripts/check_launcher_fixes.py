@@ -57,4 +57,13 @@ assert 'id == FormMain.PageSubType.SetupGameLink' in (APP / "Pages/PageSetup/Pag
 for path in [CORE / "App/Paths.cs", CORE / "App/Essentials/RpcService.cs"]:
     assert path.exists(), path
 
-print("branding/account/icon regression checks: PASS")
+# The download page hands the resolver a selected NeoForge or Cleanroom entry.
+# Both loader kinds must be accepted regardless of whether the entry was supplied.
+forgelike = (APP / "Pages/PageDownload/DownloadUi/ForgelikeLoader.cs").read_text(encoding="utf-8-sig")
+resolver = forgelike.split("private static GameDownload.DlForgelikeEntry? _ResolveForgelikeInfo(", 1)[1]
+resolver = resolver.split("private static GameDownload.DlForgelikeEntry _FindForgelikeEntry(", 1)[0]
+for kind in ("NeoForge", "Cleanroom"):
+    assert re.search(rf"case GameDownload\.DlForgelikeEntry\.ForgelikeType\.{kind}:\s+"
+                     rf"info \?\?= new GameDownload\.Dl{kind}ListEntry\(", resolver), kind
+
+print("branding/account/icon/game download regression checks: PASS")

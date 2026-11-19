@@ -110,17 +110,15 @@ public static partial class DownloadUi
     {
         switch (forgeType)
         {
-            case GameDownload.DlForgelikeEntry.ForgelikeType.NeoForge when info is null:
-            {
-                if (inherit == "1.20.1" && !loaderVersion.StartsWithF("1.20.1-"))
-                    info = new GameDownload.DlNeoForgeListEntry($"1.20.1-{loaderVersion}");
-                else
-                    info = new GameDownload.DlNeoForgeListEntry(loaderVersion);
+            case GameDownload.DlForgelikeEntry.ForgelikeType.NeoForge:
+                info ??= new GameDownload.DlNeoForgeListEntry(
+                    inherit == "1.20.1" && !loaderVersion.StartsWithF("1.20.1-")
+                        ? $"1.20.1-{loaderVersion}"
+                        : loaderVersion);
                 break;
-            }
 
-            case GameDownload.DlForgelikeEntry.ForgelikeType.Cleanroom when info is null:
-                info = new GameDownload.DlCleanroomListEntry(loaderVersion);
+            case GameDownload.DlForgelikeEntry.ForgelikeType.Cleanroom:
+                info ??= new GameDownload.DlCleanroomListEntry(loaderVersion);
                 break;
 
             case GameDownload.DlForgelikeEntry.ForgelikeType.Forge:
