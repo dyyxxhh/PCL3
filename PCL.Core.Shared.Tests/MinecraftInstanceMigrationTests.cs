@@ -239,10 +239,25 @@ public sealed class MinecraftInstanceMigrationTests
             return new(HttpStatusCode.OK) { Content = new ByteArrayContent(nativeBytes) };
         }));
         var installer = new MinecraftInstaller(http);
-        await installer.PrepareForLaunchAsync(instance.LaunchVersion, instance.DirectoryPath);
-        await installer.PrepareForLaunchAsync(instance.LaunchVersion, instance.DirectoryPath);
+        var stages = new List<string>();
+        var progress = new SynchronousProgress<DownloadProgress>(item => stages.Add(item.Stage));
+        await installer.PrepareForLaunchAsync(instance.LaunchVersion, instance.DirectoryPath, progress);
+        CollectionAssert.Contains(stages, "Downloading files");
+        var native = Path.Combine(instance.DirectoryPath, "versions", "1.21.1", "natives", "libexample.so");
+        File.SetLastWriteTimeUtc(native, DateTime.UnixEpoch.AddDays(1));
+        var stamp = File.GetLastWriteTimeUtc(native);
+
+        stages.Clear();
+        await installer.PrepareForLaunchAsync(instance.LaunchVersion, instance.DirectoryPath, progress);
+        CollectionAssert.DoesNotContain(stages, "Downloading files");
         CollectionAssert.AreEqual(new[] { "/linux.jar" }, requests);
-        Assert.AreEqual("linux native", File.ReadAllText(Path.Combine(instance.DirectoryPath, "versions", "1.21.1", "natives", "libexample.so")));
+        Assert.AreEqual(stamp, File.GetLastWriteTimeUtc(native));
+
+        await File.WriteAllTextAsync(native, "wrong native");
+        await installer.PrepareForLaunchAsync(instance.LaunchVersion, instance.DirectoryPath, progress);
+        Assert.AreEqual("linux native", await File.ReadAllTextAsync(native));
+        CollectionAssert.AreEqual(new[] { "/linux.jar" }, requests);
+        CollectionAssert.DoesNotContain(stages, "Downloading files");
     }
 
     [TestMethod]
@@ -280,6 +295,11 @@ public sealed class MinecraftInstanceMigrationTests
         CreateVersion("1.21.1", metadata.ToJsonString(), jar: true);
         using var http = new HttpClient(new FakeHandler(_ => throw new AssertFailedException("Must not access network for unsafe metadata.")));
         await Assert.ThrowsExactlyAsync<InvalidDataException>(() => new MinecraftInstaller(http).PrepareForLaunchAsync("1.21.1", Source));
+    }
+
+    private sealed class SynchronousProgress<T>(Action<T> report) : IProgress<T>
+    {
+        public void Report(T value) => report(value);
     }
 
     private static byte[] CreateNativeArchive()

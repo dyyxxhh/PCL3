@@ -67,8 +67,8 @@ assert '--self-contained true' in reusable
 assert '--no-self-contained' in reusable
 assert '-p:EnableCompressionInSingleFile=true' in reusable
 assert 'PCL3_${{ inputs.configuration }}_${{ inputs.architecture }}' in reusable
-# 体积回归：主发布应保持在 40 MB 以内，自带运行时压缩版应明显小于未压缩的 213 MB
-assert 'test "$size" -lt 40000000' in reusable
+# 体积回归：框架依赖版即使内置 Tor 也应小于 70 MB。
+assert 'test "$size" -lt 70000000' in reusable
 assert 'test "$size" -lt 160000000' in reusable
 assert 'variant: selfcontained' in (ROOT / '.github/workflows/build-test.yml').read_text(encoding='utf-8')
 assert 'variant: selfcontained' in workflow

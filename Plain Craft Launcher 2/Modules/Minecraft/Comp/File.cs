@@ -24,6 +24,7 @@ public static partial class Comp
         ///     该文件的所有必要依赖工程的 Project.Id。
         /// </summary>
         public readonly List<string> Dependencies;
+        public readonly Dictionary<string, string> RequiredDependencyFileIds;
 
         /// <summary>
         ///     下载量计数。注意，该计数仅为一个来源，无法反应两边加起来的下载量，且 CurseForge 可能错误地返回 0。
@@ -168,6 +169,7 @@ public static partial class Comp
             GameVersions = result.GameVersions;
             RawDependencies = result.RawDependencies;
             Dependencies = result.Dependencies;
+            RequiredDependencyFileIds = result.RequiredDependencyFileIds;
             RawOptionalDependencies = result.RawOptionalDependencies;
             OptionalDependencies = result.OptionalDependencies;
         }
@@ -221,6 +223,9 @@ public static partial class Comp
                 result.GameVersions = data["GameVersions"]?.ToObject<List<string>>() ?? [];
             if (data.ContainsKey("RawDependencies"))
                 result.RawDependencies = data["RawDependencies"]?.ToObject<List<string>>() ?? [];
+            if (data["RequiredDependencyFileIds"] is JsonObject requiredFileIds)
+                foreach (var (projectId, fileId) in requiredFileIds)
+                    if (fileId is not null) result.RequiredDependencyFileIds[projectId] = fileId.ToString();
             if (data.ContainsKey("Dependencies"))
                 result.Dependencies = data["Dependencies"]?.ToObject<List<string>>() ?? [];
             if (data.ContainsKey("RawOptionalDependencies"))
@@ -409,6 +414,11 @@ public static partial class Comp
                 var dependencies = data["dependencies"]?.AsArray() ?? [];
                 result.RawDependencies =
                     BuildModrinthDependencies(dependencies, "required");
+                foreach (var dependency in dependencies.OfType<JsonObject>())
+                    if ((string?)dependency["dependency_type"] == "required" &&
+                        (string?)dependency["project_id"] is { Length: > 0 } projectId &&
+                        (string?)dependency["version_id"] is { Length: > 0 } versionId)
+                        result.RequiredDependencyFileIds[projectId] = versionId;
                 result.RawOptionalDependencies =
                     BuildModrinthDependencies(dependencies, "optional");
             }
@@ -666,6 +676,8 @@ public static partial class Comp
             json.Add(
                 "RawOptionalDependencies",
                 new JsonArray(RawOptionalDependencies.Select(s => (JsonNode)s).ToArray()));
+            json.Add("RequiredDependencyFileIds", new JsonObject(RequiredDependencyFileIds
+                .Select(pair => KeyValuePair.Create<string, JsonNode?>(pair.Key, JsonValue.Create(pair.Value)))));
             json.Add(
                 "Dependencies",
                 new JsonArray(Dependencies.Select(s => (JsonNode)s).ToArray()));
@@ -810,6 +822,7 @@ public static partial class Comp
         private sealed class CompFileBuildResult
         {
             public List<string> Dependencies = [];
+            public Dictionary<string, string> RequiredDependencyFileIds = new(StringComparer.OrdinalIgnoreCase);
             public string DisplayName = "";
             public int DownloadCount;
             public List<string>? DownloadUrls;

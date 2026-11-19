@@ -1,4 +1,4 @@
-using System.Text.RegularExpressions;
+using PCL.Core.Shared;
 using PCL.Core.App;
 using PCL.Core.App.Localization;
 using PCL.Core.Utils;
@@ -7,13 +7,14 @@ using PCL.Network.Loaders;
 
 namespace PCL;
 
-/// <summary>GitHub Releases 更新源，供本分支使用，不依赖受限 GitHub REST API。</summary>
+/// <summary>GitHub Releases 更新源，供本分支使用，按平台和资源变体选择正式发布。</summary>
 /// <param name="selfContained">当前是否为自带运行时的发布版；为 True 时下载对应的压缩单文件资产。</param>
 /// <param name="name">更新源显示名称。</param>
 public sealed class UpdatesGithubReleaseModel(bool selfContained = false, string name = "PCL₃ GitHub Releases")
     : IUpdateSource
 {
     private string? _latestTag;
+    private UpdateArch? _cachedArchitecture;
 
     public string SourceName { get; set; } = name;
 
@@ -21,13 +22,14 @@ public sealed class UpdatesGithubReleaseModel(bool selfContained = false, string
 
     public bool RefreshCache()
     {
-        _latestTag = null;
+        _cachedArchitecture = null;
         return true;
     }
 
     public VersionDataModel GetLatestVersion(UpdateChannel channel, UpdateArch arch)
     {
-        var tag = _latestTag ??= GetLatestTag();
+        var tag = GetCachedTag(arch);
+        if (tag is null) throw new InvalidOperationException("没有适用于当前 Windows 构建的发布资源。");
         var version = NormalizeVersion(tag);
         var shaUrl = ReleaseAssets.GetDownloadUrl(tag, GetAssetName(arch, ".sha256"));
         var sha256 = Requester.FetchString(shaUrl, RequestParam.WithRetry)
@@ -48,15 +50,16 @@ public sealed class UpdatesGithubReleaseModel(bool selfContained = false, string
 
     public bool IsLatest(UpdateChannel channel, UpdateArch arch, SemVer currentVersion, int currentVersionCode)
     {
-        _latestTag = GetLatestTag();
-        return currentVersion >= SemVer.Parse(NormalizeVersion(_latestTag));
+        var tag = GetLatestTag(arch);
+        return tag is null || currentVersion >= SemVer.Parse(NormalizeVersion(tag));
     }
 
     public VersionAnnouncementDataModel GetAnnouncementList() => new() { Content = new() };
 
     public List<Loading.LoaderBase> GetDownloadLoader(UpdateChannel channel, UpdateArch arch, string output)
     {
-        var tag = _latestTag ??= GetLatestTag();
+        var tag = GetCachedTag(arch);
+        if (tag is null) throw new InvalidOperationException("没有适用于当前 Windows 构建的发布资源。");
         var url = ReleaseAssets.GetDownloadUrl(tag, GetAssetName(arch, ".exe"));
         return new List<Loading.LoaderBase>
         {
@@ -65,23 +68,17 @@ public sealed class UpdatesGithubReleaseModel(bool selfContained = false, string
         };
     }
 
-    private static string GetLatestTag()
+    private string? GetCachedTag(UpdateArch arch) => _cachedArchitecture == arch ? _latestTag : GetLatestTag(arch);
+
+    private string? GetLatestTag(UpdateArch arch)
     {
-        var htmlParam = RequestParam.WithRetry;
-        htmlParam.UseBrowserUserAgent = true;
-        var html = Requester.FetchString(ReleaseAssets.LatestReleaseUrl, htmlParam);
-        var patterns = new[]
-        {
-            """<meta\b(?=[^>]*\bproperty\s*=\s*["']og:url["'])(?=[^>]*\bcontent\s*=\s*["']https://github\.com/dyyxxhh/PCL3/releases/tag/(?<tag>[^"'#?&<>\s]+)["'])[^>]*>""",
-            """<link\b(?=[^>]*\brel\s*=\s*["']canonical["'])(?=[^>]*\bhref\s*=\s*["']https://github\.com/dyyxxhh/PCL3/releases/tag/(?<tag>[^"'#?&<>\s]+)["'])[^>]*>""",
-            """https://github\.com/dyyxxhh/PCL3/releases/tag/(?<tag>[^"'<>\s?#]+)"""
-        };
-        foreach (var pattern in patterns)
-        {
-            var match = Regex.Match(html, pattern, RegexOptions.IgnoreCase | RegexOptions.Singleline);
-            if (match.Success) return Uri.UnescapeDataString(match.Groups["tag"].Value);
-        }
-        throw new Exception("GitHub Release 页面未包含最新版本标记");
+        var parameters = RequestParam.WithRetry;
+        parameters.UseBrowserUserAgent = true;
+        var tag = ReleaseCatalog.FindAsync((url, _) => Task.FromResult(Requester.FetchString(url, parameters)),
+            ReleaseAssets.RepositoryUrl, ReleasePlatformTarget.Windows, null).GetAwaiter().GetResult();
+        _latestTag = tag;
+        _cachedArchitecture = arch;
+        return tag;
     }
 
     private string GetAssetName(UpdateArch arch, string suffix)

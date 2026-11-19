@@ -97,6 +97,38 @@ def main():
         profile = root / "config" / "mcm" / "selected-profile.json"
         assert profile.exists()
         assert stat.S_IMODE(profile.stat().st_mode) == 0o600
+
+        imported = instance(game, "imported")
+        instance_metadata = imported / "mcm-instance.json"
+        metadata = json.loads(instance_metadata.read_text(encoding="utf-8"))
+        metadata["Imported"] = True
+        instance_metadata.write_text(json.dumps(metadata), encoding="utf-8")
+        version_dir = imported / "versions" / "fabric-profile"
+        version_dir.mkdir(parents=True)
+        (version_dir / "fabric-profile.json").write_text(json.dumps({
+            "id": "fabric-profile", "mainClass": "example.Main", "libraries": [],
+            "javaVersion": {"majorVersion": 21},
+            "arguments": {"jvm": ["-Xmx2G"], "game": []},
+        }), encoding="utf-8")
+        java = root / "java"
+        java.write_text(
+            '#!/bin/sh\nif [ "$1" = "-version" ]; then echo \'openjdk version "21.0.1"\' >&2; exit; fi\n'
+            'printf "%s\\n" "$@" > launch-arguments.txt\n', encoding="utf-8",
+        )
+        java.chmod(0o700)
+        launch_options = ("--game-dir", str(game), "--java", str(java))
+        run("config", "set", "memory.max_mib", "3072", "--instance", "imported")
+        for override, expected_heap in [((), 3072), (("--memory", "4096"), 4096)]:
+            result = subprocess.run(
+                [str(executable), "launch", "imported", *launch_options, *override], env=environment,
+                stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=30,
+            )
+            assert result.returncode == 0, (result.stdout, result.stderr)
+            assert "Checking imported instance libraries" in result.stderr, result.stderr
+            assert "Downloading files" not in result.stderr, result.stderr
+            launch_args = (imported / "launch-arguments.txt").read_text(encoding="utf-8").splitlines()
+            assert [arg for arg in launch_args if arg.startswith("-Xmx")] == [f"-Xmx{expected_heap}m"]
+
         run("logout")
         assert not profile.exists()
 

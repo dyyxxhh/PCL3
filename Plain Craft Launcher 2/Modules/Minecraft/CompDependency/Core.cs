@@ -19,35 +19,53 @@ public static partial class CompDependency
         ArgumentNullException.ThrowIfNull(file);
         ArgumentNullException.ThrowIfNull(project);
 
-        var source = GetSource(project.FromCurseForge);
-        var dependencies = file
-            .Dependencies
-            .Where(static dependencyId => !string.IsNullOrWhiteSpace(dependencyId))
-            .Select(dependencyId => new ModDependencyReference
-            {
-                ProjectId = dependencyId,
-                Source = source,
-                IsRequired = true
-            })
-            .Concat(
-                file
-                    .OptionalDependencies
-                    .Where(static dependencyId => !string.IsNullOrWhiteSpace(dependencyId))
-                    .Select(dependencyId => new ModDependencyReference
-                    {
-                        ProjectId = dependencyId,
-                        Source = source,
-                        IsRequired = false
-                    }))
-            .ToList();
-
         return new ModDependencyRequest
         {
             TargetMinecraftVersion = targetMinecraftVersion,
             TargetLoaders = ToLoaderNames(targetLoaders),
-            RequiredDependencies = dependencies,
+            RequiredDependencies = GetReferences(file),
             InstalledMods = ScanInstalledMods(targetModsFolder),
             ProjectResolver = ResolveProjectFiles
+        };
+    }
+
+    internal static List<ModDependencyReference> GetReferences(CompFile file)
+        => file.Dependencies.Concat(file.RawDependencies).Distinct(StringComparer.OrdinalIgnoreCase)
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Select(id => new ModDependencyReference
+            {
+                ProjectId = id,
+                Source = GetSource(file.FromCurseForge),
+                RequiredFileId = file.RequiredDependencyFileIds.GetValueOrDefault(id)
+            }).ToList();
+
+    internal static List<PCL.Network.DownloadFile> PrepareBatchDownloads(IEnumerable<CompFile> files,
+        string version, List<CompLoaderType> loaders, string directory)
+    {
+        var roots = files.Where(file => file.Type == Comp.CompType.Mod).ToArray();
+        var references = roots.SelectMany(GetReferences).ToList();
+        if (references.Count == 0) return [];
+        var installed = ScanInstalledMods(directory);
+        foreach (var root in roots.Where(file => !string.IsNullOrWhiteSpace(file.ProjectId)))
+        {
+            var source = GetSource(root.FromCurseForge);
+            installed.RemoveAll(mod => mod.SourceProjectId == root.ProjectId && mod.Source == source);
+            installed.Add(new InstalledModIdentity { SourceProjectId = root.ProjectId, Source = source,
+                FileId = root.Id, GameVersions = [version], Loaders = ToLoaderNames(loaders) });
+        }
+        var result = new ModDependencyResolver().Resolve(new ModDependencyRequest
+        {
+            TargetMinecraftVersion = version,
+            TargetLoaders = ToLoaderNames(loaders),
+            InstalledMods = installed,
+            RequiredDependencies = references,
+            ProjectResolver = ResolveProjectFiles
+        });
+        return ConfirmDependencyInstall(result) switch
+        {
+            Comp.CompDepsInstallTypes.WithDeps => BuildDependencyDownloads(result, directory).Select(item => item.File).ToList(),
+            Comp.CompDepsInstallTypes.WithoutDeps => [],
+            _ => throw new Common.CancelledException(),
         };
     }
 
@@ -85,6 +103,8 @@ public static partial class CompDependency
                         SourceProjectId = localFile.Comp.Id,
                         Source = source,
                         ModId = localFile.ModId,
+                        FileId = localFile.CompFile?.Id,
+                        Disabled = localFile.State == LocalCompFile.LocalFileStatus.Disabled,
                         GameVersions = gameVersions,
                         Loaders = loaders
                     });
@@ -100,6 +120,8 @@ public static partial class CompDependency
                         SourceProjectId = localFile.CompFile.ProjectId,
                         Source = fileSource,
                         ModId = localFile.ModId,
+                        FileId = localFile.CompFile?.Id,
+                        Disabled = localFile.State == LocalCompFile.LocalFileStatus.Disabled,
                         GameVersions = gameVersions,
                         Loaders = loaders
                     });
@@ -158,18 +180,7 @@ public static partial class CompDependency
                     Loaders = ToLoaderNames(compFile.ModLoaders),
                     ReleaseType = MapReleaseType(compFile.Status),
                     ReleaseDate = compFile.ReleaseDate,
-                    RequiredDependencies =
-                    [
-                        .. compFile
-                            .Dependencies
-                            .Where(static dependencyId => !string.IsNullOrWhiteSpace(dependencyId))
-                            .Select(dependencyId => new ModDependencyReference
-                            {
-                                ProjectId = dependencyId,
-                                Source = source,
-                                IsRequired = true
-                            })
-                    ]
+                    RequiredDependencies = GetReferences(compFile)
                 })
             ]
         };

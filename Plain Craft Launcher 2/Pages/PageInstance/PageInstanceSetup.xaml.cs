@@ -73,6 +73,13 @@ public partial class PageInstanceSetup : IPageView
         CheckArgumentTitleEmpty.Change += CheckArgumentTitleEmpty_Change;
     }
 
+    private void OpenBackupSettings(object sender, RoutedEventArgs e)
+    {
+        try { WindowsInstanceBackup.Show(PageInstanceLeft.McInstance); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+        { Launcher.MyMsgBox(ex.Message, "备份设置无法打开"); }
+    }
+
     public PageInstanceSetupViewModel ViewModel => _vm;
 
     public void OnNavigatedTo(object? parameter)

@@ -13,6 +13,7 @@
         <StackPanel x:Name="PanMain" Margin="25,25,25,25">
             <local:MyHint Text="{loc:Loc Instance.Setup.Hint}" Theme="Blue" Margin="0,0,0,15"
                           CanClose="True" RelativeSetup="HintIndieSetup" />
+            <Button Content="备份与还原" Click="OpenBackupSettings" Margin="0,0,0,15" Height="30" />
             <local:MyCard x:Name="CardArgument" Margin="0,0,0,15"
                           Title="{loc:Loc Setup.Launch.Options.Title}">
                 <StackPanel Margin="25,40,25,21">

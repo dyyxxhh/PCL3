@@ -1,3 +1,4 @@
+using PCL.Core.Shared;
 using System.Diagnostics;
 using System.IO.Compression;
 using System.Net.Http.Json;
@@ -20,9 +21,11 @@ public sealed record MinecraftLaunchOptions(
     string UserType = "legacy",
     string? AuthlibInjectorPath = null,
     string? AuthServer = null,
-    string LauncherName = "PCL");
+    string LauncherName = "PCL",
+    int? MaxHeapMiB = null);
 
-public sealed partial class MinecraftInstaller(HttpClient? httpClient = null)
+public sealed partial class MinecraftInstaller(HttpClient? httpClient = null,
+    Func<CancellationToken, Task<HttpClient>>? getTorClient = null, HttpClient? directFileClient = null)
 {
     private readonly HttpClient _http = httpClient ?? Http;
     private const string VersionManifestUrl = "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json";
@@ -82,6 +85,7 @@ public sealed partial class MinecraftInstaller(HttpClient? httpClient = null)
         foreach (var item in downloads)
         {
             EnsureWithinDirectory(librariesRoot, item.Path);
+            InstanceBackupStore.RequireSafePath(item.Path);
             if (File.Exists(item.Path) && (item.Sha1 is null
                 || await VerifySha1Async(item.Path, item.Sha1, cancellationToken).ConfigureAwait(false))) continue;
             if (!Uri.TryCreate(item.Url, UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttps)
@@ -90,8 +94,8 @@ public sealed partial class MinecraftInstaller(HttpClient? httpClient = null)
                 throw new InvalidDataException("Missing imported libraries must have a valid SHA-1 checksum.");
             requiredDownloads.Add(item);
         }
-        progress?.Report(new DownloadProgress(0, requiredDownloads.Count, "") { Stage = "Checking Linux libraries for imported instance" });
-        await DownloadAllAsync(requiredDownloads, progress, cancellationToken, _http).ConfigureAwait(false);
+        if (requiredDownloads.Count > 0)
+            await DownloadAllAsync(requiredDownloads, progress, cancellationToken).ConfigureAwait(false);
         var nativeId = metadata["jar"]?.GetValue<string>() ?? versionId;
         var nativesDirectory = GetSafePath(Path.Combine(gameDirectory, "versions"), nativeId);
         await ExtractNativesAsync(metadata, gameDirectory, Path.Combine(nativesDirectory, "natives"), cancellationToken).ConfigureAwait(false);
@@ -261,7 +265,7 @@ public sealed partial class MinecraftInstaller(HttpClient? httpClient = null)
         }
     }
 
-    private static async Task<JsonObject?> DownloadAssetIndexAsync(JsonObject metadata, string gameDirectory, ICollection<DownloadItem> downloads, IProgress<DownloadProgress>? progress, CancellationToken cancellationToken)
+    private async Task<JsonObject?> DownloadAssetIndexAsync(JsonObject metadata, string gameDirectory, ICollection<DownloadItem> downloads, IProgress<DownloadProgress>? progress, CancellationToken cancellationToken)
     {
         var index = metadata["assetIndex"]?.AsObject();
         if (index?["url"]?.GetValue<string>() is not { } url || index["id"]?.GetValue<string>() is not { } id) return null;
@@ -284,10 +288,18 @@ public sealed partial class MinecraftInstaller(HttpClient? httpClient = null)
         }
     }
 
-    private static async Task DownloadAllAsync(IEnumerable<DownloadItem> downloads, IProgress<DownloadProgress>? progress, CancellationToken cancellationToken, HttpClient? client = null)
+    private async Task DownloadAllAsync(IEnumerable<DownloadItem> downloads, IProgress<DownloadProgress>? progress, CancellationToken cancellationToken)
     {
         var pathComparer = OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
         var items = downloads.DistinctBy(item => item.Path, pathComparer).ToArray();
+        TorDownloadBatch? batch = null;
+        if (getTorClient is not null)
+        {
+            var policy = new TorDownloadRetryPolicy();
+            policy.ObserveInitialFiles(items.Select(item => item.Path));
+            batch = new TorDownloadBatch(policy, getTorClient);
+        }
+        var errors = new System.Collections.Concurrent.ConcurrentQueue<Exception>();
         var completed = 0;
         var progressLock = new object();
         progress?.Report(new DownloadProgress(0, items.Length, ""));
@@ -295,41 +307,80 @@ public sealed partial class MinecraftInstaller(HttpClient? httpClient = null)
         {
             lock (progressLock)
                 progress?.Report(new DownloadProgress(completed, items.Length, item.Path));
-            await DownloadAsync(item, progress, token, client).ConfigureAwait(false);
+            try { await DownloadAsync(item, progress, token, batch).ConfigureAwait(false); }
+            catch (Exception ex) when (batch is not null && ex is IOException && !token.IsCancellationRequested)
+            {
+                errors.Enqueue(ex);
+                return;
+            }
             lock (progressLock)
             {
                 completed++;
                 progress?.Report(new DownloadProgress(completed, items.Length, item.Path));
             }
         }).ConfigureAwait(false);
+        if (errors.TryPeek(out var first))
+            throw new IOException(first.Message + (errors.Count > 1 ? $" ({errors.Count} failed files.)" : ""), first);
     }
 
-    private static async Task DownloadAsync(DownloadItem item, IProgress<DownloadProgress>? progress, CancellationToken cancellationToken, HttpClient? client = null)
+    private async Task DownloadAsync(DownloadItem item, IProgress<DownloadProgress>? progress, CancellationToken cancellationToken, TorDownloadBatch? batch = null)
     {
-        if (File.Exists(item.Path) && (item.Sha1 is null || await VerifySha1Async(item.Path, item.Sha1, cancellationToken).ConfigureAwait(false))) return;
+        InstanceBackupStore.RequireSafePath(item.Path);
+        if (File.Exists(item.Path) && (item.Sha1 is null || await VerifySha1Async(item.Path, item.Sha1, cancellationToken).ConfigureAwait(false)))
+        {
+            batch?.RecordCachedFile(item.Path);
+            return;
+        }
         Directory.CreateDirectory(Path.GetDirectoryName(item.Path)!);
-        var temporary = item.Path + ".part";
+        if (batch is not null)
+        {
+            await batch.DownloadAsync(item.Path, TransferAsync, cancellationToken).ConfigureAwait(false);
+            return;
+        }
         Exception? lastError = null;
         for (var attempt = 1; attempt <= 3; attempt++)
         {
-            try
-            {
-                await using (var source = await (client ?? Http).GetStreamAsync(item.Url, cancellationToken).ConfigureAwait(false))
-                await using (var target = File.Create(temporary))
-                    await source.CopyToAsync(target, cancellationToken).ConfigureAwait(false);
-                if (item.Sha1 is not null && !await VerifySha1Async(temporary, item.Sha1, cancellationToken).ConfigureAwait(false))
-                    throw new InvalidDataException($"SHA-1 verification failed for {item.Url}.");
-                File.Move(temporary, item.Path, true);
-                return;
-            }
-            catch (Exception ex) when (ex is HttpRequestException or IOException or InvalidDataException)
+            try { await TransferAsync(null, cancellationToken).ConfigureAwait(false); return; }
+            catch (Exception ex) when (ex is HttpRequestException or IOException or InvalidDataException or TimeoutException)
             {
                 lastError = ex;
-                if (File.Exists(temporary)) File.Delete(temporary);
                 if (attempt < 3) await Task.Delay(TimeSpan.FromSeconds(attempt), cancellationToken).ConfigureAwait(false);
             }
         }
-        throw new IOException($"Download failed after retries: {item.Url}", lastError);
+        throw new IOException($"Download failed after retries: {item.Path}", lastError);
+
+        async Task TransferAsync(HttpClient? tor, CancellationToken token)
+        {
+            var temporary = item.Path + "." + Guid.NewGuid().ToString("N") + ".part";
+            try
+            {
+                using var idle = CancellationTokenSource.CreateLinkedTokenSource(token);
+                idle.CancelAfter(TimeSpan.FromSeconds(30));
+                using var response = await (tor ?? directFileClient ?? _http).GetAsync(item.Url,
+                    HttpCompletionOption.ResponseHeadersRead, idle.Token).ConfigureAwait(false);
+                response.EnsureSuccessStatusCode();
+                await using (var source = await response.Content.ReadAsStreamAsync(idle.Token).ConfigureAwait(false))
+                await using (var target = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None, 65536, FileOptions.Asynchronous))
+                {
+                    var buffer = new byte[65536];
+                    while (true)
+                    {
+                        idle.CancelAfter(TimeSpan.FromSeconds(30));
+                        var count = await source.ReadAsync(buffer, idle.Token).ConfigureAwait(false);
+                        if (count == 0) break;
+                        await target.WriteAsync(buffer.AsMemory(0, count), idle.Token).ConfigureAwait(false);
+                    }
+                    if (response.Content.Headers.ContentLength is long length && target.Length != length)
+                        throw new InvalidDataException($"Download length verification failed for {item.Path}.");
+                }
+                if (item.Sha1 is not null && !await VerifySha1Async(temporary, item.Sha1, token).ConfigureAwait(false))
+                    throw new InvalidDataException($"SHA-1 verification failed for {item.Path}.");
+                File.Move(temporary, item.Path, true);
+            }
+            catch (OperationCanceledException) when (!token.IsCancellationRequested)
+            { throw new TimeoutException($"Download stalled: {item.Path}"); }
+            finally { File.Delete(temporary); }
+        }
     }
 
     private static async Task<bool> VerifySha1Async(string path, string expected, CancellationToken cancellationToken)
@@ -341,6 +392,7 @@ public sealed partial class MinecraftInstaller(HttpClient? httpClient = null)
 
     private static async Task ExtractNativesAsync(JsonObject metadata, string gameDirectory, string nativesDirectory, CancellationToken cancellationToken)
     {
+        InstanceBackupStore.RequireSafePath(nativesDirectory);
         Directory.CreateDirectory(nativesDirectory);
         foreach (var library in metadata["libraries"]?.AsArray() ?? [])
         {
@@ -355,10 +407,30 @@ public sealed partial class MinecraftInstaller(HttpClient? httpClient = null)
             foreach (var entry in zip.Entries)
             {
                 if (entry.FullName.StartsWith("META-INF/", StringComparison.OrdinalIgnoreCase) || entry.FullName.EndsWith('/')) continue;
-                var destination = Path.Combine(nativesDirectory, Path.GetFileName(entry.FullName));
-                await using var input = entry.Open();
-                await using var output = File.Create(destination);
-                await input.CopyToAsync(output, cancellationToken).ConfigureAwait(false);
+                var name = Path.GetFileName(entry.FullName);
+                if (name is "" or "." or ".." || name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
+                    throw new InvalidDataException("Invalid native library filename.");
+                var destination = Path.Combine(nativesDirectory, name);
+                InstanceBackupStore.RequireSafePath(destination);
+                if (File.Exists(destination) && new FileInfo(destination).Length == entry.Length)
+                {
+                    await using var cached = File.OpenRead(destination);
+                    await using var archived = entry.Open();
+                    var cachedHash = await SHA256.HashDataAsync(cached, cancellationToken).ConfigureAwait(false);
+                    var archiveHash = await SHA256.HashDataAsync(archived, cancellationToken).ConfigureAwait(false);
+                    if (cachedHash.AsSpan().SequenceEqual(archiveHash)) continue;
+                }
+
+                // Replace changed natives atomically. A running game may still have the old file mapped.
+                var temporary = destination + "." + Guid.NewGuid().ToString("N") + ".part";
+                try
+                {
+                    await using (var input = entry.Open())
+                    await using (var output = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+                        await input.CopyToAsync(output, cancellationToken).ConfigureAwait(false);
+                    File.Move(temporary, destination, overwrite: true);
+                }
+                finally { File.Delete(temporary); }
             }
         }
     }
@@ -407,7 +479,7 @@ public sealed partial class MinecraftInstaller(HttpClient? httpClient = null)
             ["${launcher_name}"] = options.LauncherName,
             ["${launcher_version}"] = "Linux CLI"
         };
-        var result = new List<string> { "-Xmx2G" };
+        var result = new List<string>();
         var jvmArguments = metadata["arguments"]?["jvm"]?.AsArray();
         if (jvmArguments is null)
         {
@@ -419,6 +491,14 @@ public sealed partial class MinecraftInstaller(HttpClient? httpClient = null)
             foreach (var argument in jvmArguments)
                 AppendArgument(argument, result, replacements, clientVersion);
         }
+
+        if (options.MaxHeapMiB is { } maxHeap)
+        {
+            result.RemoveAll(arg => arg.StartsWith("-Xmx", StringComparison.Ordinal));
+            result.Insert(0, FormattableString.Invariant($"-Xmx{maxHeap}m"));
+        }
+        else if (!result.Any(arg => arg.StartsWith("-Xmx", StringComparison.Ordinal)))
+            result.Insert(0, "-Xmx2G");
 
         var mainClass = metadata["mainClass"]?.GetValue<string>()
             ?? throw new InvalidDataException("Minecraft metadata does not contain mainClass.");

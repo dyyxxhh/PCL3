@@ -9,6 +9,7 @@ public sealed record class ModDependencyReference
     public string ProjectId { get; init; } = string.Empty;
     public string Source { get; init; } = string.Empty;
     public bool IsRequired { get; init; } = true;
+    public string? RequiredFileId { get; init; }
 }
 
 public sealed record class ModDependencyRequest
@@ -45,6 +46,8 @@ public sealed record class InstalledModIdentity
     public string? SourceProjectId { get; init; }
     public string? Source { get; init; }
     public string? ModId { get; init; }
+    public string? FileId { get; init; }
+    public bool Disabled { get; init; }
     public List<string> GameVersions { get; init; } = [];
     public List<string> Loaders { get; init; } = [];
 }
@@ -116,15 +119,27 @@ public sealed class ModDependencyResolver
             return;
         }
 
-        var visitedKey = context.GetVisitedKey(dependency.ProjectId, dependency.Source);
-        if (!context.Visited.Add(visitedKey))
+        var installed = context.Request.InstalledMods.FirstOrDefault(mod =>
+            Comparer.Equals(mod.SourceProjectId, dependency.ProjectId) && Comparer.Equals(mod.Source, dependency.Source));
+        if (installed is not null)
         {
+            if (installed.Disabled)
+                context.AddUnresolved(dependency.ProjectId, dependency.Source, "Required dependency is disabled.");
+            else if (!context.IsInstalledCompatible(dependency.ProjectId, dependency.Source) ||
+                     dependency.RequiredFileId is not null && !Comparer.Equals(dependency.RequiredFileId, installed.FileId))
+                context.AddUnresolved(dependency.ProjectId, dependency.Source, "Installed version does not meet dependency requirements.");
+            else
+                context.AddSatisfied(dependency.ProjectId, dependency.Source, "Already installed and compatible.");
             return;
         }
 
-        if (context.IsInstalledCompatible(dependency.ProjectId, dependency.Source))
+        var visitedKey = context.GetVisitedKey(dependency.ProjectId, dependency.Source);
+        if (!context.Visited.Add(visitedKey))
         {
-            context.AddSatisfied(dependency.ProjectId, dependency.Source, "Already installed and compatible.");
+            var planned = context.Result.ToInstall.FirstOrDefault(item =>
+                Comparer.Equals(item.ProjectId, dependency.ProjectId) && Comparer.Equals(item.Source, dependency.Source));
+            if (planned is not null && dependency.RequiredFileId is not null && !Comparer.Equals(planned.File.Id, dependency.RequiredFileId))
+                context.AddUnresolved(dependency.ProjectId, dependency.Source, "Conflicting required dependency versions.");
             return;
         }
 
@@ -135,7 +150,8 @@ public sealed class ModDependencyResolver
             return;
         }
 
-        var selectedFile = SelectBestFile(project.Files, context.TargetMinecraftVersion, context.TargetLoaders);
+        var selectedFile = SelectBestFile(project.Files.Where(file => dependency.RequiredFileId is null || Comparer.Equals(file.Id, dependency.RequiredFileId)),
+            context.TargetMinecraftVersion, context.TargetLoaders);
         if (selectedFile is null)
         {
             context.AddUnresolved(project.ProjectId, project.Source, "No compatible file was found.");

@@ -19,6 +19,14 @@ on:
         description: 'Version to release (e.g., 2.14.2)'
         required: true
         type: string
+      platform:
+        description: 'Changed platform'
+        required: true
+        type: choice
+        options:
+          - both
+          - windows
+          - linux
 
 jobs:
   build:
@@ -57,8 +65,23 @@ jobs:
       - name: Verify release version
         env:
           RELEASE_VERSION: ${{ inputs.version }}
+          RELEASE_PLATFORM: ${{ inputs.platform }}
         run: |
-          python3 -c 'import json, os; v=json.load(open("Plain Craft Launcher 2/metadata.json", encoding="utf-8"))["version"]["base"]; requested=os.environ["RELEASE_VERSION"]; assert v == requested, f"Release version {requested} does not match metadata {v}"'
+          python3 - <<'PY'
+          import json, os, re
+          assert re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", os.environ["RELEASE_VERSION"])
+          assert os.environ["RELEASE_PLATFORM"] in {"both", "windows", "linux"}
+          metadata = json.load(open("Plain Craft Launcher 2/metadata.json", encoding="utf-8"))["version"]
+          assert metadata["base"] == os.environ["RELEASE_VERSION"], f"Release version {os.environ['RELEASE_VERSION']} does not match metadata {metadata['base']}"
+          assert metadata.get("platform") == os.environ["RELEASE_PLATFORM"], f"Release platform {os.environ['RELEASE_PLATFORM']} does not match metadata {metadata.get('platform')}"
+          PY
+          python3 - <<'PY'
+          import json, os
+          data = {"version": os.environ["RELEASE_VERSION"], "platform": os.environ["RELEASE_PLATFORM"], "releaseTag": "v" + os.environ["RELEASE_VERSION"]}
+          json.dump(data, open("PCL3_update.json", "w", encoding="utf-8"), ensure_ascii=False, separators=(",", ":"))
+          PY
+          cp docs/mcm-skill/SKILL.md MCM_skill.md
+          sha256sum MCM_skill.md > MCM_skill.md.sha256
 
       - name: Install git-cliff
         uses: taiki-e/install-action@e407f7bafb71fd004bc5c2da3032e5470cbb6ef0 # v2.87.24
@@ -79,12 +102,14 @@ jobs:
 
           ## 下载说明 (Download)
 
-          主发布为框架依赖版，体积约 22 MB；自带运行时的压缩单文件版体积约 98 MB。
+          Windows 提供框架依赖版和自带运行时版。选择与电脑匹配的 x64 或 ARM64。
 
           - `PCL3_${{ inputs.configuration }}_<架构>.exe`：框架依赖版，需要预先安装 [.NET 10 Desktop Runtime](https://get.dot.net/10)。自动更新默认下载该资产。
           - `PCL3_${{ inputs.configuration }}_<架构>_selfcontained.exe`：自带运行时压缩版，无需安装 .NET；没有 .NET 的电脑、以及在框架依赖版上导出完整 Windows 离线包时使用。
 
-          每个 `.exe` 都有对应的 `.sha256` 校验文件和 `.sigstore.json` 签名。
+          - `MCM_${{ inputs.configuration }}_linux-x64.tar.gz`：Linux x86-64 命令行版，解压后运行 `./mcm --help`。
+
+          每个 `.exe` 都有对应的 `.sha256` 校验文件和 `.sigstore.json` 签名。Linux 压缩包提供 `.sha256` 校验文件。
           EOF
 
       - name: Create or update release
@@ -95,6 +120,11 @@ jobs:
           tag_name: v${{ inputs.version }}
           name: Release ${{ inputs.version }}
           body_path: CHANGELOG.md
+          fail_on_unmatched_files: true
+          files: |
+            PCL3_update.json
+            MCM_skill.md
+            MCM_skill.md.sha256
           prerelease: ${{ inputs.configuration == 'Beta' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -176,6 +206,8 @@ jobs:
           dotnet-version: 10.0.x
       - name: Test shared core
         run: dotnet test PCL.Core.Shared.Tests/PCL.Core.Shared.Tests.csproj --configuration Release
+      - name: Prepare pinned Tor runtime
+        run: python3 scripts/prepare_tor_bundle.py linux-x86_64 "$RUNNER_TEMP/pcl3-tor-linux.tar.gz"
       - name: Publish Linux CLI
         env:
           PCL_WRITE_SECRET: '1'
@@ -188,7 +220,7 @@ jobs:
           dotnet publish PCL.Linux.Cli/PCL.Linux.Cli.csproj \
             --configuration Release --runtime linux-x64 --self-contained true \
             -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true \
-            -p:UseSharedCompilation=false \
+            -p:UseSharedCompilation=false -p:PclTorBundle="$RUNNER_TEMP/pcl3-tor-linux.tar.gz" \
             -p:McmReleaseVersion="${{ inputs.version }}" \
             -o ./linux-artifact
           test -x ./linux-artifact/mcm

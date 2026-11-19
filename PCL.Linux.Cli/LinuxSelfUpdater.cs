@@ -3,6 +3,7 @@ using System.IO.Compression;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text.RegularExpressions;
+using PCL.Core.Shared;
 
 namespace PCL.Linux.Cli;
 
@@ -11,7 +12,6 @@ internal static class LinuxSelfUpdater
     private const string RepositoryUrl = McmInfo.RepositoryUrl;
     private const string ExecutableName = "mcm";
     private const string AssetName = "MCM_Release_linux-x64.tar.gz";
-    private static readonly HttpClient Http = CreateHttpClient();
 
     public static async Task<int> UpdateAsync(CancellationToken cancellationToken = default)
     {
@@ -26,7 +26,8 @@ internal static class LinuxSelfUpdater
         var target = File.ResolveLinkTarget(processPath, returnFinalTarget: true)?.FullName ?? Path.GetFullPath(processPath);
         try
         {
-            return await UpdateTargetAsync(Http, target, localVersionText, localVersion, cancellationToken).ConfigureAwait(false);
+            using var http = TorFallbackHttpMessageHandler.CreateResourceClient();
+            return await UpdateTargetAsync(http, target, localVersionText, localVersion, cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
@@ -39,15 +40,14 @@ internal static class LinuxSelfUpdater
         if (!OperatingSystem.IsLinux()) throw new PlatformNotSupportedException("Self-update is supported on Linux only.");
         var targetDirectory = Path.GetDirectoryName(target) ?? throw new InvalidOperationException("The executable directory is unavailable.");
         Console.WriteLine("Checking MCM updates...");
-        var html = await http.GetStringAsync(RepositoryUrl + "/releases/latest", cancellationToken).ConfigureAwait(false);
-        var tag = ParseReleaseTag(html);
-        if (!TryParseReleaseVersion(tag, out var remoteVersion))
-            throw new InvalidDataException("The latest release tag is not a supported version.");
-        if (remoteVersion <= localVersion)
+        var tag = await FindLatestApplicableTagAsync(http, localVersion, cancellationToken).ConfigureAwait(false);
+        if (tag is null)
         {
-            Console.WriteLine($"Already up to date (current {localVersionText}, latest {tag}).");
+            Console.WriteLine($"Already up to date for Linux (current {localVersionText}).");
             return 0;
         }
+        if (!TryParseReleaseVersion(tag, out var remoteVersion) || remoteVersion <= localVersion)
+            throw new InvalidDataException("The applicable release tag is not a supported version.");
         var assetUrl = $"{RepositoryUrl}/releases/download/{Uri.EscapeDataString(tag)}/{AssetName}";
         Console.WriteLine("Fetching release SHA-256...");
         var expectedHash = ParseSha256(await http.GetStringAsync(assetUrl + ".sha256", cancellationToken).ConfigureAwait(false));
@@ -98,6 +98,10 @@ internal static class LinuxSelfUpdater
             if (File.Exists(stagedPath)) File.Delete(stagedPath);
         }
     }
+
+    private static Task<string?> FindLatestApplicableTagAsync(HttpClient http, Version localVersion, CancellationToken cancellationToken)
+        => ReleaseCatalog.FindAsync((url, ct) => http.GetStringAsync(url, ct), RepositoryUrl,
+            ReleasePlatformTarget.Linux, new Version(localVersion.Major, localVersion.Minor, localVersion.Build), cancellationToken);
 
     internal static async Task DownloadArchiveAsync(HttpClient http, string url, string path,
         TextWriter? progressOutput, CancellationToken cancellationToken)
@@ -162,10 +166,4 @@ internal static class LinuxSelfUpdater
         return Convert.ToHexString(await SHA256.HashDataAsync(stream, cancellationToken).ConfigureAwait(false));
     }
 
-    private static HttpClient CreateHttpClient()
-    {
-        var client = new HttpClient { Timeout = TimeSpan.FromMinutes(10) };
-        client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 MCM-Linux-Updater/1.0");
-        return client;
-    }
 }

@@ -5,4 +5,7 @@
     <Nullable>enable</Nullable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
+  <ItemGroup Condition="'$(PclTorBundle)' != ''">
+    <EmbeddedResource Include="$(PclTorBundle)" LogicalName="PCL.TorExpertBundle.tar.gz" />
+  </ItemGroup>
 </Project>

@@ -10,6 +10,7 @@ public static class ReleaseAssets
     public const string RepositoryUrl = "https://github.com/dyyxxhh/PCL3";
     public const string LatestReleaseUrl = RepositoryUrl + "/releases/latest";
     public const string SelfContainedSuffix = "_selfcontained";
+    public const string UpdateManifestName = "PCL3_update.json";
 
     /// <summary>
     ///     当前构建对应的发布页配置名，与 Release publish 工作流的 configuration 输入一致。

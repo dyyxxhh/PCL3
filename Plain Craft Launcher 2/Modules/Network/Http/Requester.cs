@@ -88,14 +88,31 @@ public static class Requester
             }
         }
 
+        // Authentication requests and calls with caller-supplied headers cannot enter this route.
+        if (ParseMethod(param.Method) == HttpMethod.Get && param.Content is null && param.Headers is null &&
+            lastException is not HttpRequestException { StatusCode: System.Net.HttpStatusCode.NotFound } &&
+            urls.FirstOrDefault(candidate => WindowsTorSession.IsPublic(RequestSigning.SecretCdnSign(candidate))) is { } publicUrl)
+        {
+            using var tor = new WindowsTorSession();
+            if (tor.Settings.Enabled)
+            {
+                var client = await tor.GetClientAsync(CancellationToken.None).ConfigureAwait(false);
+                for (var attempt = 0; attempt < 3; attempt++)
+                {
+                    try { return await FetchOnceAsync(publicUrl, param, client).ConfigureAwait(false); }
+                    catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException) { lastException = ex; }
+                }
+            }
+        }
         throw lastException ?? new HttpRequestException("请求失败");
     }
 
-    private static async Task<string> FetchOnceAsync(string url, FetchParam param)
+    private static async Task<string> FetchOnceAsync(string url, FetchParam param, HttpClient? tor = null)
     {
         HttpResponseMessage? response = null;
         var request = new HttpRequestMessage(ParseMethod(param.Method), RequestSigning.SecretCdnSign(url));
         RequestSigning.SecretHeadersSign(url, ref request, param.UseBrowserUserAgent);
+        if (tor is not null) request.Headers.Remove("x-api-key");
         try
         {
             if (!string.IsNullOrWhiteSpace(param.Accept))
@@ -119,8 +136,9 @@ public static class Requester
 
             using var cts = new CancellationTokenSource();
             cts.CancelAfter(param.Timeout <= 0 ? 30000 : param.Timeout);
-            response = await NetworkService.GetClient().SendAsync(request, cts.Token).ConfigureAwait(false);
-            EnsureSuccess(response);
+            response = await (tor ?? NetworkService.GetClient()).SendAsync(request, cts.Token).ConfigureAwait(false);
+            if (!response.IsSuccessStatusCode)
+                throw new HttpRequestException($"HTTP 请求失败 ({(int)response.StatusCode})", null, response.StatusCode);
             return await response.Content.ReadAsStringAsync().ConfigureAwait(false);
         }
         finally

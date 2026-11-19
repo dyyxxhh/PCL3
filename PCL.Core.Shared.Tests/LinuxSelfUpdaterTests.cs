@@ -204,7 +204,11 @@ public sealed class LinuxSelfUpdaterTests
             const string assetUrl = "https://github.com/dyyxxhh/PCL3/releases/download/v0.2.0/MCM_Release_linux-x64.tar.gz";
             HttpContent content = url switch
             {
+                "https://api.github.com/repos/dyyxxhh/PCL3/releases?per_page=100&page=1" =>
+                    new StringContent("""[{"tag_name":"v0.2.0","draft":false,"prerelease":false}]"""),
+                "https://github.com/dyyxxhh/PCL3/releases.atom" => new StringContent("<entry><link href=\"https://github.com/dyyxxhh/PCL3/releases/tag/v0.2.0\" /></entry>"),
                 "https://github.com/dyyxxhh/PCL3/releases/latest" => new StringContent("<a href=\"https://github.com/dyyxxhh/PCL3/releases/tag/v0.2.0\">release</a>"),
+                "https://github.com/dyyxxhh/PCL3/releases/download/v0.2.0/PCL3_update.json" => new StringContent("{\"version\":\"0.2.0\",\"platform\":\"linux\",\"releaseTag\":\"v0.2.0\"}"),
                 assetUrl + ".sha256" => new StringContent(checksum),
                 assetUrl => ArchiveContent(),
                 _ => throw new AssertFailedException("Unexpected update URL: " + url)

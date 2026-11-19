@@ -17,7 +17,7 @@ Test("release page check bypasses REST API 403 and checksum asset", () =>
     Requester.StringError = null;
     Assert(new UpdatesGithubReleaseModel().IsLatest(UpdateChannel.stable, UpdateArch.x64, SemVer.Parse("0.1.7"), 107), "not latest");
     Assert(Requester.FetchJsonRequests == 0, "REST API was called");
-    Assert(Requester.AssetRequests == 0, "checksum asset was requested during version comparison");
+    Assert(Requester.ChecksumRequests == 0, "checksum asset was requested during version comparison");
 });
 Test("older local build is detected using public release page", () =>
     Assert(!new UpdatesGithubReleaseModel().IsLatest(UpdateChannel.stable, UpdateArch.x64, SemVer.Parse("0.1.5"), 105), "update missing"));
@@ -127,17 +127,27 @@ namespace PCL.Network
         public static Exception? StringError;
         public static string Sha256 = "";
         public static int AssetRequests;
+        public static int ChecksumRequests;
         public static int FetchJsonRequests;
         public static string LastAssetUrl = "";
         public static string FetchString(string url, RequestParam param)
         {
+            if (url.StartsWith("https://api.github.com/", StringComparison.Ordinal))
+                throw new System.Net.Http.HttpRequestException("403 Forbidden", null, System.Net.HttpStatusCode.Forbidden);
             if (url == "https://github.com/dyyxxhh/PCL3/releases/latest")
             {
                 if (!param.UseBrowserUserAgent) throw new Exception("release page did not use browser User-Agent");
                 if (StringError is not null) throw StringError;
                 return LatestHtml;
             }
+            if (url.EndsWith("PCL3_update.json", StringComparison.Ordinal))
+            {
+                var tag = System.Text.RegularExpressions.Regex.Match(LatestHtml, "tag/(?<tag>[^\"< >]+)").Groups["tag"].Value;
+                var version = tag.StartsWith("v") ? tag[1..] : tag;
+                return $"{{\"version\":\"{version}\",\"platform\":\"both\",\"releaseTag\":\"{tag}\"}}";
+            }
             AssetRequests++;
+            if (url.EndsWith(".sha256", StringComparison.Ordinal)) ChecksumRequests++;
             LastAssetUrl = url;
             return Sha256;
         }

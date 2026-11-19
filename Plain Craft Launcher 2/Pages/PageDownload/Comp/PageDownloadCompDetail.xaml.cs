@@ -434,8 +434,9 @@ public partial class PageDownloadCompDetail
                             cachedFolder.Add(file.Type, targetDir);
                     }
 
+                    var requiredDownloads = new List<DownloadFile>();
                     if (file.Type == Comp.CompType.Mod && Config.Download.Comp.AutoInstallDependencies &&
-                        file.Dependencies.Any())
+                        CompDependency.GetReferences(file).Count > 0)
                     {
                         try
                         {
@@ -480,89 +481,14 @@ public partial class PageDownloadCompDetail
                                 targetLoaders = allowedLoaders.ToList();
                             }
 
-                            Common.Log($"[CompDeps] 开始解析必需前置: {file.Dependencies.Count} 个依赖");
-                            var request = CompDependency.BuildRequest(file, _project, mcVersion, targetLoaders,
-                                targetDir);
-                            var resolver = new ModDependencyResolver();
-                            var result = resolver.Resolve(request);
-
-                            void DownloadDependencies()
-                            {
-                                if (!result.ToInstall.Any())
-                                {
-                                    Common.Log("[CompDeps] 所有前置均无法解析，仅下载 Mod 本体");
-                                    return;
-                                }
-
-                                Common.Log($"[CompDeps] 准备下载: {result.ToInstall.Count} 个前置");
-                                var depDownloads = CompDependency.BuildDependencyDownloads(result, targetDir);
-                                foreach (var (depFilename, downloadFile) in depDownloads)
-                                {
-                                    var depLoaderName = Lang.Text("Download.Comp.Detail.DownloadResource", desc,
-                                        Path.GetFileNameWithoutExtension(depFilename));
-                                    var depLoaders = new List<Loading.LoaderBase>
-                                    {
-                                        new LoaderDownload(Lang.Text("Download.Comp.Detail.DownloadFile"),
-                                            new List<DownloadFile> { downloadFile })
-                                        {
-                                            ProgressWeight = 6,
-                                            block = true
-                                        }
-                                    };
-
-                                    // 启动加载器
-                                    var depLoader = new Loading.LoaderCombo<int>(depLoaderName, depLoaders);
-                                    depLoader.OnStateChanged = DownloadUi.LoaderStateChangedHintOnly;
-                                    depLoader.Start(1);
-                                    Loading.LoaderTaskbarAdd(depLoader);
-                                }
-                            }
-
-                            if (result.Unresolved.Any() || result.ToInstall.Any())
-                            {
-                                var installChoice = CompDependency.ConfirmDependencyInstall(result);
-
-                                switch (installChoice)
-                                {
-                                    case Comp.CompDepsInstallTypes.Unresolved:
-                                        Common.Log("[CompDeps] 发现无法解析的前置");
-                                        DownloadDependencies();
-                                        break;
-
-                                    case Comp.CompDepsInstallTypes.WithDeps:
-                                        DownloadDependencies();
-                                        break;
-
-                                    case Comp.CompDepsInstallTypes.WithoutDeps:
-                                        Common.Log("[CompDeps] 用户选择仅下载 Mod 本体，跳过前置下载");
-                                        break;
-
-                                    case Comp.CompDepsInstallTypes.Cancel:
-                                        Common.Log("[CompDeps] 用户取消安装");
-                                        return;
-
-                                    default:
-                                        Common.Log($"[CompDeps] 未知返回值: {installChoice} ，终止下载");
-                                        return;
-                                }
-                            }
-                            else
-                            {
-                                Common.Log("[CompDeps] 已满足: 所有必需前置已安装");
-                            }
+                            requiredDownloads = CompDependency.PrepareBatchDownloads([file], mcVersion, targetLoaders, targetDir);
                         }
+                        catch (Common.CancelledException) { return; }
                         catch (Exception depEx)
                         {
-                            Common.Log(depEx, "[CompDeps] 依赖解析失败，跳过前置安装");
-                            var message = ExceptionDetails.Compose(
-                                Lang.Text("Download.Comp.Dependency.ResolveFailed.Message"),
-                                depEx);
-                            Launcher.MyMsgBox(
-                                message,
-                                Lang.Text("Download.Comp.Dependency.ResolveFailed.Title"),
-                                Lang.Text("Download.Comp.Dependency.ResolveFailed.Continue"),
-                                isWarn: true,
-                                forceWait: true);
+                            var message = ExceptionDetails.Compose(Lang.Text("Download.Comp.Dependency.ResolveFailed.Message"), depEx);
+                            if (Launcher.MyMsgBox(message, "必需依赖解析失败", "返回调整依赖", "取消安装", "仅安装主模组",
+                                    isWarn: true, forceWait: true) != 3) return;
                         }
                     }
 
@@ -583,6 +509,9 @@ public partial class PageDownloadCompDetail
                             block = true
                         }
                     };
+
+                    if (requiredDownloads.Count > 0)
+                        loaders.Insert(0, new LoaderDownload("下载必需依赖", requiredDownloads) { block = true });
 
                     // 启动加载器
                     var loader = new Loading.LoaderCombo<int>(loaderName, loaders);

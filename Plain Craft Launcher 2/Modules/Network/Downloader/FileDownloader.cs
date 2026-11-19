@@ -1,3 +1,5 @@
+using PCL.Core.Shared;
+using PCL.Core.Shared.Minecraft;
 using PCL.Core.App;
 using PCL.Core.IO.Net;
 using PCL.Core.Utils;
@@ -30,6 +32,10 @@ public static class FileDownloader
             enableParallelChunks, trackedFile).ConfigureAwait(false);
     }
 
+    internal static Task DownloadForBatchAsync(DownloadFile file, bool enableParallelChunks,
+        TorDownloadBatch? batch, CancellationToken token) => DownloadCoreAsync(file.Urls, file.LocalPath,
+        file.UseBrowserUserAgent, file.CustomUserAgent, token, enableParallelChunks, file, batch);
+
     public static void DownloadByLoader(string url, string localPath, bool useBrowserUserAgent = false,
         string customUserAgent = "")
     {
@@ -43,7 +49,7 @@ public static class FileDownloader
     }
 
     private static async Task DownloadCoreAsync(IEnumerable<string> urls, string localPath, bool useBrowserUserAgent,
-        string customUserAgent, CancellationToken cancellationToken, bool enableParallelChunks, DownloadFile? trackedFile)
+        string customUserAgent, CancellationToken cancellationToken, bool enableParallelChunks, DownloadFile? trackedFile, TorDownloadBatch? batch = null)
     {
         var urlList = urls.Select(url => RequestSigning.SecretCdnSign(url.Trim())).Where(url => !string.IsNullOrWhiteSpace(url))
             .Distinct().ToList();
@@ -51,6 +57,28 @@ public static class FileDownloader
             throw new ArgumentException("未提供可用的下载地址", nameof(urls));
 
         Directory.CreateDirectory(Path.GetDirectoryName(localPath) ?? throw new ArgumentException("下载路径无效", nameof(localPath)));
+
+        var publicUrls = urlList.Where(WindowsTorSession.IsPublic).ToArray();
+        if (publicUrls.Length > 0)
+        {
+            using var standalone = trackedFile is null && batch is null ? new WindowsTorSession() : null;
+            batch ??= standalone?.Settings.Enabled == true ? standalone.CreateBatch([localPath]) : null;
+            if (batch is not null)
+            {
+                InstanceBackupStore.RequireSafePath(localPath);
+                InstanceBackupStore.RequireSafePath(localPath + NetFacade.NetDownloadEnd);
+                var nextDirect = 0;
+                var nextTor = 0;
+                await batch.DownloadAsync(localPath, async (tor, token) =>
+                {
+                    var url = tor is null ? urlList[nextDirect++ % urlList.Count] : publicUrls[nextTor++ % publicUrls.Length];
+                    try { await DownloadSingleAsync(url, localPath, useBrowserUserAgent, customUserAgent, token,
+                        tor is null && enableParallelChunks, trackedFile, tor).ConfigureAwait(false); }
+                    catch { CleanupTempFiles(localPath); throw; }
+                }, cancellationToken).ConfigureAwait(false);
+                return;
+            }
+        }
 
         Exception? lastException = null;
         for (var retry = 0; retry <= MaxDownloadRetries; retry++)
@@ -88,7 +116,7 @@ public static class FileDownloader
     }
 
     private static async Task DownloadSingleAsync(string url, string localPath, bool useBrowserUserAgent,
-        string customUserAgent, CancellationToken cancellationToken, bool enableParallelChunks, DownloadFile? trackedFile)
+        string customUserAgent, CancellationToken cancellationToken, bool enableParallelChunks, DownloadFile? trackedFile, HttpClient? tor = null)
     {
         Common.Log($"[Download] 开始下载：{url} -> {localPath}");
         CleanupTempFiles(localPath);
@@ -114,19 +142,20 @@ public static class FileDownloader
         }
 
         await DownloadSequentiallyAsync(url, localPath, useBrowserUserAgent, customUserAgent, cancellationToken,
-            trackedFile, sequentialRequestKind).ConfigureAwait(false);
+            trackedFile, sequentialRequestKind, tor).ConfigureAwait(false);
     }
 
     private static async Task DownloadSequentiallyAsync(string url, string localPath, bool useBrowserUserAgent,
         string customUserAgent, CancellationToken cancellationToken, DownloadFile? trackedFile,
-        DownloadRequestKind requestKind)
+        DownloadRequestKind requestKind, HttpClient? tor)
     {
         const int bufferSize = 64 * 1024;
         const int readTimeoutMilliseconds = 30_000;
         using var connection = await DownloadResourceManager.AcquireConnectionAsync(url, cancellationToken)
             .ConfigureAwait(false);
         using var request = CreateDownloadRequest(url, useBrowserUserAgent, customUserAgent, requestKind);
-        using var response = await SendDownloadRequestAsync(url, request, cancellationToken).ConfigureAwait(false);
+        if (tor is not null) request.Headers.Remove("x-api-key");
+        using var response = await SendDownloadRequestAsync(url, request, cancellationToken, tor).ConfigureAwait(false);
         if (!response.IsSuccessStatusCode)
             throw new HttpRequestException($"下载请求失败：{(int)response.StatusCode} {response.ReasonPhrase}");
 
@@ -253,13 +282,13 @@ public static class FileDownloader
     }
 
     internal static async Task<HttpResponseMessage> SendDownloadRequestAsync(string url,
-        HttpRequestMessage request, CancellationToken cancellationToken)
+        HttpRequestMessage request, CancellationToken cancellationToken, HttpClient? tor = null)
     {
         using var requestTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         requestTimeout.CancelAfter(RequestTimeoutMilliseconds);
         try
         {
-            return await GetHttpClient(url)
+            return await (tor ?? GetHttpClient(url))
                 .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, requestTimeout.Token)
                 .ConfigureAwait(false);
         }

@@ -34,16 +34,18 @@ public sealed class LauncherProcessTests
                 new JsonObject { ["name"] = "com.example:sample:1.2.3" },
                 new JsonObject { ["name"] = "com.example:forge:2.0:client" },
                 new JsonObject { ["name"] = "org.example:custom:2.0", ["downloads"] = new JsonObject { ["artifact"] = new JsonObject { ["path"] = "custom/path.jar" } } }),
-            ["arguments"] = new JsonObject { ["jvm"] = new JsonArray("-Djava.library.path=${natives_directory}", "-Dminecraft.launcher.brand=${launcher_name}", "-cp", "${classpath}"), ["game"] = new JsonArray() }
+            ["arguments"] = new JsonObject { ["jvm"] = new JsonArray("-Xmx2G", "-Djava.library.path=${natives_directory}", "-Dminecraft.launcher.brand=${launcher_name}", "-cp", "${classpath}"), ["game"] = new JsonArray() }
         };
         await File.WriteAllTextAsync(Path.Combine(root, "versions", "profile", "profile.json"), metadata.ToJsonString());
         try
         {
-            using var process = await new MinecraftInstaller().LaunchAsync("profile", new MinecraftLaunchOptions(root, java, "Steve", "123", "token", "legacy", LauncherName: "MCM"));
+            using var process = await new MinecraftInstaller().LaunchAsync("profile", new MinecraftLaunchOptions(root, java, "Steve", "123", "token", "legacy", LauncherName: "MCM", MaxHeapMiB: 4096));
             await process.WaitForExitAsync();
             Assert.AreEqual(0, process.ExitCode);
             var args = await File.ReadAllLinesAsync(capture);
             CollectionAssert.Contains(args, "-Dminecraft.launcher.brand=MCM");
+            CollectionAssert.AreEqual(new[] { "-Xmx4096m" }, args.Where(arg => arg.StartsWith("-Xmx", StringComparison.Ordinal)).ToArray());
+            Assert.IsTrue(Array.IndexOf(args, "-Xmx4096m") < Array.IndexOf(args, "example.Main"));
             var classpath = args[Array.IndexOf(args, "-cp") + 1].Split(Path.PathSeparator);
             CollectionAssert.Contains(classpath, Path.Combine(root, "libraries", "com", "example", "sample", "1.2.3", "sample-1.2.3.jar"));
             CollectionAssert.Contains(classpath, Path.Combine(root, "libraries", "com", "example", "forge", "2.0", "forge-2.0-client.jar"));

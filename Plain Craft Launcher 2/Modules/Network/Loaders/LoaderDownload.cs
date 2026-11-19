@@ -1,3 +1,4 @@
+using PCL.Core.Shared;
 using System.Collections.Concurrent;
 using System.IO;
 
@@ -59,6 +60,9 @@ public class LoaderDownload : Loading.LoaderBase
                 return;
             }
 
+            using var tor = files.Any(file => file.Urls.Any(WindowsTorSession.IsPublic)) ? new WindowsTorSession() : null;
+            var fallback = tor?.Settings.Enabled == true
+                ? tor.CreateBatch(files.Where(file => file.Urls.Any(WindowsTorSession.IsPublic)).Select(file => file.LocalPath)) : null;
             var exceptions = new ConcurrentQueue<Exception>();
             using var semaphore = new SemaphoreSlim(GetMaxParallelFiles());
             var tasks = files.Select(async file =>
@@ -68,7 +72,7 @@ public class LoaderDownload : Loading.LoaderBase
                 {
                     await semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
                     entered = true;
-                    await ProcessFileAsync(file, cancellationToken).ConfigureAwait(false);
+                    await ProcessFileAsync(file, fallback, cancellationToken).ConfigureAwait(false);
                 }
                 catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
                 {
@@ -78,7 +82,7 @@ public class LoaderDownload : Loading.LoaderBase
                     file.AddError(ex);
                     file.State = NetState.Interrupted;
                     exceptions.Enqueue(ex);
-                    _cancellationTokenSource?.Cancel();
+                    if (fallback is null) _cancellationTokenSource?.Cancel();
                 }
                 finally
                 {
@@ -107,7 +111,7 @@ public class LoaderDownload : Loading.LoaderBase
             Math.Clamp(NetFacade.NetTaskConnectionLimit, 1, NetFacade.NetTaskConnectionLimitMax)));
     }
 
-    private async Task ProcessFileAsync(DownloadFile file, CancellationToken cancellationToken)
+    private async Task ProcessFileAsync(DownloadFile file, TorDownloadBatch? fallback, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         file.RegisterLoader(this);
@@ -123,6 +127,7 @@ public class LoaderDownload : Loading.LoaderBase
                 : await Task.Run(() => checker.Check(file.LocalPath), cancellationToken).ConfigureAwait(false);
             if (checkResult is null)
             {
+                fallback?.RecordCachedFile(file.LocalPath);
                 file.IsCopy = true;
                 file.State = NetState.Finished;
                 try { file.TotalSize = new FileInfo(file.LocalPath).Length; }
@@ -139,8 +144,7 @@ public class LoaderDownload : Loading.LoaderBase
         // 批量任务中未知大小的文件直接下载，避免小文件逐个产生一次 Range 探测。
         var expectedSize = file.Check?.actualSize ?? -1;
         var enableParallelChunks = files.Count <= 1 || expectedSize >= AdaptiveRangeDownloader.SmallFileThreshold;
-        await FileDownloader.DownloadAsync(file.Urls, file.LocalPath, file.UseBrowserUserAgent, file.CustomUserAgent,
-            cancellationToken, enableParallelChunks, file).ConfigureAwait(false);
+        await FileDownloader.DownloadForBatchAsync(file, enableParallelChunks, fallback, cancellationToken).ConfigureAwait(false);
         try { file.TotalSize = new FileInfo(file.LocalPath).Length; }
         catch (IOException) { file.TotalSize = -1; }
         file.IsUnknownSize = file.TotalSize < 0;

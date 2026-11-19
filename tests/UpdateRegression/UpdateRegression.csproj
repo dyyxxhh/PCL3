@@ -13,6 +13,7 @@
     <Compile Include="../../Plain Craft Launcher 2/Modules/Updates/EnumUpdateChannel.cs" Link="EnumUpdateChannel.cs" />
     <Compile Include="../../Plain Craft Launcher 2/Modules/Updates/VersionDataModel.cs" Link="VersionDataModel.cs" />
     <Compile Include="../../Plain Craft Launcher 2/Modules/Updates/VersionAnnouncementDataModel.cs" Link="VersionAnnouncementDataModel.cs" />
+    <Compile Include="../../PCL.Core.Shared/ReleasePlatform.cs" Link="ReleasePlatform.cs" />
     <Compile Include="../../PCL.Core/Utils/SemVer.cs" Link="SemVer.cs" />
     <Compile Include="../../PCL.Core/Utils/RegexPatterns.cs" Link="RegexPatterns.cs" />
   </ItemGroup>

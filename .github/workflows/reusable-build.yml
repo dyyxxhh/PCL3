@@ -47,6 +47,9 @@ jobs:
       - name: Test update check regression
         run: dotnet run --project tests/UpdateRegression/UpdateRegression.csproj --configuration Release
 
+      - name: Prepare pinned Tor runtime
+        run: python3 scripts/prepare_tor_bundle.py windows-x86_64 "$RUNNER_TEMP/pcl3-tor-windows.tar.gz"
+
       - name: Build Project
         env:
           PCL_WRITE_SECRET: '1'
@@ -65,12 +68,12 @@ jobs:
             --runtime ${{ inputs.architecture == 'ARM64' && 'win-arm64' || 'win-x64' }} --self-contained true \
             -p:IncludeNativeLibrariesForSelfExtract=true \
             -p:EnableCompressionInSingleFile=true \
-            -p:DeleteExistingFiles=true -o ./artifact
+            -p:PclTorBundle="$RUNNER_TEMP/pcl3-tor-windows.tar.gz" -p:DeleteExistingFiles=true -o ./artifact
           elif [ "${{ inputs.variant }}" = "framework" ]; then
             dotnet publish "Plain Craft Launcher 2/Plain Craft Launcher 2.csproj" \
             -p:Configuration=${{ inputs.configuration }} -p:Platform=${{ inputs.architecture }} \
             --no-self-contained \
-            -p:DeleteExistingFiles=true -o ./artifact
+            -p:PclTorBundle="$RUNNER_TEMP/pcl3-tor-windows.tar.gz" -p:DeleteExistingFiles=true -o ./artifact
           else
             echo "::error::Unknown launcher build variant: ${{ inputs.variant }}"
             exit 1
@@ -87,8 +90,8 @@ jobs:
             test "$size" -gt 60000000
             test "$size" -lt 160000000
           else
-            # 框架依赖版：约 22 MB；超过 40 MB 说明又被打成了自带运行时
-            test "$size" -lt 40000000
+            # 框架依赖版包含 Tor 专家包；超过 70 MB 说明可能被打成了自带运行时
+            test "$size" -lt 70000000
           fi
 
       - name: Upload the Build Artifact

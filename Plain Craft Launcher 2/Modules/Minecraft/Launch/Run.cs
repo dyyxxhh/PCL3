@@ -412,6 +412,11 @@ public static partial class GameLaunch
 
     private static void McLaunchRun(Loading.LoaderTask<int, Process> loader)
     {
+        if (!WindowsInstanceBackup.BeforeLaunch(InstanceList.McMcInstanceSelected!, () => loader.IsAborted))
+        {
+            loader.Abort();
+            return;
+        }
         var noJavaw =
             Config.Launch.NoJavaw && mcLaunchJavaSelected!.Installation.JavawExePath is not null;
 

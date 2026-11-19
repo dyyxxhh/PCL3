@@ -38,13 +38,19 @@ public static partial class Modpack
             loaderVersions.MinecraftVersion,
             loaderVersions.ModLoader);
         if (fileList.Any())
-            installLoaders.Add(
-                new LoaderDownload(
-                    Lang.Text("Minecraft.Download.Modpack.Stage.DownloadAdditions"),
-                    fileList)
-                {
-                    ProgressWeight = fileList.Count * 1.5d
-                });
+        {
+            if (PCL.Core.App.Config.Download.Comp.AutoInstallDependencies)
+            {
+                var modsDir = Path.Combine(GameFolders.mcFolderSelected, "versions", instanceName, "mods");
+                installLoaders.Add(new LoaderTask<int, List<DownloadFile>>("解析整合包必需依赖", task =>
+                    task.output = _IncludeModrinthRequiredDependencies(fileList, modsDir,
+                        loaderVersions.MinecraftVersion!, loaderVersions.ModLoader)));
+            }
+            installLoaders.Add(new LoaderDownload(Lang.Text("Minecraft.Download.Modpack.Stage.DownloadAdditions"), fileList)
+            {
+                ProgressWeight = fileList.Count * 1.5d
+            });
+        }
 
         var request = new DownloadUi.McInstallRequest
         {
@@ -84,6 +90,36 @@ public static partial class Modpack
         if (!isOnlineInstall)
             Common.RunInUi(() => Launcher.frmMain.PageChange(FormMain.PageType.TaskManager));
         return loader;
+    }
+
+    private static List<DownloadFile> _IncludeModrinthRequiredDependencies(List<DownloadFile> files, string modsDirectory,
+        string minecraftVersion, Comp.CompLoaderType loader)
+    {
+        var hashes = files.Where(file => string.Equals(Path.GetDirectoryName(file.LocalPath), modsDirectory, StringComparison.OrdinalIgnoreCase)
+                && file.LocalPath.EndsWith(".jar", StringComparison.OrdinalIgnoreCase))
+            .Select(file => file.Check?.hash).OfType<string>().Where(hash => hash.Length == 40 && hash.All(Uri.IsHexDigit))
+            .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        if (hashes.Length == 0) return files;
+        var selected = new List<Comp.CompFile>();
+        try
+        {
+            foreach (var batch in hashes.Chunk(100))
+            {
+                var body = System.Text.Json.JsonSerializer.Serialize(new { hashes = batch, algorithm = "sha1" });
+                var result = Common.GetJson(GameDownload.DlModRequest("https://api.modrinth.com/v2/version_files", "POST", body, "application/json")) as JsonObject
+                             ?? throw new InvalidDataException("模组平台返回的整合包文件信息无效。");
+                selected.AddRange(result.Select(pair => pair.Value).OfType<JsonObject>().Select(document => new Comp.CompFile(document, Comp.CompType.Mod)));
+            }
+        }
+        catch (Exception ex) when (ex is not Common.CancelledException)
+        {
+            if (Launcher.MyMsgBox(ex.Message, "必需依赖解析失败", "返回调整依赖", "取消安装", "仅安装主模组",
+                    isWarn: true, forceWait: true) == 3) return files;
+            throw new Common.CancelledException();
+        }
+        var extra = CompDependency.PrepareBatchDownloads(selected, minecraftVersion, [loader], modsDirectory);
+        return [.. extra.Where(dependency => !files.Any(file =>
+            string.Equals(file.LocalPath, dependency.LocalPath, StringComparison.OrdinalIgnoreCase))), .. files];
     }
 
     private static JsonObject _ReadModrinthManifest(ZipArchive archive, string archiveBaseFolder)

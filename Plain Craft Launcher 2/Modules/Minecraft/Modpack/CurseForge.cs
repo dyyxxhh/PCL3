@@ -283,6 +283,7 @@ public static partial class Modpack
         Comp.CompLoaderType modLoader)
     {
         var fileList = new Dictionary<int, DownloadFile>();
+        var selectedMods = new List<Comp.CompFile>();
         foreach (var modJson in task.input!.OfType<JsonObject>())
         {
             var id = modJson["id"].ToObject<int>();
@@ -306,6 +307,7 @@ public static partial class Modpack
             if (!file.Available)
                 continue;
 
+            if (type == Comp.CompType.Mod) selectedMods.Add(file);
             fileList.Add(
                 id,
                 file.ToNetFile(
@@ -316,7 +318,15 @@ public static partial class Modpack
             task.Progress += 1d / (1 + modList.Count);
         }
 
-        return [.. fileList.Values];
+        var files = fileList.Values.ToList();
+        if (PCL.Core.App.Config.Download.Comp.AutoInstallDependencies)
+        {
+            var dependencies = CompDependency.PrepareBatchDownloads(selectedMods, json["minecraft"]!["version"]!.ToString(),
+                [modLoader], Path.Combine(GameFolders.mcFolderSelected, "versions", instanceName, "mods"));
+            files.InsertRange(0, dependencies.Where(dependency => !files.Any(file =>
+                string.Equals(file.LocalPath, dependency.LocalPath, StringComparison.OrdinalIgnoreCase))));
+        }
+        return files;
     }
 
     private static (string Folder, Comp.CompType Type) _ResolveCurseForgeTargetFolder(

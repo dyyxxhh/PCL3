@@ -16,6 +16,31 @@ mcm update  # 从项目 GitHub Release 检查并更新 MCM；需要联网
 `mcm update` 下载更新包时显示进度条、百分比、已下载/总大小、平均速度和预计剩余时间；服务器未提供总大小时显示已下载量和速度。交互终端在同一行刷新，重定向输出时定期输出普通文本，不写入终端控制符。下载后会单独提示 SHA-256 校验和解压阶段，验证通过后才替换原程序；下载出错或校验失败会保留原程序。
 旧 `pcl` 可执行文件的更新器仍使用旧发布资源名，更名后的首次升级需手动下载 MCM 发布包，再改用 `mcm` 命令。
 
+### 配置、Skill、Tor 与备份
+
+```sh
+mcm skill install
+mcm config
+mcm config list
+mcm config get backup.enabled
+mcm config set backup.enabled true
+mcm config set backup.scope instance
+mcm config set tor.enabled true
+mcm config set tor.auto_bridges true
+mcm config set tor.bridges 'obfs4 host:port FINGERPRINT cert=...;snowflake ...'
+mcm backup create INSTANCE --scope saves
+mcm backup list INSTANCE
+mcm backup restore BACKUP --instance INSTANCE --clone
+mcm tor status
+mcm tor bridge add 'obfs4 host:port FINGERPRINT cert=...'
+mcm tor bridge clear
+```
+
+`mcm skill install` 只会覆盖 MCM Skill 文件，不会删除其他 Skill；它会跳过没有检测到的 Codex、Claude Code、Gemini CLI 或 Cursor。下载内容先校验 SHA-256 和大小。Tor 默认关闭，仅在用户启用且公开下载连续失败时回退；账号登录、刷新和游戏联机不经过 Tor。自定义网桥优先，自动发现通过 Tor Project 的公开 bridge bootstrap 接口获取，完整网桥内容不会写入普通日志。
+
+自动备份默认关闭；启用后在托管实例启动前备份，默认只保留 5 个自动备份。备份先尝试文件系统克隆/reflink，不支持时退回普通复制并提示。备份目录由实例位置决定，备份和还原拒绝符号链接、重解析点和越界路径；原地还原会先留下保护备份，`--clone` 用于还原到新实例。
+
+
 ```sh
 mcm -S 1.21.1 --instance FabricTest --loader fabric
 mcm -Ss sodium --game-version 1.21.1 --loader fabric
@@ -185,6 +210,8 @@ Linux CLI 支持原版 Minecraft 元数据、文件校验和启动；Forge、Neo
 当前不支持 Windows 桌面 UI/TUI、OptiFine、旧版/变体加载器、整合包在线搜索、MultiMC JSON patch 的完整迁移、传统包内启动参数/实例设置迁移，以及 CurseForge 未提供下载 URL 的文件。`-S` 模组安装与 `mod update` 会解析必需模组依赖；整合包按清单下载文件，不递归改写包的固定依赖。远端 CurseForge 模组保留项目和文件 ID，Modrinth 模组按 SHA-1 查询来源；可识别来源的导入模组可继续更新和导出，未识别或包内自带的 JAR 仅支持本地维护（导出需要来源元数据）。Linux CLI 仍不等同 Windows 桌面端全部功能，也不支持 Yggdrasil Connect。
 
 `mcm launch` 使用所选账户启动实例。离线账户、Microsoft device-code flow 和传统 Yggdrasil/authlib-injector 已支持。第三方登录密码仅在交互终端隐藏输入；访问令牌保存在用户配置目录并限制权限。首次下载后会校验内容；普通启动缺少对应 Java 时才从 Mojang 官方清单下载 Linux runtime；`--offline` 明确禁止该行为。需要可用图形会话、显卡驱动和已授权账号才能验收实际游戏画面。
+
+MCM 默认根据系统可用内存预算设置 Java 最大堆（约四分之一，上限 4096 MiB）。可用 `mcm launch my --memory 6144` 覆盖单次启动，或用 `mcm config set memory.max_mib 6144 --instance my` 保存实例设置。设为 `auto` 可恢复自动分配。
 
 ## 本地开发
 

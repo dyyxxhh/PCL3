@@ -44,7 +44,7 @@ internal static class OfflineCommands
         {
             case "export" when terms.Count == 1 && options.TryGetValue("instance", out var name):
             {
-                var root = MinecraftInstanceService.ResolveGameDirectory(options.GetValueOrDefault("game-dir"));
+                var root = McmConfiguration.ResolveGameDirectory(options.GetValueOrDefault("game-dir"));
                 var instance = ManagedInstanceService.Find(root, name) ?? throw new InvalidOperationException("Install or migrate the named instance before exporting it.");
                 var installer = new MinecraftInstaller();
                 var major = await installer.GetRequiredJavaMajorAsync(instance.LaunchVersion, instance.DirectoryPath, cancellationToken).ConfigureAwait(false);
@@ -63,7 +63,7 @@ internal static class OfflineCommands
             }
             case "import" when terms.Count == 1:
             {
-                var root = MinecraftInstanceService.ResolveGameDirectory(options.GetValueOrDefault("game-dir"));
+                var root = McmConfiguration.ResolveGameDirectory(options.GetValueOrDefault("game-dir"));
                 ManagedMinecraftInstance instance;
                 using (var progress = new ConsoleInstallProgress("Verifying and installing offline bundle (no network)"))
                     instance = await OfflineBundleService.ImportAsync(terms[0], root, options.GetValueOrDefault("instance"), progress, cancellationToken).ConfigureAwait(false);
@@ -82,7 +82,7 @@ internal static class OfflineCommands
             case "serve" when terms.Count == 1:
                 return await ServeAsync(terms[0], options).ConfigureAwait(false);
             case "doctor" when terms.Count == 0 && options.TryGetValue("instance", out var doctorName):
-                return await DoctorAsync(MinecraftInstanceService.ResolveGameDirectory(options.GetValueOrDefault("game-dir")), doctorName, cancellationToken).ConfigureAwait(false);
+                return await DoctorAsync(McmConfiguration.ResolveGameDirectory(options.GetValueOrDefault("game-dir")), doctorName, cancellationToken).ConfigureAwait(false);
             default: return Usage("Invalid offline command arguments; export and doctor require --instance.");
         }
     }

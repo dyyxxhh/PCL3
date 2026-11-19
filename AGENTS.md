@@ -22,7 +22,7 @@
 
 ## 完成、推送与正式 Release
 - 完成实现后必须修复验证中发现的问题，重新验证，不能只报告失败就结束；禁止无进展重复同一失败操作。
-- 默认从 `Plain Craft Launcher 2/metadata.json` 读取 `x.y.z`，递增 patch 为 `x.y.(z+1)`；异常格式、预发布后缀或版本策略不明确时先询问。
+- 默认从 `Plain Craft Launcher 2/metadata.json` 读取 `x.y.z`，递增 patch 为 `x.y.(z+1)`；异常格式、预发布后缀或版本策略不明确时先询问。每次发版必须在 `version.platform` 中明确声明 `windows`、`linux` 或 `both`；发布工作流的 `platform` 输入必须与该字段一致，并生成供 Windows/Linux 更新器读取的结构化发布清单。不适用于当前平台的版本必须跳过并继续寻找最近的适用版本；缺少该字段的历史版本按 `both` 处理。
 - 同步 `metadata.json`、`AssemblyVersion`、`FileVersion`、tag 与 workflow 输入；tag 使用 `vX.Y.Z`。
 - 验证通过后提交并推送分支和 tag；必须使用 GitHub Actions 构建和上传 Release 资源，不用本地产物替代。
 - 默认创建正式 Release；只有 Actions 构建、测试、签名和上传全部成功才算发布完成。

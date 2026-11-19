@@ -8,6 +8,7 @@ internal static class Program
 {
     private static async Task<int> Main(string[] args)
     {
+        using var packageNetwork = PackageCommands.Network;
         ApplyEnvironmentAliases();
         if (args.Length == 0 || args is ["--help"] or ["-h"] or ["help"])
         {
@@ -27,6 +28,10 @@ internal static class Program
                 "logout" when args.Length == 1 => await LogoutAsync().ConfigureAwait(false),
                 "info" when args is ["info"] => McmInfo.Write(Console.Out),
                 "update" when args is ["update"] => await LinuxSelfUpdater.UpdateAsync().ConfigureAwait(false),
+                "skill" when args.Length >= 2 && args[1] == "install" => await SkillCommands.InstallAsync(args.Skip(2).ToArray()).ConfigureAwait(false),
+                "config" => McmConfiguration.Run(args.Skip(1).ToArray()),
+                "backup" => await RunBackupCommandAsync(args.Skip(1).ToArray()).ConfigureAwait(false),
+                "tor" => await TorCommands.RunAsync(args[1..]).ConfigureAwait(false),
                 "scan" => await InstanceCommands.ScanAsync(args.Skip(1).ToArray()).ConfigureAwait(false),
                 "instance" when args.Length >= 2 && args[1] == "list" => ListInstances(args.Skip(2).ToArray()),
                 "-Ss" => await PackageCommands.SearchAsync(args.Skip(1).ToArray()).ConfigureAwait(false),
@@ -35,7 +40,7 @@ internal static class Program
                 "mod" => await PackageCommands.ManageModsAsync(args.Skip(1).ToArray()).ConfigureAwait(false),
                 "pack" => await PackageCommands.ManagePackAsync(args.Skip(1).ToArray()).ConfigureAwait(false),
                 "offline" => await OfflineCommands.RunAsync(args.Skip(1).ToArray()).ConfigureAwait(false),
-                "launch" when args.Length >= 2 => await LaunchAsync(args[1], args.Skip(2).ToArray()).ConfigureAwait(false),
+                "launch" => await LaunchConfiguredAsync(args[1..]).ConfigureAwait(false),
                 _ => InvalidCommand()
             };
         }
@@ -59,6 +64,10 @@ internal static class Program
         Console.WriteLine("  mcm logout");
         Console.WriteLine("  mcm info");
         Console.WriteLine("  mcm update");
+        Console.WriteLine("  mcm skill install");
+        Console.WriteLine("  mcm config [list|get <key>|set <key> <value>|reset [key]]");
+        Console.WriteLine("  mcm backup create|list|restore <backup> [--instance <name>] [--clone]");
+        Console.WriteLine("  mcm tor status|bridge list|bridge add <bridge-line>|bridge clear");
         Console.WriteLine("  mcm scan [path] [--migrate] [--version <id>] [--instance <name>] [--data-dir <path>] [--game-dir <destination>]");
         Console.WriteLine("  mcm instance list [--game-dir <path>]");
         Console.WriteLine("  mcm -Ss <mod query> [--game-version <version>] [--loader <loader>] [--source modrinth|curseforge]");
@@ -71,7 +80,7 @@ internal static class Program
         Console.WriteLine("  mcm offline inspect <bundle.zip>");
         Console.WriteLine("  mcm offline serve <bundle.zip> [--bind <local-IP>] [--port <5078>]");
         Console.WriteLine("  mcm offline doctor --instance <name> [--game-dir <path>]");
-        Console.WriteLine("  mcm launch <instance|version> [--game-dir <path>] [--java <path>] [--offline]");
+        Console.WriteLine("  mcm launch <instance|version> [--game-dir <path>] [--java <path>] [--memory <MiB|auto>] [--offline]");
         Console.WriteLine("  mcm --help");
         Console.WriteLine();
         Console.WriteLine("Microsoft login requires MCM_MS_CLIENT_ID and stores its refresh token with owner-only file permissions.");
@@ -113,7 +122,7 @@ internal static class Program
     private static int ListInstances(string[] args)
     {
         if (!TryParseOptions(args, out var options)) return 2;
-        var gameDirectory = MinecraftInstanceService.ResolveGameDirectory(options.GetValueOrDefault("game-dir"));
+        var gameDirectory = McmConfiguration.ResolveGameDirectory(options.GetValueOrDefault("game-dir"));
         var instances = ManagedInstanceService.List(gameDirectory);
         var legacyInstances = MinecraftInstanceService.List(gameDirectory);
         if (instances.Count == 0 && legacyInstances.Count == 0)
@@ -130,8 +139,10 @@ internal static class Program
 
     private static async Task<int> InstallJavaAsync(int majorVersion)
     {
-        var gameDirectory = MinecraftInstanceService.ResolveGameDirectory();
-        var installer = new MinecraftInstaller();
+        var gameDirectory = McmConfiguration.ResolveGameDirectory();
+        using var network = new TorFallbackHttpMessageHandler();
+        using var resources = network.CreateClient();
+        var installer = network.CreateInstaller(resources);
         var existing = installer.FindInstalledJavaRuntime(majorVersion, gameDirectory);
         if (existing is not null)
         {
@@ -198,18 +209,32 @@ internal static class Program
         return 0;
     }
 
+    private static Task<int> LaunchConfiguredAsync(string[] args)
+    {
+        if (args.Length > 0 && !args[0].StartsWith("--", StringComparison.Ordinal)) return LaunchAsync(args[0], args[1..]);
+        var configured = McmConfiguration.Get("default_instance");
+        if (string.IsNullOrWhiteSpace(configured)) throw new ArgumentException("Specify a version or set default_instance first.");
+        return LaunchAsync(configured, args);
+    }
+
     private static async Task<int> LaunchAsync(string version, string[] args)
     {
         if (!TryParseOptions(args, out var options, allowOffline: true)) return 2;
         var offline = options.ContainsKey("offline");
-        var gameDirectory = MinecraftInstanceService.ResolveGameDirectory(options.GetValueOrDefault("game-dir"));
+        var gameDirectory = McmConfiguration.ResolveGameDirectory(options.GetValueOrDefault("game-dir"));
         var managed = ManagedInstanceService.Find(gameDirectory, version);
+        var maxHeapMiB = McmConfiguration.ResolveMaxHeapMiB(
+            options.GetValueOrDefault("memory") ?? McmConfiguration.Get("memory.max_mib", managed?.Name),
+            GC.GetGCMemoryInfo().TotalAvailableMemoryBytes);
         if (managed is not null)
         {
             gameDirectory = managed.DirectoryPath;
             version = managed.LaunchVersion;
+            await CreateAutomaticBackupIfEnabledAsync(managed).ConfigureAwait(false);
         }
-        var installer = new MinecraftInstaller();
+        using var network = new TorFallbackHttpMessageHandler(managed?.Name);
+        using var resources = network.CreateClient();
+        var installer = network.CreateInstaller(resources);
         var installedPath = Path.Combine(gameDirectory, "versions", version, version + ".json");
         if (managed is null && InstanceCommands.RequiresLegacyMigration(gameDirectory, version))
         {
@@ -242,7 +267,7 @@ internal static class Program
             await installer.PrepareForLaunchAsync(version, gameDirectory, progress).ConfigureAwait(false);
         }
         var requiredMajor = await installer.GetRequiredJavaMajorAsync(version, gameDirectory).ConfigureAwait(false);
-        var requestedJavaPath = options.GetValueOrDefault("java");
+        var requestedJavaPath = options.GetValueOrDefault("java") ?? McmConfiguration.Get("java", managed?.Name);
         var matchingJava = requestedJavaPath is null
             ? JavaDiscovery.Probe(installer.FindInstalledJavaRuntime(requiredMajor, gameDirectory) ?? string.Empty)
               ?? JavaDiscovery.Scan().FirstOrDefault(runtime => JavaDiscovery.ParseMajorVersion(runtime.Version) == requiredMajor)
@@ -301,11 +326,82 @@ internal static class Program
             launchOptions = new MinecraftLaunchOptions(gameDirectory, javaPath, account.UserName, account.Uuid, account.AccessToken, "msa");
         }
         else throw new InvalidDataException("未知账户类型，请重新登录。");
-        launchOptions = launchOptions with { LauncherName = "MCM" };
-        var process = await installer.LaunchAsync(version, launchOptions).ConfigureAwait(false);
-        Console.WriteLine($"Started Minecraft {version} as {launchOptions.PlayerName} with Java at {javaPath}.");
+        launchOptions = launchOptions with { LauncherName = "MCM", MaxHeapMiB = maxHeapMiB };
+        using var process = await installer.LaunchAsync(version, launchOptions).ConfigureAwait(false);
+        Console.WriteLine($"Started Minecraft {version} as {launchOptions.PlayerName} with Java at {javaPath} (max heap: {maxHeapMiB} MiB).");
         await process.WaitForExitAsync().ConfigureAwait(false);
         return process.ExitCode;
+    }
+
+    private static async Task<int> RunBackupCommandAsync(string[] args)
+    {
+        if (args.Length == 0) return BackupUsage();
+        if (args[0] == "list" && args.Length == 2)
+        {
+            var instance = ManagedInstanceService.Find(McmConfiguration.ResolveGameDirectory(), args[1]);
+            if (instance is null) return BackupUsage($"Instance '{args[1]}' does not exist.");
+            foreach (var backup in InstanceBackupService.List(instance)) Console.WriteLine(backup);
+            return 0;
+        }
+        if (args[0] == "create" && args.Length is 2 or 4)
+        {
+            var gameDirectory = McmConfiguration.ResolveGameDirectory();
+            var instance = ManagedInstanceService.Find(gameDirectory, args[1]);
+            if (instance is null) return BackupUsage($"Instance '{args[1]}' does not exist.");
+            var scope = args.Length == 4 && args[2] == "--scope" ? args[3] : null;
+            if (args.Length == 4 && scope is null) return BackupUsage("Usage: mcm backup create <instance> [--scope saves|instance]");
+            Console.WriteLine($"Creating backup for '{instance.Name}'...");
+            Console.WriteLine(await InstanceBackupService.CreateAsync(instance, false, scope).ConfigureAwait(false));
+            return 0;
+        }
+        if (args[0] == "restore" && args.Length >= 4)
+        {
+            var instanceIndex = Array.IndexOf(args, "--instance");
+            if (instanceIndex != 2 || instanceIndex + 1 >= args.Length) return BackupUsage("Usage: mcm backup restore <backup> --instance <name> [--clone]");
+            var clone = args.Skip(4).Contains("--clone", StringComparer.Ordinal);
+            if (args.Skip(4).Any(item => item != "--clone")) return BackupUsage();
+            var instanceName = args[3];
+            var gameDirectory = McmConfiguration.ResolveGameDirectory();
+            var instance = ManagedInstanceService.Find(gameDirectory, instanceName);
+            if (instance is null) return BackupUsage($"Instance '{instanceName}' does not exist.");
+            var restored = await InstanceBackupService.RestoreAsync(instance, args[1], clone).ConfigureAwait(false);
+            Console.WriteLine(clone ? $"Backup restored as new instance '{restored}'." : "Backup restored in place; the previous state was preserved.");
+            return 0;
+        }
+        return BackupUsage();
+    }
+
+    private static int BackupUsage(string? message = null)
+    {
+        if (message is not null) Console.Error.WriteLine(message);
+        else Console.Error.WriteLine("Usage: mcm backup create <instance> [--scope saves|instance] | list <instance> | restore <backup> --instance <name> [--clone]");
+        return 2;
+    }
+
+    private static async Task CreateAutomaticBackupIfEnabledAsync(ManagedMinecraftInstance instance)
+    {
+        if (!bool.TryParse(McmConfiguration.Get("backup.enabled", instance.Name), out var enabled) || !enabled) return;
+        while (true)
+        {
+            try
+            {
+                var path = await InstanceBackupService.CreateAsync(instance, true).ConfigureAwait(false);
+                Console.WriteLine($"Created automatic backup: {path}");
+                return;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
+            {
+                if (Console.IsInputRedirected) throw new IOException($"Automatic backup failed; launch was blocked: {ex.Message}", ex);
+                Console.Error.WriteLine($"Automatic backup failed: {ex.Message}");
+                Console.Write("[R]etry, [C]ontinue without backup, or [Q]uit? ");
+                switch (Console.ReadLine()?.Trim().ToLowerInvariant())
+                {
+                    case "r": continue;
+                    case "c": return;
+                    default: throw new IOException("Launch cancelled because the automatic backup did not complete.");
+                }
+            }
+        }
     }
 
     private static bool TryParseOptions(string[] args, out Dictionary<string, string> options, bool allowOffline = false)
@@ -325,7 +421,8 @@ internal static class Program
                 return false;
             }
             var key = args[i][2..];
-            if (key is not ("game-dir" or "java" or "username") || !options.TryAdd(key, args[i + 1]))
+            if ((key is not ("game-dir" or "java" or "username") && !(allowOffline && key == "memory"))
+                || !options.TryAdd(key, args[i + 1]))
             {
                 Console.Error.WriteLine($"Unknown or duplicate option: {args[i]}");
                 return false;

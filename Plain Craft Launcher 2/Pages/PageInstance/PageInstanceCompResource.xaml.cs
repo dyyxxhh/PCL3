@@ -2251,6 +2251,18 @@ public partial class PageInstanceCompResource : IRefreshable
             // 构造加载器
             var installLoaders = new List<Loading.LoaderBase>();
             var finishedFileNames = new List<string>();
+            if (currentCompType == Comp.CompType.Mod && Config.Download.Comp.AutoInstallDependencies)
+            {
+                var instance = PageInstanceLeft.McInstance;
+                var updates = modList.Select(entry => entry.UpdateFile).Where(file => file.Available).ToArray();
+                var loaders = LocalComp.GetCurrentVersionModLoader();
+                installLoaders.Add(new Loading.LoaderTask<int, List<DownloadFile>>("解析必需依赖", task =>
+                {
+                    var directory = Path.Combine(instance.PathIndie, "mods");
+                    task.output = CompDependency.PrepareBatchDownloads(updates, instance.Info.VanillaName, loaders, directory);
+                    task.output.AddRange(fileList);
+                }));
+            }
             installLoaders.Add(new LoaderDownload(Lang.Text("Instance.Resource.Update.Task.DownloadFiles"), fileList)
                 { ProgressWeight = modList.Count() * 1.5d }); // 每个 Mod 需要 1.5s
             installLoaders.Add(new Loading.LoaderTask<int, int>(

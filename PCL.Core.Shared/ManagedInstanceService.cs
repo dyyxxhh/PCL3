@@ -42,11 +42,24 @@ public static class ManagedInstanceService
         await WriteMetadataAsync(directory, instance, cancellationToken).ConfigureAwait(false);
     }
 
+    public static async Task PublishStagedAsync(ManagedMinecraftInstance instance, string staging,
+        CancellationToken cancellationToken = default)
+    {
+        var destination = GetInstanceDirectory(Path.GetDirectoryName(Path.GetDirectoryName(instance.DirectoryPath)!)!, instance.Name);
+        if (destination != Path.GetFullPath(instance.DirectoryPath) ||
+            Path.GetDirectoryName(destination) != Path.GetDirectoryName(Path.GetFullPath(staging)))
+            throw new InvalidDataException("The staging directory and instance destination must share a parent.");
+        InstanceBackupStore.RequireSafePath(destination);
+        InstanceBackupStore.RequireSafePath(staging);
+        await WriteMetadataAsync(staging, instance, cancellationToken).ConfigureAwait(false);
+        Directory.Move(staging, destination);
+    }
+
     internal static async Task WriteMetadataAsync(string directory, ManagedMinecraftInstance instance, CancellationToken cancellationToken)
     {
         var metadata = new InstanceMetadata(instance.Name, instance.GameVersion, instance.Loader, instance.LoaderVersion, instance.LaunchVersion, instance.Imported);
         var path = Path.Combine(directory, MetadataFileName);
-        var temporary = path + ".tmp";
+        var temporary = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
         try
         {
             await File.WriteAllTextAsync(temporary, JsonSerializer.Serialize(metadata), cancellationToken).ConfigureAwait(false);

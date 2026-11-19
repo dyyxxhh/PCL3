@@ -26,44 +26,19 @@ public static partial class CompDependency
             var selectedButton = Launcher.MyMsgBox(
                 message,
                 Lang.Text("Download.Comp.Dependency.Unresolved.Title"),
-                Lang.Text("Download.Comp.Dependency.Unresolved.ContinueWithoutDependencies"),
+                "返回调整依赖",
                 Lang.Text("Common.Action.Cancel"),
+                "仅安装主模组",
                 isWarn: true,
                 forceWait: true);
 
-            return selectedButton == 1
-                ? Comp.CompDepsInstallTypes.Unresolved
+            return selectedButton == 3
+                ? Comp.CompDepsInstallTypes.WithoutDeps
                 : Comp.CompDepsInstallTypes.Cancel;
         }
 
         if (result.ToInstall is { Count: > 0 })
-        {
-            var dependencies = string.Join(
-                Environment.NewLine,
-                result.ToInstall.Select(install => Lang.Text(
-                    "Download.Comp.Dependency.Install.ListItem",
-                    install.ProjectName,
-                    install.Source,
-                    install.File.DisplayName,
-                    install.File.Version)));
-            var message = Lang.Text("Download.Comp.Dependency.Install.Message", dependencies);
-            var dialogResult = Launcher.MyMsgBox(
-                message,
-                Lang.Text("Download.Comp.Dependency.Install.Title"),
-                Lang.Text("Download.Comp.Dependency.Install.WithDependencies"),
-                Lang.Text("Download.Comp.Dependency.Install.WithoutDependencies"),
-                Lang.Text("Download.Comp.Dependency.Install.Cancel"),
-                forceWait: true);
-
-            return dialogResult switch
-            {
-                1 => Comp.CompDepsInstallTypes.WithDeps,
-                2 => Comp.CompDepsInstallTypes.WithoutDeps,
-                3 => Comp.CompDepsInstallTypes.Cancel,
-                _ => Comp.CompDepsInstallTypes.Cancel
-            };
-        }
-
+            Common.Log($"[CompDeps] 自动安装 {result.ToInstall.Count} 个必需前置");
         return Comp.CompDepsInstallTypes.WithDeps;
     }
 

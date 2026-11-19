@@ -30,7 +30,7 @@ internal static class InstanceCommands
         }
         if (!migrate && options.Keys.Any(key => key is "version" or "instance" or "data-dir"))
             return Usage("--version, --instance and --data-dir require --migrate.");
-        var destination = MinecraftInstanceService.ResolveGameDirectory(options.GetValueOrDefault("game-dir"));
+        var destination = McmConfiguration.ResolveGameDirectory(options.GetValueOrDefault("game-dir"));
         IReadOnlyList<string> roots;
         if (sourcePath is not null) roots = [MinecraftInstanceMigration.ResolveScanDirectory(sourcePath)];
         else
