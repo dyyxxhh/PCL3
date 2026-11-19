@@ -804,7 +804,7 @@ public partial class PageSetupUI
                     (Launcher.frmSetupLeft.TextGameCategory,
                         !(conf.SetupLaunch && conf.SetupJava && conf.SetupGameManage)),
                     (Launcher.frmSetupLeft.TextToolsCategory, false),
-                    (Launcher.frmSetupLeft.TextLauncherCategory, !(conf.SetupUi && conf.SetupLauncherLanguage && conf.SetupLauncherMisc)),
+                    (Launcher.frmSetupLeft.TextLauncherCategory, true),
                     (Launcher.frmSetupLeft.TextAboutCategory,
                         !(conf.SetupAbout && conf.SetupUpdate && conf.SetupFeedback && conf.SetupLog))
                 };
@@ -819,7 +819,7 @@ public partial class PageSetupUI
 
                 Launcher.frmSetupLeft.TextToolsCategory.Visibility = Visibility.Collapsed;
 
-                var setupCount = 0;
+                var setupCount = 1; // Tor 网络始终可见。
                 if (!conf.SetupLaunch)
                     setupCount += 1;
                 if (!conf.SetupUi)
@@ -854,16 +854,10 @@ public partial class PageSetupUI
                 // 处理分类标题
                 Launcher.frmToolsLeft.TextGameLinkCategory.Visibility = Visibility.Collapsed;
 
-                var isToolsVisible = (!HiddenForceShow && !conf.ToolsTest) || HiddenForceShow;
-                Launcher.frmToolsLeft.TextToolsCategory.Visibility = isToolsVisible ? Visibility.Visible : Visibility.Collapsed;
-                if (isToolsVisible) Launcher.frmToolsLeft.TextToolsCategory.Opacity = 0.6;
-
-                // 统计工具页可用项数量
-                var toolsCount = 0;
-                if (!conf.ToolsTest)
-                    toolsCount += 1;
+                Launcher.frmToolsLeft.TextToolsCategory.Visibility = Visibility.Visible;
+                Launcher.frmToolsLeft.TextToolsCategory.Opacity = 0.6;
                 Launcher.frmToolsLeft.PanItem.Visibility =
-                    toolsCount < 2 && !HiddenForceShow ? Visibility.Collapsed : Visibility.Visible;
+                    conf.ToolsTest && !HiddenForceShow ? Visibility.Collapsed : Visibility.Visible;
             }
 
             // 其他入口刷新

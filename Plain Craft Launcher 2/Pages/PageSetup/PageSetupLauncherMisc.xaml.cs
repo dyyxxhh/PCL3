@@ -32,13 +32,6 @@ public partial class PageSetupLauncherMisc : IPageView
         Unloaded += PageSetupLauncherMisc_Unloaded;
     }
 
-    private void OpenTorSettings(object sender, RoutedEventArgs e)
-    {
-        try { TorSettingsDialog.Show(Window.GetWindow(this)); }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
-        { Launcher.MyMsgBox(ex.Message, "Tor 设置无法打开"); }
-    }
-
     public PageSetupLauncherMiscViewModel ViewModel => _vm;
 
     public void OnNavigatedTo(object? parameter) => Refresh();

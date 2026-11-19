@@ -141,6 +141,11 @@
                 </local:MyListItem.Buttons>
             </local:MyListItem>
 
+            <local:MyListItem x:Name="ItemTor" IsScaleAnimationEnabled="False" Tag="12"
+                              MinPaddingRight="35" Height="36" VerticalAlignment="Top"
+                              Title="Tor 网络" Type="RadioBox" Check="PageCheck"
+                              SvgIcon="lucide/globe" />
+
             <TextBlock Text="{loc:Loc Setup.Left.Category.About}" Margin="13,5,5,3" Opacity="0.6"
                        FontSize="12" x:Name="TextAboutCategory" />
 

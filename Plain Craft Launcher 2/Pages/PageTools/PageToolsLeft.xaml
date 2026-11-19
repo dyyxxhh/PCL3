@@ -48,5 +48,10 @@
                           LogoScale="0.9"
                           SvgIcon="lucide/tool-case" />
 
+        <local:MyListItem x:Name="ItemTorDownload" IsScaleAnimationEnabled="False" Tag="4"
+                          MinPaddingRight="35" Height="36" VerticalAlignment="Top"
+                          Title="Tor 下载" Type="RadioBox" Check="PageCheck"
+                          SvgIcon="lucide/download" />
+
     </StackPanel>
 </local:MyPageLeft>

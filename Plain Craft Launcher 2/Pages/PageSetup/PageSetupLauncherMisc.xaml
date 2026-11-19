@@ -8,7 +8,6 @@
     xmlns:loc="https://ce.pclc.cc/core/localization">
     <local:MyScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" x:Name="PanBack">
         <StackPanel x:Name="PanMain" Margin="25,10">
-            <Button Content="Tor 下载设置" Click="OpenTorSettings" Margin="0,8,0,0" Height="30" />
             <local:MyCard Margin="0,15" Title="{loc:Loc Setup.Misc.System.Title}">
                 <Grid Margin="25,40,25,16">
                     <Grid.ColumnDefinitions>

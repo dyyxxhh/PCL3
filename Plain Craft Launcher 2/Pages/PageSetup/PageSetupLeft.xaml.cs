@@ -69,7 +69,7 @@ public partial class PageSetupLeft : IPageView
         else if (!hideCfg.SetupLog)
             ItemLog.SetChecked(true, false, false);
         else
-            ItemLaunch.SetChecked(true, false, false);
+            ItemTor.SetChecked(true, false, false);
     }
 
     private void PageOtherLeft_Unloaded(object sender, RoutedEventArgs e)
@@ -237,7 +237,7 @@ public partial class PageSetupLeft : IPageView
     public object PageGet(FormMain.PageSubType? id = null)
     {
         var targetID = id ?? pageID;
-        switch (id)
+        switch (targetID)
         {
             case FormMain.PageSubType.SetupLaunch:
             {
@@ -299,6 +299,8 @@ public partial class PageSetupLeft : IPageView
                     Launcher.frmSetupLauncherMisc = new PageSetupLauncherMisc();
                 return Launcher.frmSetupLauncherMisc;
             }
+            case FormMain.PageSubType.SetupTor:
+                return Launcher.frmSetupTor ??= new PageSetupTor();
             case FormMain.PageSubType.SetupJava:
             {
                 if (Launcher.frmSetupJava is null)
@@ -308,7 +310,7 @@ public partial class PageSetupLeft : IPageView
 
             default:
             {
-                throw new Exception("未知的设置子页面种类：" + (int)id);
+                throw new Exception("未知的设置子页面种类：" + (int)targetID);
             }
         }
     }

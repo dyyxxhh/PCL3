@@ -1,0 +1,32 @@
+<local:MyPageRight x:Class="PCL.PageSetupTor"
+                   xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                   xmlns:local="clr-namespace:PCL"
+                   PanScroll="{Binding ElementName=PanBack}">
+    <local:MyScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" x:Name="PanBack">
+        <StackPanel x:Name="PanMain" Margin="25,10">
+            <local:MyCard Margin="0,15" Title="Tor 网络">
+                <StackPanel x:Name="PanSettings" Margin="25,40,25,16">
+                    <local:MyCheckBox x:Name="CheckFallback" Text="公开资源下载失败时使用 Tor" Margin="0,0,0,12" />
+                    <local:MyCheckBox x:Name="CheckDiscovery" Text="自动发现网桥" Margin="0,0,0,12" />
+                    <TextBlock Text="自定义网桥" Margin="0,4,0,6" />
+                    <local:MyComboBox x:Name="ComboBridges" SelectionChanged="BridgeSelectionChanged" Margin="0,0,0,8" />
+                    <PasswordBox x:Name="TextBridge" AutomationProperties.Name="网桥配置" MinHeight="28" MaxLength="1024"
+                                 Margin="0,0,0,8" />
+                    <WrapPanel>
+                        <local:MyButton Text="添加网桥" Height="30" MinWidth="85" Margin="0,0,8,8" Click="AddBridge" />
+                        <local:MyButton x:Name="BtnRemove" Text="删除选中项" Height="30" MinWidth="90" Margin="0,0,8,8"
+                                        IsEnabled="False" Click="RemoveBridge" />
+                        <local:MyButton x:Name="BtnClear" Text="清除网桥" Height="30" MinWidth="85" Margin="0,0,8,8"
+                                        IsEnabled="False" Click="ClearBridges" />
+                    </WrapPanel>
+                    <WrapPanel Margin="0,6,0,0">
+                        <local:MyButton Text="保存设置" Height="30" MinWidth="85" Margin="0,0,8,8" Click="SaveSettings" ColorType="Highlight" />
+                        <local:MyButton Text="测试连接" Height="30" MinWidth="85" Margin="0,0,8,8" Click="TestConnection" />
+                    </WrapPanel>
+                    <TextBlock x:Name="LabStatus" Margin="0,5,0,0" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+                </StackPanel>
+            </local:MyCard>
+        </StackPanel>
+    </local:MyScrollViewer>
+</local:MyPageRight>

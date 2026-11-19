@@ -66,4 +66,19 @@ for kind in ("NeoForge", "Cleanroom"):
     assert re.search(rf"case GameDownload\.DlForgelikeEntry\.ForgelikeType\.{kind}:\s+"
                      rf"info \?\?= new GameDownload\.Dl{kind}ListEntry\(", resolver), kind
 
-print("branding/account/icon/game download regression checks: PASS")
+for area, item, page, subtype in (("Setup", "ItemTor", "PageSetupTor", "SetupTor"),
+                                  ("Tools", "ItemTorDownload", "PageToolsTorDownload", "ToolsTorDownload")):
+    folder = APP / f"Pages/Page{area}"
+    nav = ET.parse(folder / f"Page{area}Left.xaml")
+    entry = nav.find(f".//*[@{{http://schemas.microsoft.com/winfx/2006/xaml}}Name='{item}']")
+    assert entry is not None and entry.get("Type") == "RadioBox" and entry.get("Check") == "PageCheck"
+    assert re.search(rf"\b{subtype} = {entry.get('Tag')},", (APP / "FormMain.xaml.cs").read_text(encoding="utf-8-sig"))
+    code = (folder / f"Page{area}Left.xaml.cs").read_text(encoding="utf-8-sig")
+    assert f"case FormMain.PageSubType.{subtype}:" in code and f"new {page}()" in code
+    assert ET.parse(folder / f"{page}.xaml").getroot().tag.endswith("}MyPageRight")
+assert not (APP / "Pages/PageSetup/TorSettingsDialog.cs").exists()
+manual_tor = (APP / "Pages/PageTools/PageToolsTorDownload.xaml.cs").read_text(encoding="utf-8-sig")
+assert "TorNetworkService.StartAsync" in manual_tor and "CreateHttpClient(allowAutoRedirect: false, useSystemProxy: false)" in manual_tor
+assert "WindowsTorSession.IsPublic" not in manual_tor
+
+print("branding/account/icon/game download/Tor navigation regression checks: PASS")

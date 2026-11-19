@@ -182,9 +182,12 @@ public sealed class TorNetworkService : IAsyncDisposable
         return bridges.ToArray();
     }
 
-    public HttpClient CreateHttpClient(TimeSpan? timeout = null) => new(new SocketsHttpHandler
+    public HttpClient CreateHttpClient(TimeSpan? timeout = null, bool allowAutoRedirect = true,
+        bool useSystemProxy = true) => new(new SocketsHttpHandler
     {
         UseCookies = false,
+        UseProxy = useSystemProxy,
+        AllowAutoRedirect = allowAutoRedirect,
         ConnectTimeout = TimeSpan.FromSeconds(30),
         ConnectCallback = async (context, cancellationToken) =>
             await ConnectThroughSocks5Async(context.DnsEndPoint, _port, cancellationToken).ConfigureAwait(false)

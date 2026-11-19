@@ -32,7 +32,10 @@ public partial class PageToolsLeft
         // 选择第一个未被禁用的子页面
         if (isPageSwitched)
             return;
-        ItemTest.SetChecked(true, false, false);
+        if (ItemTest.Visibility == Visibility.Visible)
+            ItemTest.SetChecked(true, false, false);
+        else
+            ItemTorDownload.SetChecked(true, false, false);
     }
 
     private void PageOtherLeft_Unloaded(object sender, RoutedEventArgs e)
@@ -81,7 +84,7 @@ public partial class PageToolsLeft
     public object PageGet(FormMain.PageSubType? id = null)
     {
         var targetID = id ?? pageID;
-        switch (id)
+        switch (targetID)
         {
             case FormMain.PageSubType.ToolsGameLink:
             {
@@ -89,6 +92,8 @@ public partial class PageToolsLeft
                     Launcher.frmToolsGameLink = new PageToolsGameLink();
                 return Launcher.frmToolsGameLink;
             }
+            case FormMain.PageSubType.ToolsTorDownload:
+                return Launcher.frmToolsTorDownload ??= new PageToolsTorDownload();
             case FormMain.PageSubType.ToolsTest:
             {
                 if (Launcher.frmToolsTest is null)
@@ -97,7 +102,7 @@ public partial class PageToolsLeft
             }
             default:
             {
-                throw new Exception("未知的更多子页面种类：" + (int)id);
+                throw new Exception("未知的更多子页面种类：" + (int)targetID);
             }
         }
     }

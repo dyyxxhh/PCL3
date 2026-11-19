@@ -18,6 +18,7 @@
     <Compile Include="..\Plain Craft Launcher 2\Modules\Minecraft\Offline\Distribution\WindowsOfflineDistributionServer.cs" Link="WindowsOfflineDistributionServer.cs" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="..\Plain Craft Launcher 2\Modules\Network\Downloader\TorLinkDownload.cs" Link="TorLinkDownload.cs" />
     <ProjectReference Include="..\PCL.Core.Shared\PCL.Core.Shared.csproj" />
     <Compile Include="..\PCL.Linux.Cli\TorFallbackHttpMessageHandler.cs" Link="TorFallbackHttpMessageHandler.cs" />
     <Compile Include="..\PCL.Linux.Cli\SkillCommands.cs" Link="SkillCommands.cs" />

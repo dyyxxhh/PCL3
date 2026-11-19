@@ -1444,9 +1444,11 @@ public partial class FormMain
         SetupJava = 9,
         SetupLauncherMisc = 10,
         SetupLauncherLanguage = 11,
+        SetupTor = 12,
 
         ToolsGameLink = 1,
         ToolsTest = 3,
+        ToolsTorDownload = 4,
 
         VersionOverall = 0,
         VersionSetup = 1,

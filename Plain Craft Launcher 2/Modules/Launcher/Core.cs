@@ -21,6 +21,7 @@ public static partial class Launcher
     public static PageToolsLeft? frmToolsLeft;
     public static PageToolsGameLink? frmToolsGameLink;
     public static PageToolsTest? frmToolsTest;
+    public static PageToolsTorDownload? frmToolsTorDownload;
     public static PageDownloadLeft? frmDownloadLeft;
     public static PageDownloadInstall? frmDownloadInstall;
     public static PageDownloadClient? frmDownloadClient;
@@ -52,6 +53,7 @@ public static partial class Launcher
     public static PageSetupGameLink? frmSetupGameLink;
     public static PageSetupLauncherLanguage? frmSetupLauncherLanguage;
     public static PageSetupLauncherMisc? frmSetupLauncherMisc;
+    public static PageSetupTor? frmSetupTor;
     public static PageLoginAuth? frmLoginAuth;
     public static PageLoginMs? frmLoginMs;
     public static PageLoginProfile? frmLoginProfile;
