@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Text;
@@ -184,9 +184,8 @@ public static partial class GameLaunch
         var hasExistingSaves = Directory.Exists(
             Path.Combine(InstanceList.McMcInstanceSelected!.PathIndie, "saves"));
         var shouldUseDefault = isLanguageUnconfigured || !hasExistingSaves;
-        var requiredLang = _ResolveMinecraftLanguage(
-            currentLang,
-            shouldUseDefault,
+        var requiredLang = PCL.Core.Shared.Minecraft.GameStartupOptionsFile.ResolveLanguage(
+            shouldUseDefault ? LocalizationService.CurrentLanguage.Code : currentLang,
             InstanceList.McMcInstanceSelected.releaseTime);
 
         if (currentLang == requiredLang)
@@ -224,56 +223,6 @@ public static partial class GameLaunch
                 Common.WriteIni(setupFileAddress, "fullscreen", "false");
                 break;
         }
-    }
-
-    private static string _ResolveMinecraftLanguage(
-        string? currentLanguage,
-        bool shouldUseLauncherLanguage,
-        DateTime? mcReleaseTime)
-    {
-        if (_IsMinecraftVersionUnder1Dot1(mcReleaseTime))
-            return "none";
-
-        var useLegacyRegionCase = _ShouldUseLegacyMinecraftLanguageCode(mcReleaseTime);
-        var languageCode = shouldUseLauncherLanguage
-            ? LocalizationService.CurrentLanguage.Code
-            : currentLanguage;
-        return _NormalizeMinecraftLanguageCode(languageCode, useLegacyRegionCase);
-    }
-
-    private static string _NormalizeMinecraftLanguageCode(
-        string? languageCode,
-        bool useLegacyRegionCase)
-    {
-        var normalizedCode = string.IsNullOrWhiteSpace(languageCode)
-            ? "none"
-            : languageCode.Replace('-', '_').Trim();
-        if (string.Equals(normalizedCode, "none", StringComparison.OrdinalIgnoreCase))
-            return "none";
-
-        var segments = normalizedCode.Split('_', 2, StringSplitOptions.RemoveEmptyEntries);
-        if (segments.Length < 2)
-            return normalizedCode.ToLowerInvariant();
-
-        var language = segments[0].ToLowerInvariant();
-        var region = useLegacyRegionCase
-            ? segments[1].ToUpperInvariant()
-            : segments[1].ToLowerInvariant();
-        return $"{language}_{region}";
-    }
-
-    private static bool _IsMinecraftVersionUnder1Dot1(DateTime? releaseTime)
-    {
-        return releaseTime.HasValue
-            && releaseTime.Value > new DateTime(2000, 1, 1)
-            && releaseTime.Value <= new DateTime(2011, 11, 18);
-    }
-
-    private static bool _ShouldUseLegacyMinecraftLanguageCode(DateTime? releaseTime)
-    {
-        return releaseTime.HasValue
-            && releaseTime.Value >= new DateTime(2012, 1, 12)
-            && releaseTime.Value <= new DateTime(2016, 6, 8);
     }
 
     private static bool _ShouldEnableForceUnicodeFont()
@@ -422,6 +371,8 @@ public static partial class GameLaunch
 
         var gameProcess = new Process();
         var startInfo = _CreateGameProcessStartInfo(noJavaw);
+        if (currentLaunchOptions is { IsTest: false, SaveBatch: null })
+            WindowsGameIntro.TryAttach(startInfo, InstanceList.McMcInstanceSelected!);
         gameProcess.StartInfo = startInfo;
 
         gameProcess.Start();

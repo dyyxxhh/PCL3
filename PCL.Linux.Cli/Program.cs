@@ -326,9 +326,22 @@ internal static class Program
             launchOptions = new MinecraftLaunchOptions(gameDirectory, javaPath, account.UserName, account.Uuid, account.AccessToken, "msa");
         }
         else throw new InvalidDataException("未知账户类型，请重新登录。");
-        launchOptions = launchOptions with { LauncherName = "MCM", MaxHeapMiB = maxHeapMiB };
-        using var process = await installer.LaunchAsync(version, launchOptions).ConfigureAwait(false);
+        var startup = McmConfiguration.GetGameStartupOptions(managed?.Name);
+        launchOptions = launchOptions with
+        {
+            LauncherName = "MCM",
+            MaxHeapMiB = maxHeapMiB,
+            StartupOptions = startup,
+            StartupOptionsWarning = Console.Error.WriteLine
+        };
+        var introProfile = GameIntroLaunch.SelectProfile(managed?.GameVersion ?? version, managed?.Loader, managed?.LoaderVersion);
+        using var intro = introProfile is not null && startup.WindowMode != GameStartupWindowMode.Fullscreen &&
+            (startup.WindowMode != GameStartupWindowMode.Default || !GameStartupOptionsFile.IsFullscreen(gameDirectory))
+            ? await LinuxGameIntro.TryStartAsync(introProfile).ConfigureAwait(false)
+            : null;
+        using var process = await installer.LaunchAsync(version, launchOptions with { Intro = intro?.Launch }).ConfigureAwait(false);
         Console.WriteLine($"Started Minecraft {version} as {launchOptions.PlayerName} with Java at {javaPath} (max heap: {maxHeapMiB} MiB).");
+        using var maximizer = LinuxGameWindowMaximizer.TryStart(process, startup.WindowMode == GameStartupWindowMode.Maximized);
         await process.WaitForExitAsync().ConfigureAwait(false);
         return process.ExitCode;
     }

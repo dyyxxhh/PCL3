@@ -22,7 +22,12 @@ public sealed record MinecraftLaunchOptions(
     string? AuthlibInjectorPath = null,
     string? AuthServer = null,
     string LauncherName = "PCL",
-    int? MaxHeapMiB = null);
+    int? MaxHeapMiB = null)
+{
+    public GameStartupOptions? StartupOptions { get; init; }
+    public Action<string>? StartupOptionsWarning { get; init; }
+    public GameIntroLaunch? Intro { get; init; }
+}
 
 public sealed partial class MinecraftInstaller(HttpClient? httpClient = null,
     Func<CancellationToken, Task<HttpClient>>? getTorClient = null, HttpClient? directFileClient = null)
@@ -131,8 +136,61 @@ public sealed partial class MinecraftInstaller(HttpClient? httpClient = null,
             startInfo.ArgumentList.Add("-Dauthlibinjector.side=client");
         }
         foreach (var argument in arguments) startInfo.ArgumentList.Add(argument);
+        if (options.StartupOptions is { } startup)
+        {
+            try
+            {
+                var releaseDate = startup.AutoLanguage
+                    ? await ReadStartupReleaseDateAsync(metadata, options.GameDirectory, versionId, nativeVersion, cancellationToken).ConfigureAwait(false)
+                    : null;
+                GameStartupOptionsFile.Apply(options.GameDirectory, startup, releaseDate);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException or ArgumentException)
+            {
+                options.StartupOptionsWarning?.Invoke("Could not apply Minecraft startup settings; continuing with existing options: " + ex.Message);
+            }
+        }
+        var clientId = metadata["id"]?.GetValue<string>() ?? versionId;
+        var supportedIntroProfile = options.Intro is { } selectedIntro && GameIntroLaunch.MatchesEntryPoint(selectedIntro.Profile, mainClass) &&
+            (selectedIntro.Profile == "vanilla-1.21.1" ? clientId == "1.21.1" : nativeVersion == "1.21.1");
+        if (options.Intro is { } intro && supportedIntroProfile &&
+            options.StartupOptions?.WindowMode != GameStartupWindowMode.Fullscreen &&
+            !GameStartupOptionsFile.IsFullscreen(options.GameDirectory) && !arguments.Contains("--fullscreen"))
+        {
+            startInfo.ArgumentList.Insert(0, $"-javaagent:{intro.AgentPath}={intro.Profile}");
+            startInfo.Environment["PCL_GAME_INTRO_ENDPOINT"] = intro.Endpoint;
+        }
+        cancellationToken.ThrowIfCancellationRequested();
         return Process.Start(startInfo) ?? throw new InvalidOperationException("Could not start Java.");
     }
+
+    private static async Task<DateTime?> ReadStartupReleaseDateAsync(JsonObject metadata, string gameDirectory, string versionId,
+        string nativeVersion, CancellationToken cancellationToken)
+    {
+        static DateTime? ParseDate(JsonNode? value) => value is JsonValue json && json.TryGetValue<string>(out var text) &&
+            DateTimeOffset.TryParse(text, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var timestamp)
+                ? timestamp.Date : null;
+
+        if (nativeVersion != versionId && IsSafeMetadataId(nativeVersion))
+        {
+            var baseMetadata = Path.Combine(gameDirectory, "versions", nativeVersion, nativeVersion + ".json");
+            InstanceBackupStore.RequireSafePath(baseMetadata);
+            if (File.Exists(baseMetadata))
+            {
+                var body = JsonNode.Parse(await File.ReadAllTextAsync(baseMetadata, cancellationToken).ConfigureAwait(false));
+                if (ParseDate((body as JsonObject)?["releaseTime"]) is { } date) return date;
+            }
+        }
+
+        if (ParseDate(metadata["releaseTime"]) is { } releaseDate) return releaseDate;
+        if (Version.TryParse(nativeVersion, out var legacy) && legacy.Major == 1)
+            return legacy.Minor == 0 ? new DateTime(2011, 11, 18)
+                : legacy.Minor <= 10 ? new DateTime(2016, 6, 8) : null;
+        return null;
+    }
+
+    private static bool IsSafeMetadataId(string id) =>
+        id is not ("." or "..") && Regex.IsMatch(id, @"\A[A-Za-z0-9._+\-]+\z", RegexOptions.CultureInvariant);
 
     public async Task<int> GetRequiredJavaMajorAsync(string versionId, string gameDirectory, CancellationToken cancellationToken = default)
     {
@@ -517,6 +575,12 @@ public sealed partial class MinecraftInstaller(HttpClient? httpClient = null,
         else
         {
             result.AddRange(["--username", options.PlayerName, "--version", versionId, "--gameDir", options.GameDirectory, "--assetsDir", assetsDirectory, "--assetIndex", assetIndexName, "--uuid", options.PlayerUuid, "--accessToken", options.AccessToken, "--userType", "legacy"]);
+        }
+        if (options.StartupOptions is { WindowMode: GameStartupWindowMode.Custom } startup &&
+            (gameArguments is not null || Version.TryParse(clientVersion, out var version) && version >= new Version(1, 6)))
+        {
+            if (!result.Contains("--width")) result.AddRange(["--width", FormattableString.Invariant($"{Math.Max(100, startup.Width)}")]);
+            if (!result.Contains("--height")) result.AddRange(["--height", FormattableString.Invariant($"{Math.Max(100, startup.Height)}")]);
         }
         return result;
     }

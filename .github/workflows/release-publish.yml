@@ -28,8 +28,39 @@ on:
           - windows
           - linux
 
+concurrency:
+  group: release-publish-${{ inputs.version }}
+  cancel-in-progress: false
+
 jobs:
+  prepare_game_intro:
+    needs: changelog
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # Draft release assets require write access.
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Verify clip and build Java agent
+        id: intro
+        uses: ./.github/actions/prepare-game-intro
+        with:
+          version: ${{ inputs.version }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - name: Share the verified inputs with the build jobs
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: game-intro-inputs
+          path: |
+            ${{ steps.intro.outputs.clip }}
+            ${{ steps.intro.outputs.agent }}
+            ${{ steps.intro.outputs.agent }}.sha256
+          if-no-files-found: error
+          retention-days: 1
+
   build:
+    needs: [prepare_game_intro, changelog]
     strategy:
       matrix:
         include:
@@ -52,6 +83,7 @@ jobs:
       configuration: ${{ matrix.configuration }}
       architecture: ${{ matrix.architecture }}
       variant: ${{ matrix.variant }}
+      include_game_intro: true
     secrets: inherit
 
   changelog:
@@ -110,6 +142,18 @@ jobs:
           - `MCM_${{ inputs.configuration }}_linux-x64.tar.gz`：Linux x86-64 命令行版，解压后运行 `./mcm --help`。
 
           每个 `.exe` 都有对应的 `.sha256` 校验文件和 `.sigstore.json` 签名。Linux 压缩包提供 `.sha256` 校验文件。
+          EOF
+
+      - name: Document the game-intro preview
+        run: |
+          cat >> CHANGELOG.md <<'EOF'
+
+          ## 游戏启动片头（预览）
+
+          本次发布包内置片头视频，默认关闭。`PCL3_LaunchIntro.mp4` 同时作为已授权的独立 Release 资源提供。将 `PCL3_GAME_INTRO_PREVIEW` 设为 `1`，再从该环境启动 PCL₃ 或 MCM 即可试用。
+          验证范围为 Minecraft Java 1.21.1：原版、Fabric Loader 0.16.14、Forge 52.1.20 和 NeoForge 21.1.172。
+          Linux 已在隔离 X11 环境通过四种真实客户端的播放和交接测试；需要 GTK 3、Python GI/Cairo 及 GStreamer 解码与音频输出插件。
+          Windows 仅通过交叉构建，尚未完成原生媒体运行验收。其他版本、原生 Wayland 和全屏不在验证范围内。
           EOF
 
       - name: Create or update release
@@ -208,8 +252,15 @@ jobs:
         run: dotnet test PCL.Core.Shared.Tests/PCL.Core.Shared.Tests.csproj --configuration Release
       - name: Prepare pinned Tor runtime
         run: python3 scripts/prepare_tor_bundle.py linux-x86_64 "$RUNNER_TEMP/pcl3-tor-linux.tar.gz"
+      - name: Download verified game-intro inputs
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: game-intro-inputs
+          path: ${{ runner.temp }}/game-intro
       - name: Publish Linux CLI
         env:
+          INTRO_CLIP: ${{ format('{0}/game-intro/PCL3_LaunchIntro.mp4', runner.temp) }}
+          INTRO_AGENT: ${{ format('{0}/game-intro/PCL3_LaunchIntroAgent.jar', runner.temp) }}
           PCL_WRITE_SECRET: '1'
           PCL_CURSEFORGE_API_KEY: ${{ secrets.CURSEFORGE_API_KEY }}
         run: |
@@ -221,6 +272,7 @@ jobs:
             --configuration Release --runtime linux-x64 --self-contained true \
             -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true \
             -p:UseSharedCompilation=false -p:PclTorBundle="$RUNNER_TEMP/pcl3-tor-linux.tar.gz" \
+            -p:PclGameIntroClip="$INTRO_CLIP" -p:PclGameIntroAgent="$INTRO_AGENT" \
             -p:McmReleaseVersion="${{ inputs.version }}" \
             -o ./linux-artifact
           test -x ./linux-artifact/mcm

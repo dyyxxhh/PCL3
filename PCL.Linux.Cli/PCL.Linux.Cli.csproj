@@ -8,11 +8,15 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Remove="Tests/**/*.cs" />
     <AssemblyMetadata Include="McmReleaseVersion" Value="$(McmReleaseVersion)" />
     <AssemblyMetadata Include="McmOfflineSelfContained" Value="$(SelfContained)" />
     <AssemblyMetadata Include="McmOfflineSingleFile" Value="$(PublishSingleFile)" />
     <AssemblyMetadata Include="McmOfflineNativeBundle" Value="$(IncludeNativeLibrariesForSelfExtract)" />
     <ProjectReference Include="..\PCL.Core.Shared\PCL.Core.Shared.csproj" />
     <ProjectReference Include="..\PCL.Core.SecretsGenerator\PCL.Core.SecretsGenerator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(PclGameIntroClip)' != '' and '$(PclGameIntroAgent)' != ''">
+    <EmbeddedResource Include="../PCL.GameIntro.Linux/host.py" LogicalName="PCL3_LinuxGameIntroHost.py" />
   </ItemGroup>
 </Project>

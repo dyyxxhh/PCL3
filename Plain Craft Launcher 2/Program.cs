@@ -43,6 +43,11 @@ internal static class Program
     public static void Main()
     {
         var commandLine = Environment.GetCommandLineArgs().Skip(1).ToArray();
+        if (commandLine is [WindowsGameIntro.HostArgument, ..])
+        {
+            Environment.ExitCode = WindowsGameIntro.RunHost(commandLine);
+            return;
+        }
         if (commandLine.Length > 0 && commandLine[0].Equals("offline-import", StringComparison.OrdinalIgnoreCase))
         {
             try

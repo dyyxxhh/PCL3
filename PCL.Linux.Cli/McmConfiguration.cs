@@ -12,6 +12,8 @@ internal static class McmConfiguration
     {
         ["game_dir"] = null, ["default_instance"] = null, ["java"] = null, ["username"] = null,
         ["memory.max_mib"] = "auto",
+        ["game.auto_language"] = "true", ["game.language"] = "zh-CN",
+        ["game.window.mode"] = "default", ["game.window.width"] = "854", ["game.window.height"] = "480",
         ["backup.enabled"] = "false", ["backup.scope"] = "saves", ["backup.retention"] = "5",
         ["tor.enabled"] = "true", ["tor.auto_bridges"] = "true", ["tor.bridges"] = "[]"
     };
@@ -153,10 +155,44 @@ internal static class McmConfiguration
         return config;
     }
 
+    internal static GameStartupOptions GetGameStartupOptions(string? instance)
+    {
+        var root = Load();
+        string Value(string key) => Get(root, key, instance)!;
+        var language = Value("game.language");
+        if (!GameStartupOptionsFile.IsLanguageCode(language))
+            throw new ArgumentException("game.language must look like zh-CN or en-US.");
+        return new GameStartupOptions(
+            bool.TryParse(Value("game.auto_language"), out var autoLanguage)
+                ? autoLanguage : throw new ArgumentException("game.auto_language must be true or false."),
+            language,
+            ParseWindowMode(Value("game.window.mode")),
+            ParseWindowDimension("game.window.width", Value("game.window.width")),
+            ParseWindowDimension("game.window.height", Value("game.window.height")));
+    }
+
+    private static GameStartupWindowMode ParseWindowMode(string mode) => mode switch
+    {
+        "default" => GameStartupWindowMode.Default,
+        "fullscreen" => GameStartupWindowMode.Fullscreen,
+        "custom" => GameStartupWindowMode.Custom,
+        "maximized" => GameStartupWindowMode.Maximized,
+        _ => throw new ArgumentException("game.window.mode must be default, fullscreen, custom or maximized.")
+    };
+
+    private static int ParseWindowDimension(string key, string value) =>
+        int.TryParse(value, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture,
+            out var size) && size is >= 100 and <= 16384
+            ? size : throw new ArgumentException($"{key} must be a whole number between 100 and 16384.");
+
     private static JsonNode ParseValue(string key, string value) => key switch
     {
-        "backup.enabled" or "tor.enabled" or "tor.auto_bridges" => bool.TryParse(value, out var enabled)
+        "backup.enabled" or "tor.enabled" or "tor.auto_bridges" or "game.auto_language" => bool.TryParse(value, out var enabled)
             ? JsonValue.Create(enabled)! : throw new ArgumentException($"{key} must be true or false."),
+        "game.language" when !GameStartupOptionsFile.IsLanguageCode(value) =>
+            throw new ArgumentException("game.language must look like zh-CN or en-US."),
+        "game.window.mode" => JsonValue.Create(ParseWindowMode(value).ToString().ToLowerInvariant())!,
+        "game.window.width" or "game.window.height" => JsonValue.Create(ParseWindowDimension(key, value))!,
         "memory.max_mib" => value == "auto" ? JsonValue.Create(value)! : JsonValue.Create(ResolveMaxHeapMiB(value, 0))!,
         "backup.retention" => int.TryParse(value, out var count) && count is >= 1 and <= 100
             ? JsonValue.Create(count)! : throw new ArgumentException("backup.retention must be between 1 and 100."),

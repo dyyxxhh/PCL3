@@ -213,6 +213,22 @@ Linux CLI 支持原版 Minecraft 元数据、文件校验和启动；Forge、Neo
 
 MCM 默认根据系统可用内存预算设置 Java 最大堆（约四分之一，上限 4096 MiB）。可用 `mcm launch my --memory 6144` 覆盖单次启动，或用 `mcm config set memory.max_mib 6144 --instance my` 保存实例设置。设为 `auto` 可恢复自动分配。
 
+启动时默认按 Windows PCL₃ 的规则初始化 Minecraft 语言。尚无存档或语言未设置时使用 `game.language`（默认 `zh-CN`），并按对应版本处理语言代码和首启字体。已有存档时保留选定语言。可用 `mcm config set game.auto_language false --instance my` 关闭该功能。
+
+`game.window.mode` 默认是 `default`，沿用游戏保存的全屏设置。可设为 `fullscreen`、`custom` 或 `maximized`。`maximized` 保持窗口模式，由 MCM 通过 EWMH 请求正在管理 Minecraft PID 窗口的窗口管理器最大化；使用原生 Wayland、没有 EWMH 管理器或 WM 不接受请求时保留窗口模式并给出警告。请求只对每个新发现的、已映射的普通主窗口各发一次，不按标题或焦点选择窗口；Forge 等窗口交接后出现的新主窗口会单独尝试，不会在玩家手动还原时持续抢回最大化。具体 compositor/loader 组合仍需测试。自定义尺寸使用 `game.window.width` 和 `game.window.height`（默认 854×480），由支持宽高启动参数的游戏客户端应用。上述键均支持全局与 `--instance` 配置。
+
+## 游戏启动片头（预览）
+
+默认关闭。支持片头资源的 MCM 发布包已内置 Linux 播放助手，无需另行下载脚本或设置脚本路径。使用有合成器的 X11 窗口会话，在终端执行：
+
+```sh
+PCL3_GAME_INTRO_PREVIEW=1 mcm launch my
+```
+
+系统需要 `/usr/bin/python3`、GTK 3、Python GI/Cairo、GStreamer H.264/AAC 解码及音频输出组件，以及 `xprop`。目前在隔离 X11 环境中验证的是 Java 21 下 Minecraft 1.21.1 的原版、Fabric Loader 0.16.14、Forge 52.1.20 和 NeoForge 21.1.172 的干净客户端。原生 Wayland、全屏、缺少依赖、未知类指纹或加载失败时沿用普通启动。片头在真实游戏窗口上播放，标题菜单绘出后才显示空格提示；需要松开并重新按下此前已按住的空格。不能保证所有窗口管理器均无闪现。
+
+`mcm update` 仍只替换单文件程序；助手随新程序更新，不会在磁盘上写出 Python 脚本。片头视频和 Java 桥接 JAR 仍由启动器验证后解包到用户本地数据目录。普通本地构建不含片头资源；开发预览可以显式设置 `PCL3_GAME_INTRO_LINUX_HOST` 指定受信任的绝对脚本路径，仅用于测试。
+
 ## 本地开发
 
 ```sh
