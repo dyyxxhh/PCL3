@@ -9,7 +9,7 @@
     <EmbeddedResource Include="$(PclTorBundle)" LogicalName="PCL.TorExpertBundle.tar.gz" />
   </ItemGroup>
   <Target Name="ValidateGameIntroPreviewInputs" BeforeTargets="PrepareResourceNames" Condition="'$(PclGameIntroClip)' != '' or '$(PclGameIntroAgent)' != ''">
-    <Error Condition="'$(PclGameIntroClip)' == '' or '$(PclGameIntroAgent)' == ''" Text="Both PclGameIntroClip and PclGameIntroAgent are required; no default media is redistributed." />
+    <Error Condition="'$(PclGameIntroClip)' == '' or '$(PclGameIntroAgent)' == ''" Text="Both PclGameIntroClip and PclGameIntroAgent are required to embed the game-intro resources." />
     <Error Condition="!Exists('$(PclGameIntroClip)') or !Exists('$(PclGameIntroAgent)') or !Exists('$(PclGameIntroAgent).sha256')" Text="A local game-intro preview input or its SHA-256 manifest is missing." />
   </Target>
   <ItemGroup Condition="'$(PclGameIntroClip)' != '' and '$(PclGameIntroAgent)' != ''">

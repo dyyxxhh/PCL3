@@ -17,10 +17,9 @@ internal static class WindowsGameIntro
 {
     internal const string HostArgument = "--game-intro-host";
 
-    // Preview remains opt-in until the platform and loader compatibility checks are complete.
     internal static void TryAttach(ProcessStartInfo game, McInstance instance)
     {
-        if (!string.Equals(Environment.GetEnvironmentVariable("PCL3_GAME_INTRO_PREVIEW"), "1", StringComparison.Ordinal) ||
+        if (!GameIntroLaunch.IsEnabled(Environment.GetEnvironmentVariable("PCL3_GAME_INTRO_PREVIEW")) ||
             GameStartupOptionsFile.IsFullscreen(instance.PathIndie) ||
             game.Arguments.Contains("--quickPlay", StringComparison.OrdinalIgnoreCase) ||
             game.Arguments.Contains("--fullscreen", StringComparison.OrdinalIgnoreCase)) return;

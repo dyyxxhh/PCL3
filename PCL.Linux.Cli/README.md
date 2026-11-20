@@ -219,10 +219,10 @@ MCM 默认根据系统可用内存预算设置 Java 最大堆（约四分之一�
 
 ## 游戏启动片头（预览）
 
-默认关闭。支持片头资源的 MCM 发布包已内置 Linux 播放助手，无需另行下载脚本或设置脚本路径。使用有合成器的 X11 窗口会话，在终端执行：
+通常无需额外设置即可使用预览。支持片头资源的 MCM 发布包已内置 Linux 播放助手，无需另行下载脚本或设置脚本路径。使用有合成器的 X11 窗口会话启动受支持的客户端；设置环境变量 `PCL3_GAME_INTRO_PREVIEW=0` 可关闭预览。
 
 ```sh
-PCL3_GAME_INTRO_PREVIEW=1 mcm launch my
+PCL3_GAME_INTRO_PREVIEW=0 mcm launch my
 ```
 
 系统需要 `/usr/bin/python3`、GTK 3、Python GI/Cairo、GStreamer H.264/AAC 解码及音频输出组件，以及 `xprop`。目前在隔离 X11 环境中验证的是 Java 21 下 Minecraft 1.21.1 的原版、Fabric Loader 0.16.14、Forge 52.1.20 和 NeoForge 21.1.172 的干净客户端。原生 Wayland、全屏、缺少依赖、未知类指纹或加载失败时沿用普通启动。片头在真实游戏窗口上播放，标题菜单绘出后才显示空格提示；需要松开并重新按下此前已按住的空格。不能保证所有窗口管理器均无闪现。

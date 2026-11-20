@@ -6,6 +6,16 @@ namespace PCL.Core.Shared.Tests;
 public sealed class GameIntroSessionTests
 {
     [TestMethod]
+    [DataRow(null, true)]
+    [DataRow("", true)]
+    [DataRow("1", true)]
+    [DataRow("0", false)]
+    public void IntroIsEnabledUnlessExplicitlyDisabled(string? setting, bool expected)
+    {
+        Assert.AreEqual(expected, GameIntroLaunch.IsEnabled(setting));
+    }
+
+    [TestMethod]
     public void WaitsForRealReadinessAndRequiresANewPressAfterPrompt()
     {
         var session = new GameIntroSession();

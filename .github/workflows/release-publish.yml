@@ -16,7 +16,7 @@ on:
           - Release
           - Beta
       version:
-        description: 'Version to release (e.g., 2.14.2)'
+        description: 'Version to release (e.g., 0.4.4)'
         required: true
         type: string
       platform:
@@ -150,11 +150,21 @@ jobs:
 
           ## 游戏启动片头（预览）
 
-          本次发布包内置片头视频，默认关闭。`PCL3_LaunchIntro.mp4` 同时作为已授权的独立 Release 资源提供。将 `PCL3_GAME_INTRO_PREVIEW` 设为 `1`，再从该环境启动 PCL₃ 或 MCM 即可试用。
+          本次发布包内置片头视频，支持资源和客户端配置时默认开启。设置 `PCL3_GAME_INTRO_PREVIEW=0` 可关闭；`PCL3_LaunchIntro.mp4` 作为独立 Release 资源提供。
           验证范围为 Minecraft Java 1.21.1：原版、Fabric Loader 0.16.14、Forge 52.1.20 和 NeoForge 21.1.172。
           Linux 已在隔离 X11 环境通过四种真实客户端的播放和交接测试；需要 GTK 3、Python GI/Cairo 及 GStreamer 解码与音频输出插件。
           Windows 仅通过交叉构建，尚未完成原生媒体运行验收。其他版本、原生 Wayland 和全屏不在验证范围内。
           EOF
+
+      - name: Stage the licensed intro asset for this release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh release download v0.4.3 --pattern PCL3_LaunchIntro.mp4 --dir "$RUNNER_TEMP"
+          test "$(stat -c%s "$RUNNER_TEMP/PCL3_LaunchIntro.mp4")" -eq 5209693
+          echo "e46a7af3098ee66b91d57a9f72b44153a65fb18d6a9f37bb8d63ea118b942692  $RUNNER_TEMP/PCL3_LaunchIntro.mp4" | sha256sum --check
+          cp "$RUNNER_TEMP/PCL3_LaunchIntro.mp4" ./PCL.GameIntro.Linux/PCL3_LaunchIntro.mp4
 
       - name: Create or update release
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
@@ -169,6 +179,7 @@ jobs:
             PCL3_update.json
             MCM_skill.md
             MCM_skill.md.sha256
+            PCL.GameIntro.Linux/PCL3_LaunchIntro.mp4
           prerelease: ${{ inputs.configuration == 'Beta' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

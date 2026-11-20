@@ -10,9 +10,9 @@
 python3 PCL.GameIntro.Agent/build.py /absolute/asm-9.8.jar /absolute/PCL3_LaunchIntroAgent.jar
 ```
 
-通过 MSBuild 参数 `-p:PclGameIntroClip=/absolute/PCL3_LaunchIntro.mp4` 和 `-p:PclGameIntroAgent=/absolute/PCL3_LaunchIntroAgent.jar` 指定私有预览资源。构建脚本会生成 agent 随附的 `.sha256` 文件。当前预览接受 5,209,693 字节的 H.264/AAC 转码，其 SHA-256 为 `e46a7af3098ee66b91d57a9f72b44153a65fb18d6a9f37bb8d63ea118b942692`。启动器会验证解包的资源；CI 与普通本地构建默认不嵌入，v0.4.3 正式发布会显式打包已授权资源。
+通过 MSBuild 参数 `-p:PclGameIntroClip=/absolute/PCL3_LaunchIntro.mp4` 和 `-p:PclGameIntroAgent=/absolute/PCL3_LaunchIntroAgent.jar` 指定私有预览资源。构建脚本会生成 agent 随附的 `.sha256` 文件。当前预览接受 5,209,693 字节的 H.264/AAC 转码，其 SHA-256 为 `e46a7af3098ee66b91d57a9f72b44153a65fb18d6a9f37bb8d63ea118b942692`。启动器会验证解包的资源；CI 与普通本地构建默认不嵌入，v0.4.4 正式发布会显式打包已授权资源。
 
-用包含资源的构建（或 v0.4.3 官方发布包），将 `PCL3_GAME_INTRO_PREVIEW` 设为 `1` 后启动下表中的配置。MCM 已内嵌 Linux 播放助手，不需要额外下载；开发测试可通过 `PCL3_GAME_INTRO_LINUX_HOST` 指定 [host.py](<../PCL.GameIntro.Linux/host.py>) 的绝对路径。播放层依赖 X11 合成器、GTK 3、Python GI/Cairo、GStreamer H.264/AAC 解码和音频输出插件，以及 `xprop`。独占全屏、原生 Wayland、未知类指纹和需要交互的首次无障碍引导会走普通启动路径。
+用包含资源的构建（或 v0.4.4 官方发布包）启动下表中的配置。资源存在时，受支持的客户端默认启用片头；设置 `PCL3_GAME_INTRO_PREVIEW=0` 可关闭。MCM 已内嵌 Linux 播放助手，不需要额外下载；开发测试可通过 `PCL3_GAME_INTRO_LINUX_HOST` 指定 [host.py](<../PCL.GameIntro.Linux/host.py>) 的绝对路径。播放层依赖 X11 合成器、GTK 3、Python GI/Cairo、GStreamer H.264/AAC 解码和音频输出插件，以及 `xprop`。独占全屏、原生 Wayland、未知类指纹和需要交互的首次无障碍引导会走普通启动路径。
 
 ## 验证范围
 
