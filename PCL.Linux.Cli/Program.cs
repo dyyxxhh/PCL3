@@ -335,8 +335,7 @@ internal static class Program
             StartupOptionsWarning = Console.Error.WriteLine
         };
         var introProfile = GameIntroLaunch.SelectProfile(managed?.GameVersion ?? version, managed?.Loader, managed?.LoaderVersion);
-        using var intro = introProfile is not null && startup.WindowMode != GameStartupWindowMode.Fullscreen &&
-            (startup.WindowMode != GameStartupWindowMode.Default || !GameStartupOptionsFile.IsFullscreen(gameDirectory))
+        using var intro = introProfile is not null
             ? await LinuxGameIntro.TryStartAsync(introProfile).ConfigureAwait(false)
             : null;
         using var process = await installer.LaunchAsync(version, launchOptions with { Intro = intro?.Launch }).ConfigureAwait(false);

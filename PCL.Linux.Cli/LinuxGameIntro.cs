@@ -17,8 +17,9 @@ internal sealed class LinuxGameIntro(Process helper, GameIntroLaunch launch) : I
 
     internal static async Task<LinuxGameIntro?> TryStartAsync(string profile = "vanilla-1.21.1")
     {
+        var wayland = !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("WAYLAND_DISPLAY"));
         if (!GameIntroLaunch.IsEnabled(Environment.GetEnvironmentVariable("PCL3_GAME_INTRO_PREVIEW")) ||
-            string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("DISPLAY")) ||
+            (!wayland && string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("DISPLAY"))) ||
             !File.Exists("/usr/bin/python3")) return null;
         Process? host = null;
         try
@@ -59,7 +60,7 @@ internal sealed class LinuxGameIntro(Process helper, GameIntroLaunch launch) : I
                 start.ArgumentList.Add(script!);
             }
             start.ArgumentList.Add(clip);
-            start.Environment["GDK_BACKEND"] = "x11";
+            start.Environment["GDK_BACKEND"] = wayland ? "wayland" : "x11";
             host = Process.Start(start);
             if (host is null) return null;
             await host.StandardInput.WriteLineAsync(nonce).ConfigureAwait(false);

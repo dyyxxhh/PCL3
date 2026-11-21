@@ -156,8 +156,8 @@ public sealed partial class MinecraftInstaller(HttpClient? httpClient = null,
                 ? selectedIntro.Profile == GameIntroLaunch.SelectProfile(clientId, null, null)
                 : nativeVersion == "1.21.1");
         if (options.Intro is { } intro && supportedIntroProfile &&
-            options.StartupOptions?.WindowMode != GameStartupWindowMode.Fullscreen &&
-            !GameStartupOptionsFile.IsFullscreen(options.GameDirectory) && !arguments.Contains("--fullscreen"))
+            (OperatingSystem.IsLinux() || (options.StartupOptions?.WindowMode != GameStartupWindowMode.Fullscreen &&
+                !GameStartupOptionsFile.IsFullscreen(options.GameDirectory) && !arguments.Contains("--fullscreen"))))
         {
             startInfo.ArgumentList.Insert(0, $"-javaagent:{intro.AgentPath}={intro.Profile}");
             startInfo.Environment["PCL_GAME_INTRO_ENDPOINT"] = intro.Endpoint;

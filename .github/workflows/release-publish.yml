@@ -147,8 +147,8 @@ jobs:
 
           本次发布包内置新的原版音轨片头；支持的配置默认开启，设置 `PCL3_GAME_INTRO_PREVIEW=0` 可关闭。`PCL3_LaunchIntro.mp4` 也作为独立 Release 资源提供。
           新增 Minecraft Java 原版 26.3（Java 25）和 1.21.11（Java 21）；保留 1.21.1 原版、Fabric Loader 0.16.14、Forge 52.1.20 和 NeoForge 21.1.172。标题菜单绘出后，`>按下空格键进入游戏<` 淡入显示，文字不再使用黑底。
-          新版本已用真实客户端在隔离 Linux X11 上验证片头与交接；需要 GTK 3、Python GI/Cairo 及 GStreamer 解码与音频输出插件。
-          Windows 仅通过交叉构建，尚未完成原生媒体运行验收。其他版本、原生 Wayland 和全屏不在验证范围内。
+          Linux 片头支持有合成器的 X11、支持 layer-shell 的 Wayland（如 Hyprland）以及全屏启动。需要 GTK 3、Python GI/Cairo 及 GStreamer 解码与音频输出插件；Wayland 另需 GTK 3 的 gtk-layer-shell 绑定，不依赖 XWayland。
+          Windows 片头继续沿用现有窗口模式支持。缺少组件或不支持的客户端会照常启动。
           EOF
 
       - name: Create or update release

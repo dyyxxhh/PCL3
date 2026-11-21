@@ -23,6 +23,11 @@ public final class IntroHooks {
     private static volatile boolean firstFrameHook;
     private static volatile boolean waitForFirstFrame;
     private static final Object AUDIO = new Object();
+    private static final String OS = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
+    private static final String WAYLAND_DISPLAY = System.getenv("WAYLAND_DISPLAY");
+    private static final boolean WAYLAND_OVERLAY = OS.startsWith("linux") && WAYLAND_DISPLAY != null && !WAYLAND_DISPLAY.trim().isEmpty();
+    private static final int GLFW_FOCUSED = 0x00020001;
+    private static final long SDL_WINDOW_INPUT_FOCUS = 0x200L;
     private static volatile Socket connection;
     private static volatile boolean windowReady;
     private static volatile boolean holding;
@@ -34,7 +39,10 @@ public final class IntroHooks {
     private static boolean readinessSent;
     private static ClassLoader gameLoader;
     private static long boundWindow;
-    private static boolean bypassed;
+    private static volatile boolean bypassed;
+    private static Method focusGetter;
+    private static boolean sdlFocus;
+    private static Boolean lastFocus;
 
     private IntroHooks() { }
 
@@ -100,7 +108,8 @@ public final class IntroHooks {
                     continue;
                 }
                 boolean gateFrame = command.equals("HOLD_FRAME");
-                if (!gateFrame && !command.equals("HOLD")) return;
+                boolean trackFocus = command.equals("HOLD_FOCUS");
+                if (WAYLAND_OVERLAY ? !trackFocus : trackFocus || (!gateFrame && !command.equals("HOLD"))) return;
                 synchronized (AUDIO) {
                     if (connection != socket || gameLoader == null || holdRequested || gainSet || bypassed) return;
                     if (gateFrame && !firstFrameHook) {
@@ -200,34 +209,48 @@ public final class IntroHooks {
     private static void bindWindow(long handle, Class<?> gameWindowClass, boolean early, boolean sdl) {
         if (connection == null || handle == 0) return;
         ClassLoader loader = gameWindowClass.getClassLoader();
-        String os = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
         try {
-            String backend = os.startsWith("windows") ? "Win32" : "X11";
-            long window;
-            if (sdl) {
-                Class<?> video = Class.forName("org.lwjgl.sdl.SDLVideo", true, loader);
-                String driver = (String) video.getMethod("SDL_GetCurrentVideoDriver").invoke(null);
-                boolean windows = backend.equals("Win32");
-                if (!(windows ? "windows" : "x11").equals(driver)) { incompatible(); return; }
-                int properties = (Integer) video.getMethod("SDL_GetWindowProperties", long.class).invoke(null, handle);
-                Class<?> sdlProperties = Class.forName("org.lwjgl.sdl.SDLProperties", true, loader);
-                Method read = sdlProperties.getMethod(windows ? "SDL_GetPointerProperty" : "SDL_GetNumberProperty",
-                    int.class, CharSequence.class, long.class);
-                window = (Long) read.invoke(null, properties, windows ? "SDL.window.win32.hwnd" : "SDL.window.x11.window", 0L);
+            String event;
+            Method getter = null;
+            if (WAYLAND_OVERLAY) {
+                // Wayland has no cross-client window ID. The overlay stays out of input routing
+                // and relies on focus from the actual client (native Wayland or XWayland).
+                getter = sdl
+                    ? Class.forName("org.lwjgl.sdl.SDLVideo", true, loader).getMethod("SDL_GetWindowFlags", long.class)
+                    : Class.forName("org.lwjgl.glfw.GLFW", true, loader).getMethod("glfwGetWindowAttrib", long.class, int.class);
+                event = "WINDOW WAYLAND";
             } else {
-                Class<?> nativeAccess = Class.forName("org.lwjgl.glfw.GLFWNative" + backend, true, loader);
-                window = (Long) nativeAccess.getMethod("glfwGet" + backend + "Window", long.class).invoke(null, handle);
+                boolean windows = OS.startsWith("windows");
+                String backend = windows ? "Win32" : "X11";
+                long window;
+                if (sdl) {
+                    Class<?> video = Class.forName("org.lwjgl.sdl.SDLVideo", true, loader);
+                    String driver = (String) video.getMethod("SDL_GetCurrentVideoDriver").invoke(null);
+                    if (!(windows ? "windows" : "x11").equals(driver)) { incompatible(); return; }
+                    int properties = (Integer) video.getMethod("SDL_GetWindowProperties", long.class).invoke(null, handle);
+                    Class<?> sdlProperties = Class.forName("org.lwjgl.sdl.SDLProperties", true, loader);
+                    Method read = sdlProperties.getMethod(windows ? "SDL_GetPointerProperty" : "SDL_GetNumberProperty",
+                        int.class, CharSequence.class, long.class);
+                    window = (Long) read.invoke(null, properties, windows ? "SDL.window.win32.hwnd" : "SDL.window.x11.window", 0L);
+                } else {
+                    Class<?> nativeAccess = Class.forName("org.lwjgl.glfw.GLFWNative" + backend, true, loader);
+                    window = (Long) nativeAccess.getMethod("glfwGet" + backend + "Window", long.class).invoke(null, handle);
+                }
+                if (window == 0) { incompatible(); return; }
+                event = "WINDOW " + backend + " " + Long.toUnsignedString(window);
             }
-            if (window == 0) { incompatible(); return; }
             synchronized (AUDIO) {
                 if (connection == null || bypassed || boundWindow != 0) return;
+                focusGetter = getter;
+                sdlFocus = sdl;
                 boundWindow = handle;
                 gameLoader = loader;
                 windowReady = !early;
-                offer("WINDOW " + backend + " " + Long.toUnsignedString(window));
+                offer(event);
             }
             // This handshake precedes the first frame. A missing helper can never stall game startup indefinitely.
-            if (!WINDOW_DECISION.await(350, TimeUnit.MILLISECONDS)) disable();
+            if (WINDOW_DECISION.await(350, TimeUnit.MILLISECONDS)) reportFocus();
+            else disable();
         } catch (ReflectiveOperationException | RuntimeException | LinkageError failure) {
             incompatible();
         } catch (InterruptedException interrupted) {
@@ -238,8 +261,24 @@ public final class IntroHooks {
 
     static void firstFrameHookInstalled() { firstFrameHook = true; }
 
+    private static void reportFocus() {
+        if (!holding || bypassed || focusGetter == null) return;
+        try {
+            boolean focused = sdlFocus ? ((Long) focusGetter.invoke(null, boundWindow) & SDL_WINDOW_INPUT_FOCUS) != 0
+                : (Integer) focusGetter.invoke(null, boundWindow, GLFW_FOCUSED) != 0;
+            if (lastFocus == null || focused != lastFocus) {
+                lastFocus = focused;
+                offer(focused ? "FOCUSED" : "UNFOCUSED");
+            }
+        } catch (ReflectiveOperationException | RuntimeException | LinkageError failure) {
+            incompatible();
+        }
+    }
+
     public static void beforeFirstSwap(long glfw) {
-        if (!waitForFirstFrame || FIRST_FRAME.getCount() == 0 || glfw != boundWindow) return;
+        if (glfw != boundWindow) return;
+        if (!windowReady) reportFocus(); // Early Forge/NeoForge window; no game frame hook yet.
+        if (!waitForFirstFrame || FIRST_FRAME.getCount() == 0) return;
         try {
             if (!FIRST_FRAME.await(350, TimeUnit.MILLISECONDS)) incompatible();
         } catch (InterruptedException interrupted) {
@@ -289,6 +328,7 @@ public final class IntroHooks {
 
     public static void framePresented(boolean initialized, Object overlay, Object screen) {
         if (restoreGain) applyGainOnGameThread();
+        reportFocus();
         if (connection == null || readinessSent || !initialized || overlay != null || screen == null || !windowReady) return;
         readinessSent = true;
         // Do not hide accessibility onboarding, required warnings or a recovery screen.

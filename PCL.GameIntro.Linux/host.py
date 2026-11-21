@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-"""Independent Linux/X11 game-intro playback for supported Minecraft profiles."""
+"""Independent Linux game-intro playback for supported Minecraft profiles."""
 import argparse
 import ctypes
 import hmac
@@ -16,12 +16,11 @@ import gi
 
 gi.require_version('Gtk', '3.0')
 gi.require_version('Gdk', '3.0')
-gi.require_version('GdkX11', '3.0')
 gi.require_version('Gst', '1.0')
 gi.require_version('PangoCairo', '1.0')
 gi.require_foreign('cairo')
 import cairo
-from gi.repository import Gdk, GdkPixbuf, GdkX11, GLib, Gst, Gtk, Pango, PangoCairo
+from gi.repository import Gdk, GdkPixbuf, GLib, Gst, Gtk, Pango, PangoCairo
 
 PROMPT = '>按下空格键进入游戏<'
 PROMPT_FONT = 'Noto Sans CJK SC, Source Han Sans SC, sans-serif Semi-Bold 19'
@@ -53,10 +52,13 @@ class X11Focus:
 
 
 class Player:
-    def __init__(self, display, screen, clip, focus):
+    def __init__(self, display, screen, clip, focus=None, x11=None, layer_shell=None):
         self.display = display
-        self.screen = screen
         self.focus = focus
+        self.x11 = x11
+        self.wayland = layer_shell is not None
+        self.focused = False
+        self.bound = False
         self.target = None
         self.channel = None
         self.held = False
@@ -66,15 +68,27 @@ class Player:
         self.ready = None
         self.prompt_painted = False
         self.fade = None
+        self.opacity = 1
         self.space_down = False
         self.stopping = False
         self.stopped_event = threading.Event()
         self.frame = None
         self.frame_changed = threading.Lock()
         self.clock = time.monotonic
-        self.window = Gtk.Window(type=Gtk.WindowType.POPUP)
+        self.window = Gtk.Window(type=Gtk.WindowType.TOPLEVEL if self.wayland else Gtk.WindowType.POPUP)
+        if self.wayland:
+            # A Wayland toplevel cannot be positioned over another client. Use a compositor
+            # overlay on the active output, including over fullscreen, without taking input.
+            layer_shell.init_for_window(self.window)
+            layer_shell.set_namespace(self.window, 'pcl3-game-intro')
+            layer_shell.set_layer(self.window, layer_shell.Layer.OVERLAY)
+            layer_shell.set_keyboard_mode(self.window, layer_shell.KeyboardMode.NONE)
+            layer_shell.set_exclusive_zone(self.window, -1)
+            for edge in (layer_shell.Edge.TOP, layer_shell.Edge.BOTTOM, layer_shell.Edge.LEFT, layer_shell.Edge.RIGHT):
+                layer_shell.set_anchor(self.window, edge, True)
         self.window.set_accept_focus(False)
         self.window.set_focus_on_map(False)
+        self.window.set_decorated(False)
         self.window.set_app_paintable(True)
         self.window.set_visual(screen.get_rgba_visual())
         self.area = Gtk.DrawingArea()
@@ -83,6 +97,7 @@ class Player:
         self.area.show()
         self.window.realize()
         self.window.input_shape_combine_region(cairo.Region())
+        self.window.connect('delete-event', self.close_window)
         self.pipeline = Gst.ElementFactory.make('playbin')
         self.sink = Gst.ElementFactory.make('appsink')
         if self.pipeline is None or self.sink is None:
@@ -137,7 +152,14 @@ class Player:
             if not self.pipeline.seek_simple(Gst.Format.TIME, Gst.SeekFlags.FLUSH | Gst.SeekFlags.KEY_UNIT, 0):
                 self.stop()
 
+    def close_window(self, *_):
+        self.stop()
+        return True
+
     def draw(self, area, ctx):
+        fade_wayland = self.wayland and self.fade is not None
+        if fade_wayland:
+            ctx.push_group()
         width, height = area.get_allocated_width(), area.get_allocated_height()
         ctx.set_source_rgb(0, 0, 0)
         ctx.paint()
@@ -151,7 +173,7 @@ class Player:
             Gdk.cairo_set_source_pixbuf(ctx, video, 0, 0)
             ctx.paint()
             ctx.restore()
-            if not self.covered and not self.coverage_pending:
+            if not self.wayland and not self.covered and not self.coverage_pending:
                 clock = area.get_frame_clock()
                 if clock is not None:
                     self.coverage_pending = True
@@ -172,6 +194,13 @@ class Player:
             ctx.fill()
             if opacity >= 1:
                 self.prompt_painted = True
+        if fade_wayland:
+            # Fade the actual Wayland surface pixels instead of relying on a window-manager opacity hint.
+            ctx.pop_group_to_source()
+            ctx.set_operator(cairo.OPERATOR_CLEAR)
+            ctx.paint()
+            ctx.set_operator(cairo.OPERATOR_OVER)
+            ctx.paint_with_alpha(self.opacity)
         return False
 
     def first_frame_painted(self, clock):
@@ -194,23 +223,29 @@ class Player:
             if opacity == 0:
                 self.stop()
                 return False
-            self.window.set_opacity(opacity)
-        self.display.error_trap_push()
-        try:
-            if self.target.is_destroyed():
+            self.opacity = opacity
+            if not self.wayland:
+                self.window.set_opacity(opacity)
+        if self.wayland:
+            visible = self.focused
+        else:
+            self.display.error_trap_push()
+            try:
+                if self.target.is_destroyed():
+                    self.stop()
+                    return False
+                _, x, y = self.target.get_origin()
+                _, _, width, height = self.target.get_geometry()
+                visible = width > 1 and height > 1 and self.focus.matches(self.target.get_xid())
+            finally:
+                xerror = self.display.error_trap_pop()
+            if xerror:
                 self.stop()
                 return False
-            _, x, y = self.target.get_origin()
-            _, _, width, height = self.target.get_geometry()
-            visible = width > 1 and height > 1 and self.focus.matches(self.target.get_xid())
-        finally:
-            xerror = self.display.error_trap_pop()
-        if xerror:
-            self.stop()
-            return False
+            if visible:
+                self.window.move(x, y)
+                self.window.resize(width, height)
         if visible:
-            self.window.move(x, y)
-            self.window.resize(width, height)
             if not self.started:
                 self.started = True
                 if self.pipeline.set_state(Gst.State.PLAYING) == Gst.StateChangeReturn.FAILURE:
@@ -227,26 +262,35 @@ class Player:
     def event(self, kind, value=None):
         if self.stopping:
             return False
-        if kind == 'WINDOW' and self.target is None:
-            self.display.error_trap_push()
-            try:
-                self.target = GdkX11.X11Window.foreign_new_for_display(self.display, value)
-            finally:
-                xerror = self.display.error_trap_pop()
-            if xerror or self.target is None:
-                self.stop()
+        if kind == 'WINDOW' and not self.bound:
+            if self.wayland:
+                command = b'HOLD_FOCUS\n'
             else:
+                self.display.error_trap_push()
                 try:
-                    self.channel.sendall(b'HOLD_FRAME\n')
-                except OSError:
-                    self.stop()
-        elif kind == 'HELD' and self.target is not None and not self.held:
+                    self.target = self.x11.X11Window.foreign_new_for_display(self.display, value)
+                finally:
+                    xerror = self.display.error_trap_pop()
+                if xerror or self.target is None:
+                    return self.stop()
+                command = b'HOLD_FRAME\n'
+            self.bound = True
+            try:
+                self.channel.sendall(command)
+            except OSError:
+                self.stop()
+        elif kind == 'HELD' and self.bound and not self.held:
             self.held = True
+        elif kind in ('FOCUSED', 'UNFOCUSED') and self.wayland and self.held:
+            self.focused = kind == 'FOCUSED'
+            if not self.focused:
+                self.prompt_painted = False
+                self.window.hide()
         elif kind == 'READY' and self.held and self.ready is None:
             self.ready = self.clock()
-        elif kind == 'SPACE_DOWN':
-            if (not self.space_down and self.fade is None and self.prompt_painted and
-                    self.window.get_mapped() and self.focus.matches(self.target.get_xid())):
+        elif kind == 'SPACE_DOWN' and self.held:
+            if (not self.space_down and self.fade is None and self.prompt_painted and self.window.get_mapped() and
+                    (self.focused if self.wayland else self.focus.matches(self.target.get_xid()))):
                 self.fade = self.clock()
             self.space_down = True
         elif kind == 'SPACE_UP':
@@ -311,14 +355,16 @@ def receive(listener, nonce, player):
         channel.settimeout(None)
         player.channel = channel
         for line in iter(lambda: source.readline(100), b''):
-            if line in (b'HELD\n', b'BYPASS\n', b'READY\n', b'SPACE_DOWN\n', b'SPACE_UP\n'):
-                # A continuously redrawing HD video can starve GLib's default idle priority.
+            # A continuously redrawing HD video can starve GLib's default idle priority.
+            if line in (b'HELD\n', b'BYPASS\n', b'READY\n', b'SPACE_DOWN\n', b'SPACE_UP\n', b'FOCUSED\n', b'UNFOCUSED\n'):
                 GLib.idle_add(player.event, line.strip().decode('ascii'), priority=GLib.PRIORITY_DEFAULT)
+            elif player.wayland and line == b'WINDOW WAYLAND\n':
+                GLib.idle_add(player.event, 'WINDOW', priority=GLib.PRIORITY_DEFAULT)
             else:
-                window = re.fullmatch(rb'WINDOW X11 ([1-9][0-9]{0,9})\n', line)
+                window = None if player.wayland else re.fullmatch(rb'WINDOW X11 ([1-9][0-9]{0,9})\n', line)
                 if window is None or not pid_owns_window(int(window[1]), pid):
                     break
-                GLib.idle_add(player.event, 'WINDOW', int(window[1]))
+                GLib.idle_add(player.event, 'WINDOW', int(window[1]), priority=GLib.PRIORITY_DEFAULT)
     except OSError:
         pass
     finally:
@@ -343,20 +389,35 @@ def main():
         return 2
     Gst.init(None)
     display, screen = Gdk.Display.get_default(), Gdk.Screen.get_default()
-    if not isinstance(display, GdkX11.X11Display) or not screen.is_composited() or screen.get_rgba_visual() is None:
+    if screen.get_rgba_visual() is None:
         return 2
-    if not os.access('/usr/bin/xprop', os.X_OK):
-        return 2
-    focus = X11Focus()
+    focus = x11 = layer_shell = None
     try:
-        player = Player(display, screen, args.clip, focus)
+        if os.environ.get('GDK_BACKEND') == 'wayland':
+            gi.require_version('GtkLayerShell', '0.1')
+            from gi.repository import GtkLayerShell
+            if not GtkLayerShell.is_supported():
+                return 2
+            layer_shell = GtkLayerShell
+        else:
+            gi.require_version('GdkX11', '3.0')
+            from gi.repository import GdkX11
+            if not isinstance(display, GdkX11.X11Display) or not screen.is_composited() or not os.access('/usr/bin/xprop', os.X_OK):
+                return 2
+            x11 = GdkX11
+            focus = X11Focus()
+    except (ImportError, OSError, ValueError):
+        return 2
+    try:
+        player = Player(display, screen, args.clip, focus, x11, layer_shell)
         with socket.create_server(('127.0.0.1', 0), backlog=1) as server:
             server.settimeout(20)
             threading.Thread(target=receive, args=(server, nonce, player), daemon=True).start()
             print(server.getsockname()[1], flush=True)
             Gtk.main()
     finally:
-        focus.close()
+        if focus is not None:
+            focus.close()
     return 0
 
 
