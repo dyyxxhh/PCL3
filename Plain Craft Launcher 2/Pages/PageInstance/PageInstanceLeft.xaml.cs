@@ -9,6 +9,7 @@ public partial class PageInstanceLeft : IRefreshable, IPageView
     public static McInstance McInstance = null;
 
     private readonly PageInstanceLeftViewModel _vm = new();
+    private PageInstanceBackup? _backupPage;
     private bool _refreshed;
 
     public PageInstanceLeft()
@@ -197,6 +198,8 @@ public partial class PageInstanceLeft : IRefreshable, IPageView
                     Launcher.frmInstanceSetup = new PageInstanceSetup();
                 return Launcher.frmInstanceSetup;
             }
+            case FormMain.PageSubType.VersionBackup:
+                return _backupPage ??= new PageInstanceBackup();
             case FormMain.PageSubType.VersionWorld:
             {
                 if (Launcher.frmInstanceSaves is null)

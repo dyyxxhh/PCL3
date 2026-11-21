@@ -84,6 +84,8 @@ Test("self-contained build updates to the self-contained release assets", () =>
     var release = model.GetLatestVersion(UpdateChannel.stable, UpdateArch.x64);
     Assert(Requester.LastAssetUrl == "https://github.com/dyyxxhh/PCL3/releases/download/v0.3.7/PCL3_Release_x64_selfcontained.sha256", $"self-contained checksum asset URL changed: {Requester.LastAssetUrl}");
     Assert(release.Sha256 == Requester.Sha256, "self-contained checksum missing");
+    Assert(release.DownloadUrl == "https://github.com/dyyxxhh/PCL3/releases/download/v0.3.7/PCL3_Release_x64_selfcontained.exe",
+        "manual download must use the executable paired with the checked release and architecture");
     var loaders = model.GetDownloadLoader(UpdateChannel.stable, UpdateArch.arm64, "update.exe");
     var downloader = (PCL.Network.Loaders.LoaderDownload)loaders.Single();
     Assert(downloader.Files.Single().Urls.Single() == "https://github.com/dyyxxhh/PCL3/releases/download/v0.3.7/PCL3_Release_ARM64_selfcontained.exe", "self-contained launcher asset URL changed");

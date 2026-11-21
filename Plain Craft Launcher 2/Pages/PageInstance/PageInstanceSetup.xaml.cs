@@ -1,5 +1,4 @@
 using System.IO;
-using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -73,11 +72,9 @@ public partial class PageInstanceSetup : IPageView
         CheckArgumentTitleEmpty.Change += CheckArgumentTitleEmpty_Change;
     }
 
-    private void OpenBackupSettings(object sender, RoutedEventArgs e)
+    private void OpenBackupSettings(object sender, MouseButtonEventArgs e)
     {
-        try { WindowsInstanceBackup.Show(PageInstanceLeft.McInstance); }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
-        { Launcher.MyMsgBox(ex.Message, "备份设置无法打开"); }
+        Launcher.frmInstanceLeft!.ItemBackup.Checked = true;
     }
 
     public PageInstanceSetupViewModel ViewModel => _vm;

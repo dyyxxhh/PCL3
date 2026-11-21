@@ -5,6 +5,8 @@ using PCL.Core.App;
 using PCL.Core.App.Localization;
 using PCL.Core.Utils;
 using PCL.Core.Utils.OS;
+using PCL.Network;
+using PCL.Network.Loaders;
 
 namespace PCL;
 
@@ -41,131 +43,122 @@ public static class UpdateManager
         }
     }
     
-    public static Loading.LoaderCombo<JsonObject> updateLoader;
+    internal static Loading.LoaderCombo<JsonObject>? UpdateLoader { get; private set; }
+    internal static LoaderDownload? UpdateDownload { get; private set; }
 
-    public static void UpdateStart(UpdateEnums.UpdateType type, string receivedKey = null, bool forceValidated = false)
+    public static void UpdateStart(UpdateEnums.UpdateType type)
     {
-        var dlTargetPath = Common.ExePath + @"PCL\PCL₃.exe";
         Common.RunInNewThread(() =>
         {
             try
             {
                 var arch = SystemInfo.IsArm64System ? UpdateArch.arm64 : UpdateArch.x64;
-                if (remoteServer.IsLatest(UpdateChannel.stable, arch,
-                        SemVer.Parse(Common.VersionBaseName), Common.VersionCode))
+                var current = SemVer.Parse(Common.VersionBaseName);
+                if (remoteServer.IsLatest(UpdateChannel.stable, arch, current, Common.VersionCode))
                 {
                     Common.Log("[Update] 已是最新版本，无需请求更新校验文件");
                     return;
                 }
-                var version = remoteServer.GetLatestVersion(
-                    UpdateChannel.stable,
-                    arch
-                );
-
-                Common.WriteFile($"{Common.pathTemp}PCL₃UpdateLog.md", version.Changelog);
-                Common.Log(
-                    $"[Update] 远程最新版本: {version.VersionName}, 当前版本: {Common.VersionBaseName}");
-                if (!(SemVer.Parse(version.VersionName) > SemVer.Parse(Common.VersionBaseName)))
+                var version = remoteServer.GetLatestVersion(UpdateChannel.stable, arch);
+                if (SemVer.Parse(version.VersionName) <= current)
                     return;
-                if (type == UpdateEnums.UpdateType.PromptOnly)
+
+                Common.RunInUi(() =>
                 {
-                    Common.RunInUi(() =>
+                    if (type == UpdateEnums.UpdateType.PromptOnly)
                     {
                         if (Launcher.MyMsgBox(
-                                Lang.Text("Update.Available", Common.VersionBaseName,
-                                    version.VersionName),
-                                Lang.Text("Update.Title"),
-                                Lang.Text("Update.Action"),
-                                Lang.Text("Common.Action.Cancel")
-                            ) == 1)
-                            Launcher.frmMain.PageChange(FormMain.PageType.Setup,
-                                FormMain.PageSubType.SetupUpdate);
-                    });
-                    return;
-                    // 构造步骤加载器
-                }
+                                Lang.Text("Update.Available", Common.VersionBaseName, version.VersionName),
+                                Lang.Text("Update.Title"), Lang.Text("Update.Action"), Lang.Text("Common.Action.Cancel")) == 1)
+                            Launcher.frmMain.PageChange(FormMain.PageType.Setup, FormMain.PageSubType.SetupUpdate);
+                        return;
+                    }
 
-                var loaders = new List<Loading.LoaderBase>();
-                // 下载
-                loaders.AddRange(remoteServer.GetDownloadLoader(
-                    UpdateChannel.stable,
-                    SystemInfo.IsArm64System ? UpdateArch.arm64 : UpdateArch.x64, dlTargetPath));
-                loaders.Add(new Loading.LoaderTask<int, int>(Lang.Text("Update.Task.Check"), _ =>
-                {
-                    var curHash = Common.GetFileSha256(dlTargetPath);
-                    if ((curHash ?? "") != (version.Sha256 ?? ""))
-                        throw new Exception(Lang.Text("Update.Error.Sha256Mismatch", version.Sha256, curHash));
-                }));
-                if (type == UpdateEnums.UpdateType.UpdateNow)
-                    loaders.Add(new Loading.LoaderTask<int, int>(Lang.Text("Update.Task.Install"),
-                        _ => UpdateRestart(true)));
-                else if (type == UpdateEnums.UpdateType.Silent)
-                    loaders.Add(new Loading.LoaderTask<int, int>(Lang.Text("Update.Task.Prepare"),
-                        _ => isUpdateWaitingRestart = true));
-                else if (type == UpdateEnums.UpdateType.DownloadAndPrompt)
-                    loaders.Add(new Loading.LoaderTask<int, int>(
-                        Lang.Text("Update.Task.ShowButton"), _ =>
-                    {
-                        isUpdateWaitingRestart = true;
-                        Common.RunInUi(() =>
-                        {
-                            LocalizedText.TryBind(
-                                Launcher.frmMain.BtnExtraUpdateRestart,
-                                "ToolTip",
-                                () => Lang.Text(
-                                    "Main.Extra.UpdateRestart.ToolTipWithVersion",
-                                    Common.VersionBaseName,
-                                    version.VersionName));
-                            Launcher.frmMain.BtnExtraUpdateRestart.ShowRefresh();
-                            Launcher.frmMain.BtnExtraUpdateRestart.Ribble();
-                        });
-                    })
-                    {
-                        show = false
-                    });
-                loaders.Add(new Loading.LoaderTask<int, int>(
-                    Lang.Text("Update.Task.RefreshSettings"), _ =>
-                {
-                    if (Launcher.frmSetupUpdate is not null)
-                        Common.RunInUi(() =>
-                        {
-                            Launcher.frmSetupUpdate.BtnUpdate.TrySetLocalizedValue(
-                                "Text",
-                                "Update.Task.RestartInstall");
-                            Launcher.frmSetupUpdate.BtnUpdate.IsEnabled = true;
-                        });
-                })
-                {
-                    show = false
+                    StartDownload(version, type);
                 });
-                // 启动
-                updateLoader =
-                    new Loading.LoaderCombo<JsonObject>(Lang.Text("Update.Title"), loaders);
-                updateLoader.Start();
-                if (type == UpdateEnums.UpdateType.UpdateNow)
-                {
-                    Loading.LoaderTaskbarAdd(updateLoader);
-                    Launcher.frmMain.BtnExtraDownload.ShowRefresh();
-                    Launcher.frmMain.BtnExtraDownload.Ribble();
-                }
             }
             catch (Exception ex)
             {
-                Common.Log(ex, "[Update] 获取启动器更新失败");
-                if (type != UpdateEnums.UpdateType.Silent)
-                    HintService.Hint(Lang.Text("Update.Error.FetchFailed"), HintType.Error);
+                ReportUpdateFailure(ex, type);
             }
         });
+    }
+
+    // This takes the already checked release and registers the job on the UI thread. No network work here.
+    internal static void StartDownload(VersionDataModel version, UpdateEnums.UpdateType type)
+    {
+        if (isUpdateWaitingRestart || UpdateLoader?.State == Common.LoadState.Loading)
+            return;
+
+        try
+        {
+            var dlTargetPath = Path.Combine(Common.ExePath, "PCL", "PCL₃.exe");
+            var download = new LoaderDownload(Lang.Text("Update.Task.DownloadUpdateFile"),
+                [new DownloadFile([version.DownloadUrl], dlTargetPath)]) { ProgressWeight = 95 };
+            var loaders = new List<Loading.LoaderBase>
+            {
+                download,
+                new Loading.LoaderTask<int, int>(Lang.Text("Update.Task.Check"), _ =>
+                {
+                    var curHash = Common.GetFileSha256(dlTargetPath);
+                    if (!string.Equals(curHash, version.Sha256, StringComparison.OrdinalIgnoreCase))
+                        throw new Exception(Lang.Text("Update.Error.Sha256Mismatch", version.Sha256, curHash));
+                }) { ProgressWeight = 4 },
+                new Loading.LoaderTask<int, int>(Lang.Text("Update.Task.Prepare"), _ =>
+                    Common.WriteFile(Path.Combine(Common.pathTemp, "PCL₃UpdateLog.md"), version.Changelog)) { show = false }
+            };
+            var loader = new Loading.LoaderCombo<JsonObject>(Lang.Text("Update.Title"), loaders);
+            loader.OnStateChangedUi += (_, state, _) =>
+            {
+                if (state == Common.LoadState.Failed)
+                    ReportUpdateFailure(loader.Error, type);
+                if (state != Common.LoadState.Finished || !ReferenceEquals(UpdateLoader, loader))
+                    return;
+
+                isUpdateWaitingRestart = true;
+                if (type == UpdateEnums.UpdateType.UpdateNow)
+                    UpdateRestart(true);
+                else if (type == UpdateEnums.UpdateType.DownloadAndPrompt)
+                {
+                    LocalizedText.TryBind(Launcher.frmMain.BtnExtraUpdateRestart, "ToolTip", () => Lang.Text(
+                        "Main.Extra.UpdateRestart.ToolTipWithVersion", Common.VersionBaseName, version.VersionName));
+                    Launcher.frmMain.BtnExtraUpdateRestart.ShowRefresh();
+                    Launcher.frmMain.BtnExtraUpdateRestart.Ribble();
+                }
+            };
+            UpdateDownload = download;
+            UpdateLoader = loader;
+            loader.Start();
+            if (type == UpdateEnums.UpdateType.UpdateNow)
+            {
+                Loading.LoaderTaskbarAdd(loader);
+                Launcher.frmMain.BtnExtraDownload.ShowRefresh();
+                Launcher.frmMain.BtnExtraDownload.Ribble();
+            }
+        }
+        catch (Exception ex)
+        {
+            ReportUpdateFailure(ex, type);
+        }
+    }
+
+    private static void ReportUpdateFailure(Exception ex, UpdateEnums.UpdateType type)
+    {
+        Common.Log(ex, "[Update] 获取启动器更新失败");
+        if (type != UpdateEnums.UpdateType.Silent)
+            HintService.Hint(Lang.Text("Update.Error.FetchFailed"), HintType.Error);
     }
 
     public static void UpdateRestart(bool triggerRestartAndByEnd, bool triggerRestart = true)
     {
         try
         {
-            var fileName = Common.ExePath + @"PCL\PCL₃.exe";
+            var fileName = Path.Combine(Common.ExePath, "PCL", "PCL₃.exe");
             if (!File.Exists(fileName))
             {
                 Common.Log("[System] 更新失败：未找到更新文件");
+                isUpdateWaitingRestart = false;
+                HintService.Hint(Lang.Text("Update.Error.FetchFailed"), HintType.Error);
                 return;
             }
 

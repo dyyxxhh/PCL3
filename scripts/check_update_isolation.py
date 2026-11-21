@@ -47,10 +47,17 @@ ET.parse(page)
 page_cs = page.with_suffix('.xaml.cs').read_text(encoding='utf-8-sig')
 assert 'https://github.com/dyyxxhh/PCL3/releases/tag/v' in page_cs
 assert 'ComboSystemUpdateMode' in page.read_text(encoding='utf-8-sig')
-assert 'UpdateStart(UpdateEnums.UpdateType.UpdateNow)' in page_cs
-assert 'await BtnUpdate_Timer();' in page_cs
-# Waiting for a background update from the WPF UI thread must yield to the dispatcher.
-assert 'await Task.Delay(200)' in page_cs
+# So a slow connection cannot delay visible feedback or register the same task twice.
+click = page_cs.split('private async void BtnUpdate_Click(', 1)[-1].split('private async void BtnChangelogDetail_Click(', 1)[0]
+assert 'Setup.Update.Preparing' in click, '下载并安装：等待网络时按钮没有立即显示正在准备'
+start = 'UpdateManager.StartDownload(version, UpdateEnums.UpdateType.UpdateNow)'
+assert click.index('BtnUpdate.IsEnabled = false') < click.index(start), '下载并安装：仍可重复点击'
+assert click.index('Setup.Update.Preparing') < click.index(start), '下载并安装：反馈晚于下载开始'
+manual_download = manager.split('internal static void StartDownload(', 1)[1].split('private static void ReportUpdateFailure(', 1)[0]
+assert 'remoteServer.' not in manual_download, '下载并安装：重复联网检查会延迟下载任务'
+assert 'new DownloadFile([version.DownloadUrl]' in manual_download
+assert 'Loading.LoaderTaskbarAdd(loader)' in manual_download
+assert 'BtnUpdate.IsEnabled = _updateInfo is not null' in page_cs, '更新失败后必须可重试'
 assert 'Thread.Sleep(200)' not in page_cs
 for path in (CORE / 'App/Localization/Languages').glob('*.xaml'):
     ET.parse(path)

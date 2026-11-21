@@ -3193,6 +3193,7 @@
     <sys:String x:Key="Setup.Update.Error.NetworkFailed">無法取得最新版本資訊，請檢查網路連線</sys:String>
     <sys:String x:Key="Setup.Update.Install">下載並安裝</sys:String>
     <sys:String x:Key="Setup.Update.Latest">已是最新版本</sys:String>
+    <sys:String x:Key="Setup.Update.Preparing">正在準備下載…</sys:String>
     <sys:String x:Key="Setup.Update.RestartInstall">重啟安裝</sys:String>
 
     <!-- Setup.Update.Auto -->

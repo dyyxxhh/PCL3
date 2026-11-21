@@ -3300,6 +3300,7 @@
     <sys:String x:Key="Setup.Update.Error.NetworkFailed">无法获取最新版本信息，请检查网络连接</sys:String>
     <sys:String x:Key="Setup.Update.Install">下载并安装</sys:String>
     <sys:String x:Key="Setup.Update.Latest">已是最新版本</sys:String>
+    <sys:String x:Key="Setup.Update.Preparing">正在准备下载…</sys:String>
     <sys:String x:Key="Setup.Update.RestartInstall">重启安装</sys:String>
 
     <!-- Setup.Update.Auto -->

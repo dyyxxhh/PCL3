@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Threading;
 using PCL.Core.App;
 using PCL.Core.Utils;
 using PCL.Core.App.Localization;
@@ -12,15 +13,28 @@ public partial class PageSetupUpdate : IPageView
 {
     private readonly PageSetupUpdateViewModel _vm = new();
     private bool _refreshed;
+    private bool _checking;
+    private bool _restarting;
+    private readonly DispatcherTimer _updateTimer = new() { Interval = TimeSpan.FromMilliseconds(200) };
 
-    public VersionDataModel updateInfo;
+    private VersionDataModel? _updateInfo;
 
     public PageSetupUpdate()
     {
         InitializeComponent();
         DataContext = _vm;
-        Loaded += (_, _) => Refresh();
-        Unloaded += PageSetupUpdate_Unloaded;
+        _updateTimer.Tick += (_, _) => RefreshUpdateButton();
+        Loaded += (_, _) =>
+        {
+            Refresh();
+            RefreshUpdateButton();
+            _updateTimer.Start();
+        };
+        Unloaded += (_, _) =>
+        {
+            _refreshed = false;
+            _updateTimer.Stop();
+        };
     }
 
     public PageSetupUpdateViewModel ViewModel => _vm;
@@ -30,8 +44,6 @@ public partial class PageSetupUpdate : IPageView
     public void OnNavigatedFrom()
     {
     }
-
-    private void PageSetupUpdate_Unloaded(object sender, RoutedEventArgs e) => _refreshed = false;
 
     private void Refresh()
     {
@@ -51,136 +63,113 @@ public partial class PageSetupUpdate : IPageView
         CheckUpdate();
     }
 
-    private async Task<UpdateStatus> IsLatestAsync()
+    private async void CheckUpdate()
     {
-        try
-        {
-            if (await UpdateManager.remoteServer.IsLatestAsync(
-                    UpdateChannel.stable,
-                    SystemInfo.IsArm64System ? UpdateArch.arm64 : UpdateArch.x64,
-                    SemVer.Parse(Common.VersionBaseName),
-                    Common.VersionCode))
-            {
-                Common.Log("[Update] 已是最新版本");
-                return UpdateStatus.Latest;
-            }
+        if (_checking || (_updateInfo is not null &&
+            (UpdateManager.UpdateLoader?.State == Common.LoadState.Loading || UpdateManager.isUpdateWaitingRestart)))
+            return;
 
-            Common.Log("[Update] 有可用的新版本");
-            return UpdateStatus.Available;
-        }
-        catch (Exception ex)
-        {
-            Common.Log(
-                ex,
-                Lang.Text("Setup.Update.Error.NetworkFailed"),
-                Common.LogLevel.Hint,
-                userSummary: Lang.Text("Setup.Update.Error.NetworkFailed"));
-            return UpdateStatus.Error;
-        }
-    }
-
-    public async void CheckUpdate()
-    {
+        _checking = true;
         Common.Log("[Update] 开始检查更新");
         _vm.ShowUpdateCard = false;
         _vm.ShowCheckCard = true;
         _vm.CheckAgainEnabled = false;
-        TextCurrentDesc.TrySetLocalizedValue("Text", "Setup.Update.Checking");
-        switch (await IsLatestAsync())
+        _vm.CurrentDescText = Lang.Text("Setup.Update.Checking");
+        try
         {
-            case UpdateStatus.Available:
+            var version = await Task.Run(() =>
             {
-                Exception checkUpdateEx = null;
-                try
-                {
-                    updateInfo = UpdateManager.remoteServer.GetLatestVersion(
-                        UpdateChannel.stable, SystemInfo.IsArm64System ? UpdateArch.arm64 : UpdateArch.x64);
-                    _vm.UpdateNameText = "PCL₃ " + VersionNameFormat(updateInfo.VersionName);
-                    var summary = updateInfo.Changelog.Between("<summary>", "</summary>");
-                    if (!updateInfo.Changelog.Contains("<summary>") || string.IsNullOrWhiteSpace(summary.Trim()))
-                        TextChangelog.TrySetLocalizedValue("Text", "Setup.Update.Changelog.Empty");
-                    else
-                        TextChangelog.Text = summary;
-                }
-                catch (Exception ex)
-                {
-                    checkUpdateEx = ex;
-                }
-
-                _vm.CheckAgainEnabled = true;
-                if (updateInfo is null)
-                {
-                    _vm.CurrentDescText = Lang.Text("Setup.Update.CheckFailed");
-                    TextCurrentDesc.TrySetLocalizedValue("Text", "Setup.Update.CheckFailed");
-                    if (checkUpdateEx is not null)
-                        Common.Log(
-                            checkUpdateEx,
-                            "[Update] 检查更新失败",
-                            Common.LogLevel.Msgbox,
-                            userSummary: Lang.Text("Update.Check.Failed"));
-                    else
-                        Common.Log(
-                            "[Update] 检查更新失败",
-                            Common.LogLevel.Msgbox,
-                            userSummary: Lang.Text("Update.Check.Failed"));
-                    return;
-                }
-
-                if (UpdateManager.updateLoader is not null && UpdateManager.updateLoader.State == Common.LoadState.Loading)
-                {
-                    await BtnUpdate_Timer();
-                    BtnUpdate.IsEnabled = false;
-                }
-                else if (UpdateManager.isUpdateWaitingRestart)
-                {
-                    BtnUpdate.TrySetLocalizedValue("Text", "Setup.Update.RestartInstall");
-                    BtnUpdate.IsEnabled = true;
-                }
-                else
-                {
-                    BtnUpdate.TrySetLocalizedValue("Text", "Setup.Update.Install");
-                    BtnUpdate.IsEnabled = true;
-                }
-
-                _vm.ShowUpdateCard = true;
-                _vm.ShowCheckCard = false;
-                break;
-            }
-            case UpdateStatus.Latest:
+                var arch = SystemInfo.IsArm64System ? UpdateArch.arm64 : UpdateArch.x64;
+                var current = SemVer.Parse(Common.VersionBaseName);
+                if (UpdateManager.remoteServer.IsLatest(UpdateChannel.stable, arch, current, Common.VersionCode))
+                    return null;
+                var latest = UpdateManager.remoteServer.GetLatestVersion(UpdateChannel.stable, arch);
+                return SemVer.Parse(latest.VersionName) > current ? latest : null;
+            });
+            _updateInfo = version;
+            if (version is null)
             {
-                _vm.ShowUpdateCard = false;
-                _vm.ShowCheckCard = true;
-                _vm.CheckAgainEnabled = true;
                 _vm.CurrentDescText = Lang.Text("Setup.Update.Latest");
-                TextCurrentDesc.TrySetLocalizedValue("Text", "Setup.Update.Latest");
-                break;
+                return;
             }
-            case UpdateStatus.Error:
-            {
-                _vm.ShowUpdateCard = false;
-                _vm.ShowCheckCard = true;
-                _vm.CheckAgainEnabled = true;
-                _vm.CurrentDescText = Lang.Text("Setup.Update.CheckFailed");
-                TextCurrentDesc.TrySetLocalizedValue("Text", "Setup.Update.CheckFailed");
-                break;
-            }
-        }
-    }
 
-    public async Task BtnUpdate_Timer()
-    {
-        while (UpdateManager.updateLoader is not null && UpdateManager.updateLoader.State == Common.LoadState.Loading)
+            _vm.UpdateNameText = "PCL₃ " + VersionNameFormat(version.VersionName);
+            var summary = version.Changelog.Between("<summary>", "</summary>");
+            if (!version.Changelog.Contains("<summary>") || string.IsNullOrWhiteSpace(summary))
+                TextChangelog.TrySetLocalizedValue("Text", "Setup.Update.Changelog.Empty");
+            else
+                TextChangelog.Text = summary;
+
+            RefreshUpdateButton();
+            _vm.ShowUpdateCard = true;
+            _vm.ShowCheckCard = false;
+        }
+        catch (Exception ex)
         {
-            Common.RunInUi(() => BtnUpdate.Text = Lang.Number(UpdateManager.updateLoader.Progress, "P2"));
-            await Task.Delay(200);
+            _updateInfo = null;
+            _vm.CurrentDescText = Lang.Text("Setup.Update.CheckFailed");
+            Common.Log(ex, "[Update] 检查更新失败", Common.LogLevel.Hint,
+                userSummary: Lang.Text("Setup.Update.Error.NetworkFailed"));
+        }
+        finally
+        {
+            _checking = false;
+            _vm.CheckAgainEnabled = true;
         }
     }
 
-    private void BtnUpdate_Click(object sender, MouseButtonEventArgs e)
+    private void RefreshUpdateButton()
     {
-        if (UpdateManager.isUpdateWaitingRestart) UpdateManager.UpdateRestart(true);
-        // 开始更新流程
-        UpdateManager.UpdateStart(UpdateEnums.UpdateType.UpdateNow);
+        if (_restarting)
+            return;
+
+        if (UpdateManager.UpdateLoader?.State == Common.LoadState.Loading && UpdateManager.UpdateDownload is { } download)
+        {
+            BtnUpdate.IsEnabled = false;
+            var file = download.files.FirstOrDefault();
+            var text = download.State == Common.LoadState.Finished
+                ? Lang.Text("Update.Task.Check")
+                : file?.TotalSize > 0 && file.DownloadedBytes > 0
+                    ? Lang.Number(Math.Clamp((double)file.DownloadedBytes / file.TotalSize, 0, 1), "P1")
+                    : file?.DownloadedBytes > 0
+                        ? Lang.Text("Update.Task.DownloadUpdateFile")
+                        : Lang.Text("Setup.Update.Preparing");
+            if (BtnUpdate.Text != text)
+                BtnUpdate.Text = text;
+            return;
+        }
+
+        var label = Lang.Text(UpdateManager.isUpdateWaitingRestart ? "Setup.Update.RestartInstall" : "Setup.Update.Install");
+        if (BtnUpdate.Text != label)
+            BtnUpdate.Text = label;
+        BtnUpdate.IsEnabled = _updateInfo is not null;
+    }
+
+    private async void BtnUpdate_Click(object sender, MouseButtonEventArgs e)
+    {
+        if (!BtnUpdate.IsEnabled || _updateInfo is not { } version)
+            return;
+
+        BtnUpdate.IsEnabled = false;
+        if (UpdateManager.isUpdateWaitingRestart)
+        {
+            BtnUpdate.Text = Lang.Text("Update.Task.Install");
+            _restarting = true;
+            try
+            {
+                await Dispatcher.Yield(DispatcherPriority.Background);
+                UpdateManager.UpdateRestart(true);
+            }
+            finally
+            {
+                _restarting = false;
+                RefreshUpdateButton();
+            }
+            return;
+        }
+
+        BtnUpdate.Text = Lang.Text("Setup.Update.Preparing");
+        UpdateManager.StartDownload(version, UpdateEnums.UpdateType.UpdateNow);
     }
 
     private async void BtnChangelogDetail_Click(object sender, EventArgs e)
@@ -189,10 +178,10 @@ public partial class PageSetupUpdate : IPageView
         if (ctl is not null) ctl.IsEnabled = false;
         try
         {
-            if (updateInfo is null)
+            if (_updateInfo is null)
                 await Launcher.MyMsgBoxAsync(Lang.Text("Setup.Update.Changelog.Unavailable"), Lang.Text("Setup.Update.Changelog.Title"));
             else
-                Launcher.MyMsgBoxMarkdown(updateInfo.Changelog, Lang.Text("Setup.Update.Changelog.Title"));
+                Launcher.MyMsgBoxMarkdown(_updateInfo.Changelog, Lang.Text("Setup.Update.Changelog.Title"));
         }
         catch (Exception ex)
         {
@@ -223,11 +212,4 @@ public partial class PageSetupUpdate : IPageView
         CheckUpdate();
     }
 
-    private enum UpdateStatus
-    {
-        Checking = 0,
-        Available = 1,
-        Error = 2,
-        Latest = 3
-    }
 }

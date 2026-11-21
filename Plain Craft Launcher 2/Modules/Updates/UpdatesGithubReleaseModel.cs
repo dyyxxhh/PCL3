@@ -44,6 +44,7 @@ public sealed class UpdatesGithubReleaseModel(bool selfContained = false, string
             VersionName = version,
             VersionCode = 0,
             Sha256 = sha256,
+            DownloadUrl = ReleaseAssets.GetDownloadUrl(tag, GetAssetName(arch, ".exe")),
             Changelog = string.Empty
         };
     }

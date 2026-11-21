@@ -40,7 +40,7 @@
                             <ColumnDefinition Width="50" />
                             <ColumnDefinition Width="10" />
                             <ColumnDefinition Width="1*" />
-                            <ColumnDefinition Width="85" />
+                            <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="29" />
@@ -61,7 +61,7 @@
                                    Grid.Column="2" HorizontalAlignment="Left" VerticalAlignment="Top" />
                         <local:MyButton x:Name="BtnUpdate" Text="{loc:Loc Setup.Update.Install}" ColorType="Highlight" Grid.Row="0"
                                         Grid.RowSpan="2" Grid.Column="3" HorizontalAlignment="Center"
-                                        VerticalAlignment="Center" Width="85" Height="30"
+                                        VerticalAlignment="Center" MinWidth="85" Padding="12,0" Height="30"
                                         Click="BtnUpdate_Click" />
                         <TextBlock x:Name="TextChangelog"
                                     Text="{loc:Loc Setup.Update.Changelog.Placeholder}"
