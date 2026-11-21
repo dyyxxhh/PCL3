@@ -4,6 +4,7 @@
 Run with Xvfb, xcompmgr, xauth, xdotool, xprop, xmessage and ffmpeg on PATH,
 plus the Python/GTK/GStreamer requirements documented for the host.
 """
+import argparse
 import contextlib
 import os
 from pathlib import Path
@@ -54,7 +55,7 @@ def eventually(predicate, message, timeout=5):
     raise AssertionError(message)
 
 
-def test():
+def test(clip=None):
     deps = ('Xvfb', 'xcompmgr', 'xauth', 'xdotool', 'xprop', 'xmessage', 'ffmpeg')
     missing = [tool for tool in deps if shutil.which(tool) is None]
     if missing:
@@ -83,10 +84,11 @@ def test():
         ]
         eventually(lambda: subprocess.run(compositor_probe, env=env, timeout=2).returncode == 0,
                    'X11 test compositor did not start')
-        clip = tmp / 'fixture.mp4'
-        subprocess.run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-nostdin', '-f', 'lavfi',
-                        '-i', 'testsrc2=size=160x90:rate=15', '-t', '1', '-c:v', 'libx264', str(clip)],
-                       env=env, check=True, timeout=10)
+        if clip is None:
+            clip = tmp / 'fixture.mp4'
+            subprocess.run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-nostdin', '-f', 'lavfi',
+                            '-i', 'testsrc2=size=160x90:rate=15', '-t', '1', '-c:v', 'libx264', str(clip)],
+                           env=env, check=True, timeout=10)
         app = start(stack, ['xmessage', '-name', 'PclIntroFocusTest', '-geometry', '480x270+12+12', 'Test window'], env)
         xid = subprocess.check_output(['xdotool', 'search', '--sync', '--limit', '1', '--name', 'PclIntroFocusTest'],
                                       env=env, timeout=5).strip().decode('ascii')
@@ -161,4 +163,6 @@ def test():
 
 
 if __name__ == '__main__':
-    test()
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--clip', type=lambda name: Path(name).resolve(strict=True))
+    test(parser.parse_args().clip)

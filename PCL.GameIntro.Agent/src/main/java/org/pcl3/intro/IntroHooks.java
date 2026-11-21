@@ -189,18 +189,39 @@ public final class IntroHooks {
         }
     }
 
-    private static void bindWindow(long glfw, Class<?> gameWindowClass, boolean early) {
-        if (connection == null || glfw == 0) return;
+    public static void sdlWindowCreated(long sdl, Class<?> gameWindowClass) {
+        bindWindow(sdl, gameWindowClass, false, true);
+    }
+
+    private static void bindWindow(long handle, Class<?> gameWindowClass, boolean early) {
+        bindWindow(handle, gameWindowClass, early, false);
+    }
+
+    private static void bindWindow(long handle, Class<?> gameWindowClass, boolean early, boolean sdl) {
+        if (connection == null || handle == 0) return;
         ClassLoader loader = gameWindowClass.getClassLoader();
         String os = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
         try {
             String backend = os.startsWith("windows") ? "Win32" : "X11";
-            Class<?> nativeAccess = Class.forName("org.lwjgl.glfw.GLFWNative" + backend, true, loader);
-            long window = (Long) nativeAccess.getMethod("glfwGet" + backend + "Window", long.class).invoke(null, glfw);
+            long window;
+            if (sdl) {
+                Class<?> video = Class.forName("org.lwjgl.sdl.SDLVideo", true, loader);
+                String driver = (String) video.getMethod("SDL_GetCurrentVideoDriver").invoke(null);
+                boolean windows = backend.equals("Win32");
+                if (!(windows ? "windows" : "x11").equals(driver)) { incompatible(); return; }
+                int properties = (Integer) video.getMethod("SDL_GetWindowProperties", long.class).invoke(null, handle);
+                Class<?> sdlProperties = Class.forName("org.lwjgl.sdl.SDLProperties", true, loader);
+                Method read = sdlProperties.getMethod(windows ? "SDL_GetPointerProperty" : "SDL_GetNumberProperty",
+                    int.class, CharSequence.class, long.class);
+                window = (Long) read.invoke(null, properties, windows ? "SDL.window.win32.hwnd" : "SDL.window.x11.window", 0L);
+            } else {
+                Class<?> nativeAccess = Class.forName("org.lwjgl.glfw.GLFWNative" + backend, true, loader);
+                window = (Long) nativeAccess.getMethod("glfwGet" + backend + "Window", long.class).invoke(null, handle);
+            }
             if (window == 0) { incompatible(); return; }
             synchronized (AUDIO) {
                 if (connection == null || bypassed || boundWindow != 0) return;
-                boundWindow = glfw;
+                boundWindow = handle;
                 gameLoader = loader;
                 windowReady = !early;
                 offer("WINDOW " + backend + " " + Long.toUnsignedString(window));
@@ -251,13 +272,28 @@ public final class IntroHooks {
         }
     }
 
+    // 26.3 adjusts individual source gains. Mute the newly initialized listener instead,
+    // leaving those source gains intact for handoff and letting OpenAL supply its default (1).
+    public static void muteNewListener() {
+        synchronized (AUDIO) {
+            if (!holding || gameLoader == null) return;
+            try {
+                setListenerGain(0);
+                gainSet = true;
+                requestedGain = 1;
+            } catch (ReflectiveOperationException | RuntimeException | LinkageError failure) {
+                incompatible();
+            }
+        }
+    }
+
     public static void framePresented(boolean initialized, Object overlay, Object screen) {
         if (restoreGain) applyGainOnGameThread();
         if (connection == null || readinessSent || !initialized || overlay != null || screen == null || !windowReady) return;
         readinessSent = true;
         // Do not hide accessibility onboarding, required warnings or a recovery screen.
         String screenName = screen.getClass().getName();
-        offer(screenName.equals("fof") || screenName.equals("net.minecraft.class_442") ||
+        offer(screenName.equals("fof") || screenName.equals("gsd") || screenName.equals("net.minecraft.class_442") ||
             screenName.equals("net.minecraft.client.gui.screens.TitleScreen") ? "READY" : "BYPASS");
     }
 
@@ -266,13 +302,17 @@ public final class IntroHooks {
             if (!restoreGain || gameLoader == null) return;
             restoreGain = false;
             try {
-                Class<?> al = Class.forName("org.lwjgl.openal.AL10", true, gameLoader);
-                Method gain = al.getMethod("alListenerf", int.class, float.class);
-                gain.invoke(null, 0x100A, requestedGain);
+                setListenerGain(requestedGain);
             } catch (ReflectiveOperationException | RuntimeException | LinkageError ignored) {
                 // A restarted sound engine will receive the stored game volume through its own gain write.
             }
         }
+    }
+
+    private static void setListenerGain(float value) throws ReflectiveOperationException {
+        Class<?> al = Class.forName("org.lwjgl.openal.AL10", true, gameLoader);
+        Method gain = al.getMethod("alListenerf", int.class, float.class);
+        gain.invoke(null, 0x100A, value);
     }
 
     private static void offer(String event) {

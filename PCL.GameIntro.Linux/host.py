@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-"""Opt-in Linux/XWayland game-intro playback process for the Vanilla 1.21.1 bridge."""
+"""Independent Linux/X11 game-intro playback for supported Minecraft profiles."""
 import argparse
 import ctypes
 import hmac
@@ -21,9 +21,10 @@ gi.require_version('Gst', '1.0')
 gi.require_version('PangoCairo', '1.0')
 gi.require_foreign('cairo')
 import cairo
-from gi.repository import Gdk, GdkPixbuf, GdkX11, GLib, Gst, Gtk, PangoCairo
+from gi.repository import Gdk, GdkPixbuf, GdkX11, GLib, Gst, Gtk, Pango, PangoCairo
 
-PROMPT = '按空格键进入游戏'
+PROMPT = '>按下空格键进入游戏<'
+PROMPT_FONT = 'Noto Sans CJK SC, Source Han Sans SC, sans-serif Semi-Bold 19'
 
 
 class X11Focus:
@@ -158,15 +159,17 @@ class Player:
         if self.ready is not None:
             opacity = min(1, max(0, (self.clock() - self.ready) / .300))
             layout = area.create_pango_layout(PROMPT)
-            layout.set_markup('<span font_desc="Sans Bold 18">' + PROMPT + '</span>')
+            layout.set_font_description(Pango.FontDescription.from_string(PROMPT_FONT))
             tw, th = layout.get_pixel_size()
             x, y = (width - tw) / 2, height - th - 28
-            ctx.set_source_rgba(0, 0, 0, .72 * opacity)
-            ctx.rectangle(x - 14, y - 7, tw + 28, th + 14)
-            ctx.fill()
-            ctx.set_source_rgba(1, 1, 1, opacity)
             ctx.move_to(x, y)
-            PangoCairo.show_layout(ctx, layout)
+            PangoCairo.layout_path(ctx, layout)
+            ctx.set_line_width(2)
+            ctx.set_line_join(cairo.LINE_JOIN_ROUND)
+            ctx.set_source_rgba(0, 0, 0, .70 * opacity)
+            ctx.stroke_preserve()
+            ctx.set_source_rgba(1, 1, 1, opacity)
+            ctx.fill()
             if opacity >= 1:
                 self.prompt_painted = True
         return False
@@ -309,7 +312,8 @@ def receive(listener, nonce, player):
         player.channel = channel
         for line in iter(lambda: source.readline(100), b''):
             if line in (b'HELD\n', b'BYPASS\n', b'READY\n', b'SPACE_DOWN\n', b'SPACE_UP\n'):
-                GLib.idle_add(player.event, line.strip().decode('ascii'))
+                # A continuously redrawing HD video can starve GLib's default idle priority.
+                GLib.idle_add(player.event, line.strip().decode('ascii'), priority=GLib.PRIORITY_DEFAULT)
             else:
                 window = re.fullmatch(rb'WINDOW X11 ([1-9][0-9]{0,9})\n', line)
                 if window is None or not pid_owns_window(int(window[1]), pid):
@@ -318,7 +322,7 @@ def receive(listener, nonce, player):
     except OSError:
         pass
     finally:
-        GLib.idle_add(player.stop)
+        GLib.idle_add(player.stop, priority=GLib.PRIORITY_DEFAULT)
         if not player.stopped_event.wait(2.25):
             os._exit(1)  # Do not leave audio playing after IPC validation or disconnect failure.
         if source is not None:

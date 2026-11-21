@@ -14,8 +14,11 @@ public final class CheckProfile {
     private CheckProfile() { }
 
     public static void main(String[] args) throws Exception {
-        if (args.length != 1) throw new IllegalArgumentException("Usage: CheckProfile <official-client.jar>");
-        MethodAccess patcher = new MethodAccess();
+        if (args.length < 1 || args.length > 2) throw new IllegalArgumentException("Usage: CheckProfile <official-client.jar> [1.21.1|26.3]");
+        Class<?> adapter = args.length == 1 || args[1].equals("1.21.1") ? Vanilla1211.class :
+            args[1].equals("26.3") ? Vanilla263.class : null;
+        if (adapter == null) throw new IllegalArgumentException("Unknown client profile: " + args[1]);
+        MethodAccess patcher = new MethodAccess(adapter);
         try (JarFile jar = new JarFile(args[0]);
              URLClassLoader gameClasses = new URLClassLoader(new URL[] {Paths.get(args[0]).toUri().toURL()}, CheckProfile.class.getClassLoader())) {
             for (Map.Entry<String, String> target : patcher.targets().entrySet()) {
@@ -49,13 +52,15 @@ public final class CheckProfile {
 
     private static final class MethodAccess {
         private final java.lang.reflect.Method targetMethod;
-        MethodAccess() throws Exception {
-            targetMethod = Vanilla1211.class.getDeclaredMethod("patch", String.class, byte[].class);
+        private final Class<?> adapter;
+        MethodAccess(Class<?> adapter) throws Exception {
+            this.adapter = adapter;
+            targetMethod = adapter.getDeclaredMethod("patch", String.class, byte[].class);
             targetMethod.setAccessible(true);
         }
         @SuppressWarnings("unchecked")
         Map<String, String> targets() throws Exception {
-            java.lang.reflect.Field field = Vanilla1211.class.getDeclaredField("TARGETS");
+            java.lang.reflect.Field field = adapter.getDeclaredField("TARGETS");
             field.setAccessible(true);
             return (Map<String, String>) field.get(null);
         }

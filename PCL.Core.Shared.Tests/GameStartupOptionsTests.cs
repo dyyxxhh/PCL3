@@ -130,6 +130,12 @@ public sealed class GameStartupOptionsTests
 
     [TestMethod]
     [DataRow("1.21.1", null, null, "vanilla-1.21.1")]
+    [DataRow("1.21.11", null, null, "vanilla-1.21.11")]
+    [DataRow("1.21.11", "fabric", "0.16.14", null)]
+    [DataRow("26.3", null, null, "vanilla-26.3")]
+    [DataRow("26.3", "vanilla", null, "vanilla-26.3")]
+    [DataRow("26.3", "fabric", "0.16.14", null)]
+    [DataRow("26.3-pre-1", null, null, null)]
     [DataRow("1.21.1", "vanilla", null, "vanilla-1.21.1")]
     [DataRow("1.21.1", "fabric", "0.16.14", "fabric-1.21.1-0.16.14")]
     [DataRow("1.21.1", "forge", "52.1.20", "forge-1.21.1-52.1.20")]
@@ -140,6 +146,8 @@ public sealed class GameStartupOptionsTests
         => Assert.AreEqual(expected, GameIntroLaunch.SelectProfile(version, loader, loaderVersion));
 
     [TestMethod]
+    [DataRow("vanilla-26.3", "net.minecraft.client.main.Main", true)]
+    [DataRow("vanilla-26.3", "net.fabricmc.loader.impl.launch.knot.KnotClient", false)]
     [DataRow("vanilla-1.21.1", "net.minecraft.client.main.Main", true)]
     [DataRow("fabric-1.21.1-0.16.14", "net.fabricmc.loader.impl.launch.knot.KnotClient", true)]
     [DataRow("forge-1.21.1-52.1.20", "net.minecraftforge.bootstrap.ForgeBootstrap", true)]

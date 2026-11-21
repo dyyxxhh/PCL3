@@ -225,7 +225,7 @@ MCM 默认根据系统可用内存预算设置 Java 最大堆（约四分之一�
 PCL3_GAME_INTRO_PREVIEW=0 mcm launch my
 ```
 
-系统需要 `/usr/bin/python3`、GTK 3、Python GI/Cairo、GStreamer H.264/AAC 解码及音频输出组件，以及 `xprop`。目前在隔离 X11 环境中验证的是 Java 21 下 Minecraft 1.21.1 的原版、Fabric Loader 0.16.14、Forge 52.1.20 和 NeoForge 21.1.172 的干净客户端。原生 Wayland、全屏、缺少依赖、未知类指纹或加载失败时沿用普通启动。片头在真实游戏窗口上播放，标题菜单绘出后才显示空格提示；需要松开并重新按下此前已按住的空格。不能保证所有窗口管理器均无闪现。
+系统需要 `/usr/bin/python3`、GTK 3、Python GI/Cairo、GStreamer H.264/AAC 解码及音频输出组件，以及 `xprop`。支持的客户端与验证范围见 [片头说明](<../PCL.GameIntro.Agent/README.md#验证范围>)。建议安装 Noto Sans CJK SC 以获得简体中文字体。原生 Wayland、全屏、缺少依赖、未知类指纹或加载失败时沿用普通启动。片头在真实游戏窗口上播放，标题菜单绘出后才淡入 `>按下空格键进入游戏<`；需要松开并重新按下此前已按住的空格。不能保证所有窗口管理器均无闪现。
 
 `mcm update` 仍只替换单文件程序；助手随新程序更新，不会在磁盘上写出 Python 脚本。片头视频和 Java 桥接 JAR 仍由启动器验证后解包到用户本地数据目录。普通本地构建不含片头资源；开发预览可以显式设置 `PCL3_GAME_INTRO_LINUX_HOST` 指定受信任的绝对脚本路径，仅用于测试。
 

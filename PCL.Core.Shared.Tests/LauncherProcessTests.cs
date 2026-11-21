@@ -113,6 +113,46 @@ public sealed class LauncherProcessTests
     }
 
     [TestMethod]
+    [DataRow("1.21.11", "vanilla-1.21.11", "net.minecraft.client.main.Main", true)]
+    [DataRow("1.21.11", "vanilla-1.21.1", "net.minecraft.client.main.Main", false)]
+    [DataRow("26.3", "vanilla-26.3", "net.minecraft.client.main.Main", true)]
+    [DataRow("26.3", "vanilla-1.21.1", "net.minecraft.client.main.Main", false)]
+    [DataRow("26.3", "vanilla-26.3", "example.Main", false)]
+    [DataRow("1.21.1", "vanilla-26.3", "net.minecraft.client.main.Main", false)]
+    [DataRow("1.21.1", "vanilla-1.21.1", "net.minecraft.client.main.Main", true)]
+    public async Task AttachesIntroOnlyToMatchingVanillaVersionAndEntryPoint(string version, string profile, string entryPoint, bool expected)
+    {
+        if (!OperatingSystem.IsLinux()) return;
+        var root = Directory.CreateTempSubdirectory("pcl-intro-attach-").FullName;
+        try
+        {
+            var versionDirectory = Directory.CreateDirectory(Path.Combine(root, "versions", version));
+            var java = Path.Combine(root, "java");
+            var agent = Path.Combine(root, "fake-agent.jar");
+            var capture = Path.Combine(root, "launch.txt");
+            const string endpoint = "mock-endpoint";
+            await File.WriteAllTextAsync(java, "#!/bin/sh\nprintf '%s\\n' \"${PCL_GAME_INTRO_ENDPOINT:-}\" \"$@\" > launch.txt\n");
+            File.SetUnixFileMode(java, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+            await File.WriteAllTextAsync(Path.Combine(versionDirectory.FullName, version + ".json"), JsonSerializer.Serialize(new
+            {
+                id = version,
+                mainClass = entryPoint,
+                arguments = new { jvm = new[] { "-cp", "${classpath}" }, game = Array.Empty<string>() }
+            }));
+            using var process = await new MinecraftInstaller().LaunchAsync(version,
+                new MinecraftLaunchOptions(root, java) { Intro = new GameIntroLaunch(agent, endpoint, profile) });
+            await process.WaitForExitAsync();
+            Assert.AreEqual(0, process.ExitCode);
+            var recorded = await File.ReadAllLinesAsync(capture);
+            Assert.AreEqual(expected, recorded[0] == endpoint);
+            var agentArgument = $"-javaagent:{agent}={profile}";
+            Assert.AreEqual(expected, recorded.Contains(agentArgument));
+            if (expected) Assert.AreEqual(agentArgument, recorded[1]);
+        }
+        finally { Directory.Delete(root, true); }
+    }
+
+    [TestMethod]
     public async Task ThirdPartyAgentIsPassedBeforeMainClass()
     {
         if (!OperatingSystem.IsLinux()) return;

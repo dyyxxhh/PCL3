@@ -9,7 +9,8 @@ public final class IntroAgent {
 
     public static void premain(String profile, Instrumentation instrumentation) {
         if (!"vanilla-1.21.1".equals(profile) && !"fabric-1.21.1-0.16.14".equals(profile) &&
-            !"forge-1.21.1-52.1.20".equals(profile) && !"neoforge-1.21.1-21.1.172".equals(profile)) return;
+            !"forge-1.21.1-52.1.20".equals(profile) && !"neoforge-1.21.1-21.1.172".equals(profile) &&
+            !"vanilla-26.3".equals(profile) && !"vanilla-1.21.11".equals(profile)) return;
         try {
             File agent = new File(IntroAgent.class.getProtectionDomain().getCodeSource().getLocation().toURI());
             if ("fabric-1.21.1-0.16.14".equals(profile)) {

@@ -152,7 +152,9 @@ public sealed partial class MinecraftInstaller(HttpClient? httpClient = null,
         }
         var clientId = metadata["id"]?.GetValue<string>() ?? versionId;
         var supportedIntroProfile = options.Intro is { } selectedIntro && GameIntroLaunch.MatchesEntryPoint(selectedIntro.Profile, mainClass) &&
-            (selectedIntro.Profile == "vanilla-1.21.1" ? clientId == "1.21.1" : nativeVersion == "1.21.1");
+            (mainClass == "net.minecraft.client.main.Main"
+                ? selectedIntro.Profile == GameIntroLaunch.SelectProfile(clientId, null, null)
+                : nativeVersion == "1.21.1");
         if (options.Intro is { } intro && supportedIntroProfile &&
             options.StartupOptions?.WindowMode != GameStartupWindowMode.Fullscreen &&
             !GameStartupOptionsFile.IsFullscreen(options.GameDirectory) && !arguments.Contains("--fullscreen"))

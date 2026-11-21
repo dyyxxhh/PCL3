@@ -8,7 +8,7 @@ namespace PCL.Core.Shared;
 public static class GameIntroBundle
 {
     private const string Clip = "PCL3_LaunchIntro.mp4";
-    private const string ClipHash = "e46a7af3098ee66b91d57a9f72b44153a65fb18d6a9f37bb8d63ea118b942692";
+    private const string ClipHash = "84bc0cae7a5b47adb7726e8a263da52ff907f3841884e97905d752a25ca41029";
     private const string Agent = "PCL3_LaunchIntroAgent.jar";
     private static readonly string LocalData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData,
         Environment.SpecialFolderOption.DoNotVerify);
@@ -31,7 +31,7 @@ public static class GameIntroBundle
             InstanceBackupStore.RequireSafePath(Root);
             if (OperatingSystem.IsLinux())
                 File.SetUnixFileMode(Root, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
-            mediaPath = Materialize(media, Path.Combine(Root, Clip), 5_209_693, ClipHash);
+            mediaPath = Materialize(media, Path.Combine(Root, ClipHash + ".mp4"), 14_408_526, ClipHash);
             agentPath = Materialize(bridge, Path.Combine(Root, $"{digest.ToLowerInvariant()}.jar"), bridge.Length, digest);
             InstanceBackupStore.RequireSafePath(mediaPath);
             InstanceBackupStore.RequireSafePath(agentPath);

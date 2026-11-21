@@ -1,9 +1,5 @@
 name: Prepare game-intro resources
-description: Verify the authorized draft asset and build the pinned Java agent
-inputs:
-  version:
-    description: Release version without the v prefix
-    required: true
+description: Verify the licensed repository clip and build the pinned Java agent
 outputs:
   clip:
     description: Verified MP4 path
@@ -16,23 +12,14 @@ runs:
   steps:
     - id: prepare
       shell: bash
-      env:
-        RELEASE_VERSION: ${{ inputs.version }}
       run: |
         set -euo pipefail
-        [[ "$RELEASE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
-        tag="v$RELEASE_VERSION"
-        if gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json isDraft,assets --jq '.isDraft and any(.assets[]; .name == "PCL3_LaunchIntro.mp4")' | grep -qx true; then
-          source_tag="$tag"
-        else
-          source_tag=v0.4.3
-          test "$(gh release view "$source_tag" --repo "$GITHUB_REPOSITORY" --json assets --jq 'any(.assets[]; .name == "PCL3_LaunchIntro.mp4")')" = true
-        fi
+        source_clip="$GITHUB_WORKSPACE/PCL.GameIntro.Linux/PCL3_LaunchIntro.mp4"
         clip="$RUNNER_TEMP/PCL3_LaunchIntro.mp4"
         agent="$RUNNER_TEMP/PCL3_LaunchIntroAgent.jar"
-        gh release download "$source_tag" --repo "$GITHUB_REPOSITORY" --pattern PCL3_LaunchIntro.mp4 --dir "$RUNNER_TEMP"
-        test "$(stat -c%s "$clip")" -eq 5209693
-        echo "e46a7af3098ee66b91d57a9f72b44153a65fb18d6a9f37bb8d63ea118b942692  $clip" | sha256sum --check
+        cp -- "$source_clip" "$clip"
+        test "$(stat -c%s "$clip")" -eq 14408526
+        echo "84bc0cae7a5b47adb7726e8a263da52ff907f3841884e97905d752a25ca41029  $clip" | sha256sum --check
         curl --fail --location --retry 3 --max-time 90 --output "$RUNNER_TEMP/asm-9.8.jar" https://repo.maven.apache.org/maven2/org/ow2/asm/asm/9.8/asm-9.8.jar
         python3 PCL.GameIntro.Agent/build.py "$RUNNER_TEMP/asm-9.8.jar" "$agent"
         printf 'clip=%s\nagent=%s\n' "$clip" "$agent" >> "$GITHUB_OUTPUT"

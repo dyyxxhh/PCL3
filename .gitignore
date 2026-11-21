@@ -347,6 +347,4 @@ MaskFiles/
 
 # macOS
 
-# Licensed source media is staged as a private release-draft asset.
-PCL.GameIntro.Linux/PCL3_LaunchIntro.mp4
 **/.DS_Store

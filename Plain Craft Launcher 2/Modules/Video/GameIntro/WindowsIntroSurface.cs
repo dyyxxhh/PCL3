@@ -46,11 +46,15 @@ internal sealed class WindowsIntroSurface : Window
         _video.MediaFailed += (_, _) => Failed?.Invoke();
         _prompt = new TextBlock
         {
-            Text = "按空格键进入游戏",
+            Text = ">按下空格键进入游戏<",
             Foreground = Brushes.White,
-            Background = new SolidColorBrush(Color.FromArgb(180, 0, 0, 0)),
+            FontFamily = new FontFamily("Microsoft YaHei UI, Segoe UI"),
+            FontWeight = FontWeights.SemiBold,
             FontSize = 26,
-            Padding = new Thickness(16, 8, 16, 8),
+            Effect = new System.Windows.Media.Effects.DropShadowEffect
+            {
+                Color = Colors.Black, BlurRadius = 8, ShadowDepth = 1, Opacity = 0.85
+            },
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Bottom,
             Margin = new Thickness(12, 12, 12, 36),

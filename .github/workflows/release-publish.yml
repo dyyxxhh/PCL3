@@ -34,20 +34,15 @@ concurrency:
 
 jobs:
   prepare_game_intro:
-    needs: changelog
     runs-on: ubuntu-latest
     permissions:
-      contents: write # Draft release assets require write access.
+      contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Verify clip and build Java agent
         id: intro
         uses: ./.github/actions/prepare-game-intro
-        with:
-          version: ${{ inputs.version }}
-        env:
-          GH_TOKEN: ${{ github.token }}
       - name: Share the verified inputs with the build jobs
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -150,21 +145,11 @@ jobs:
 
           ## 游戏启动片头（预览）
 
-          本次发布包内置片头视频，支持资源和客户端配置时默认开启。设置 `PCL3_GAME_INTRO_PREVIEW=0` 可关闭；`PCL3_LaunchIntro.mp4` 作为独立 Release 资源提供。
-          验证范围为 Minecraft Java 1.21.1：原版、Fabric Loader 0.16.14、Forge 52.1.20 和 NeoForge 21.1.172。
-          Linux 已在隔离 X11 环境通过四种真实客户端的播放和交接测试；需要 GTK 3、Python GI/Cairo 及 GStreamer 解码与音频输出插件。
+          本次发布包内置新的原版音轨片头；支持的配置默认开启，设置 `PCL3_GAME_INTRO_PREVIEW=0` 可关闭。`PCL3_LaunchIntro.mp4` 也作为独立 Release 资源提供。
+          新增 Minecraft Java 原版 26.3（Java 25）和 1.21.11（Java 21）；保留 1.21.1 原版、Fabric Loader 0.16.14、Forge 52.1.20 和 NeoForge 21.1.172。标题菜单绘出后，`>按下空格键进入游戏<` 淡入显示，文字不再使用黑底。
+          新版本已用真实客户端在隔离 Linux X11 上验证片头与交接；需要 GTK 3、Python GI/Cairo 及 GStreamer 解码与音频输出插件。
           Windows 仅通过交叉构建，尚未完成原生媒体运行验收。其他版本、原生 Wayland 和全屏不在验证范围内。
           EOF
-
-      - name: Stage the licensed intro asset for this release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          gh release download v0.4.3 --pattern PCL3_LaunchIntro.mp4 --dir "$RUNNER_TEMP"
-          test "$(stat -c%s "$RUNNER_TEMP/PCL3_LaunchIntro.mp4")" -eq 5209693
-          echo "e46a7af3098ee66b91d57a9f72b44153a65fb18d6a9f37bb8d63ea118b942692  $RUNNER_TEMP/PCL3_LaunchIntro.mp4" | sha256sum --check
-          cp "$RUNNER_TEMP/PCL3_LaunchIntro.mp4" ./PCL.GameIntro.Linux/PCL3_LaunchIntro.mp4
 
       - name: Create or update release
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3

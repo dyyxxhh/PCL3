@@ -9,6 +9,8 @@ public sealed record GameIntroLaunch(string AgentPath, string Endpoint, string P
         (gameVersion, loader, loaderVersion) switch
         {
             ("1.21.1", null or "vanilla", null) => "vanilla-1.21.1",
+            ("1.21.11", null or "vanilla", null) => "vanilla-1.21.11",
+            ("26.3", null or "vanilla", null) => "vanilla-26.3",
             ("1.21.1", "fabric", "0.16.14") => "fabric-1.21.1-0.16.14",
             ("1.21.1", "forge", "52.1.20") => "forge-1.21.1-52.1.20",
             ("1.21.1", "neoforge", "21.1.172") => "neoforge-1.21.1-21.1.172",
@@ -17,7 +19,7 @@ public sealed record GameIntroLaunch(string AgentPath, string Endpoint, string P
 
     public static bool MatchesEntryPoint(string profile, string? mainClass) => (profile, mainClass) switch
     {
-        ("vanilla-1.21.1", "net.minecraft.client.main.Main") => true,
+        ("vanilla-1.21.1" or "vanilla-1.21.11" or "vanilla-26.3", "net.minecraft.client.main.Main") => true,
         ("fabric-1.21.1-0.16.14", "net.fabricmc.loader.impl.launch.knot.KnotClient") => true,
         ("forge-1.21.1-52.1.20", "net.minecraftforge.bootstrap.ForgeBootstrap") => true,
         ("neoforge-1.21.1-21.1.172", "cpw.mods.bootstraplauncher.BootstrapLauncher") => true,
