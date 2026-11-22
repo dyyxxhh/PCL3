@@ -9,12 +9,12 @@ namespace PCL.Core.Shared;
 /// <summary>Downloads and safely expands authenticated game-intro payloads for local game-process consumption.</summary>
 public static class GameIntroBundle
 {
-    private const string Clip = "PCL3_LaunchIntro.mp4";
-    private const string ClipUrl = "https://github.com/dyyxxhh/PCL3/releases/latest/download/PCL3_LaunchIntro.mp4";
+    // Keep each pair of payload hashes tied to the release that published those bytes.
+    private const string AssetRelease = "https://github.com/dyyxxhh/PCL3/releases/download/v0.4.8/";
+    private const string ClipUrl = AssetRelease + "PCL3_LaunchIntro.mp4";
     private const string ClipHash = "84bc0cae7a5b47adb7726e8a263da52ff907f3841884e97905d752a25ca41029";
     private const long ClipLength = 14_408_526;
-    private const string Agent = "PCL3_LaunchIntroAgent.jar";
-    private const string AgentUrl = "https://github.com/dyyxxhh/PCL3/releases/latest/download/PCL3_LaunchIntroAgent.jar";
+    private const string AgentUrl = AssetRelease + "PCL3_LaunchIntroAgent.jar";
     private const string AgentHash = "ddaf62b2f9152e65ec5ab4e72d4683a054777370d2b35791ef639532867d287f";
     private const long AgentLength = 183_710;
     private static readonly string LocalData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData,
