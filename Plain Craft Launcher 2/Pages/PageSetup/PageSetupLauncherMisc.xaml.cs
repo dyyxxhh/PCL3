@@ -71,6 +71,7 @@ public partial class PageSetupLauncherMisc : IPageView
         // 系统设置
         _vm.Reload();
         CheckSystemDisableHardwareAcceleration.Checked = Config.System.DisableHardwareAcceleration;
+        CheckSystemGameIntro.Checked = Config.System.GameIntroEnabled;
         SliderMaxLog.Value = Config.System.MaxGameLog;
         // 网络
         ((MyRadioBox)FindName($"RadioHttpProxyType{Config.Network.HttpProxy.Type}")).SetChecked(true, false);

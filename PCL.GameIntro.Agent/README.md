@@ -10,9 +10,9 @@
 python3 PCL.GameIntro.Agent/build.py /absolute/asm-9.8.jar /absolute/PCL3_LaunchIntroAgent.jar
 ```
 
-通过 MSBuild 参数 `-p:PclGameIntroClip=/absolute/PCL3_LaunchIntro.mp4` 和 `-p:PclGameIntroAgent=/absolute/PCL3_LaunchIntroAgent.jar` 指定片头资源。构建脚本会生成 agent 随附的 `.sha256` 文件。正式发布使用仓库中获授权的 [原始 MP4](<../PCL.GameIntro.Linux/PCL3_LaunchIntro.mp4>)（1080p H.264、立体声 AAC、约 64.9 秒，14,408,526 字节），不重新编码。发布流程与启动器分别验证 SHA-256 `84bc0cae7a5b47adb7726e8a263da52ff907f3841884e97905d752a25ca41029`；普通 CI 与本地构建默认不嵌入。
+构建脚本会生成 agent 随附的 `.sha256` 文件。正式发布使用仓库中获授权的 [原始 MP4](<../PCL.GameIntro.Linux/PCL3_LaunchIntro.mp4>)（1080p H.264、立体声 AAC、约 64.9 秒，14,408,526 字节），不重新编码。发布流程与启动器分别验证 SHA-256 `84bc0cae7a5b47adb7726e8a263da52ff907f3841884e97905d752a25ca41029`；MP4 和 agent 作为独立 Release 资源提供，启动器和普通本地构建均不嵌入。
 
-用包含资源的发布包或本地构建启动下表中的配置。资源存在时，受支持的客户端默认启用片头；设置 `PCL3_GAME_INTRO_PREVIEW=0` 可关闭。MCM 已内嵌 Linux 播放助手，不需要额外下载；开发测试可通过 `PCL3_GAME_INTRO_LINUX_HOST` 指定 [host.py](<../PCL.GameIntro.Linux/host.py>) 的绝对路径。播放层依赖 GTK 3、Python GI/Cairo 以及 GStreamer H.264/AAC 解码和音频输出插件。X11 需要合成器和 `xprop`；原生 Wayland 需要 GTK 3 的 `gtk-layer-shell` GI 绑定和支持 layer-shell 的合成器（如 Hyprland），无需 `DISPLAY`。Linux 窗口和全屏均可使用片头；Wayland 覆盖当前输出，由游戏报告焦点，覆盖层不接收键盘或鼠标。Windows 全屏、没有 layer-shell 的 Wayland 合成器、未知类指纹和需要交互的首次无障碍引导会走普通启动路径。
+用包含独立资源的 Release 启动器开启片头时，用户需在设置中显式启用（Linux 使用 `mcm config set game.intro.enabled true`）。支持的客户端首次启动时按需下载 MP4 和 agent JAR；启动器会验证固定长度和 SHA-256 后缓存，安装程序和普通本地构建不包含这些资源。设置 `PCL3_GAME_INTRO_PREVIEW=0` 可强制关闭，`=1` 仅用于临时显式开启。MCM 已内嵌 Linux 播放助手，不需要另行下载脚本；开发测试可通过 `PCL3_GAME_INTRO_LINUX_HOST` 指定 [host.py](<../PCL.GameIntro.Linux/host.py>) 的绝对路径。播放层依赖 GTK 3、Python GI/Cairo 以及 GStreamer H.264/AAC 解码和音频输出插件。X11 需要合成器和 `xprop`；原生 Wayland 需要 GTK 3 的 `gtk-layer-shell` GI 绑定和支持 layer-shell 的合成器（如 Hyprland），无需 `DISPLAY`。Linux 窗口和全屏均可使用片头；Wayland 覆盖当前输出，由游戏报告焦点，覆盖层不接收键盘或鼠标。Windows 全屏、没有 layer-shell 的 Wayland 合成器、未知类指纹和需要交互的首次无障碍引导会走普通启动路径。
 
 ## 验证范围
 

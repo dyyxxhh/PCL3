@@ -14,6 +14,7 @@ internal static class McmConfiguration
         ["memory.max_mib"] = "auto",
         ["game.auto_language"] = "true", ["game.language"] = "zh-CN",
         ["game.window.mode"] = "default", ["game.window.width"] = "854", ["game.window.height"] = "480",
+        ["game.intro.enabled"] = "false",
         ["backup.enabled"] = "false", ["backup.scope"] = "saves", ["backup.retention"] = "5",
         ["tor.enabled"] = "true", ["tor.auto_bridges"] = "true", ["tor.bridges"] = "[]"
     };
@@ -187,7 +188,7 @@ internal static class McmConfiguration
 
     private static JsonNode ParseValue(string key, string value) => key switch
     {
-        "backup.enabled" or "tor.enabled" or "tor.auto_bridges" or "game.auto_language" => bool.TryParse(value, out var enabled)
+        "backup.enabled" or "tor.enabled" or "tor.auto_bridges" or "game.auto_language" or "game.intro.enabled" => bool.TryParse(value, out var enabled)
             ? JsonValue.Create(enabled)! : throw new ArgumentException($"{key} must be true or false."),
         "game.language" when !GameStartupOptionsFile.IsLanguageCode(value) =>
             throw new ArgumentException("game.language must look like zh-CN or en-US."),

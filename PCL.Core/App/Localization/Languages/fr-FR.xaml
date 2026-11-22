@@ -1,4 +1,4 @@
-﻿<!-- Formatted by xaml-lang-formatter at 2026-10-19T02:38:04. -->
+<!-- Formatted by xaml-lang-formatter at 2026-10-19T02:38:04. -->
 <ResourceDictionary
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -432,4 +432,6 @@
     <sys:String x:Key="Launch.Homepage.LoadFailed.Retry">Réessayer</sys:String>
     <sys:String x:Key="Launch.Homepage.SlowWarning">Le chargement de la page d'accueil est trop lent ({0} secondes). Veuillez signaler ce problème à l'auteur de la page d'accueil, ou cesser temporairement d'utiliser cette page.</sys:String>
 
+    <sys:String x:Key="Setup.Misc.System.GameIntro">Activer l’intro du jeu</sys:String>
+    <sys:String x:Key="Setup.Misc.System.GameIntro.ToolTip">Lorsqu’elle est activée, l’intro est téléchargée à la demande au premier lancement d’une version Minecraft compatible ; l’installateur ne l’inclut pas.</sys:String>
 </ResourceDictionary>

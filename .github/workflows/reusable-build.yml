@@ -13,11 +13,6 @@ on:
         description: 'Launcher build variant: framework (framework-dependent) or selfcontained (compressed, self-contained)'
         required: true
         type: string
-      include_game_intro:
-        description: 'Embed the verified release-only game-intro resources'
-        required: false
-        default: false
-        type: boolean
 
 permissions:
   contents: read
@@ -56,17 +51,8 @@ jobs:
       - name: Prepare pinned Tor runtime
         run: python3 scripts/prepare_tor_bundle.py windows-x86_64 "$RUNNER_TEMP/pcl3-tor-windows.tar.gz"
 
-      - name: Download verified game-intro inputs
-        if: ${{ inputs.include_game_intro }}
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          name: game-intro-inputs
-          path: ${{ runner.temp }}/game-intro
-
       - name: Build Project
         env:
-          INTRO_CLIP: ${{ inputs.include_game_intro && format('{0}/game-intro/PCL3_LaunchIntro.mp4', runner.temp) || '' }}
-          INTRO_AGENT: ${{ inputs.include_game_intro && format('{0}/game-intro/PCL3_LaunchIntroAgent.jar', runner.temp) || '' }}
           PCL_WRITE_SECRET: '1'
           PCL_MS_CLIENT_ID: ${{ secrets.CLIENT_ID }}
           PCL_CURSEFORGE_API_KEY: ${{ secrets.CURSEFORGE_API_KEY }}
@@ -83,12 +69,12 @@ jobs:
             --runtime ${{ inputs.architecture == 'ARM64' && 'win-arm64' || 'win-x64' }} --self-contained true \
             -p:IncludeNativeLibrariesForSelfExtract=true \
             -p:EnableCompressionInSingleFile=true \
-            -p:PclTorBundle="$RUNNER_TEMP/pcl3-tor-windows.tar.gz" -p:PclGameIntroClip="$INTRO_CLIP" -p:PclGameIntroAgent="$INTRO_AGENT" -p:DeleteExistingFiles=true -o ./artifact
+            -p:PclTorBundle="$RUNNER_TEMP/pcl3-tor-windows.tar.gz" -p:DeleteExistingFiles=true -o ./artifact
           elif [ "${{ inputs.variant }}" = "framework" ]; then
             dotnet publish "Plain Craft Launcher 2/Plain Craft Launcher 2.csproj" \
             -p:Configuration=${{ inputs.configuration }} -p:Platform=${{ inputs.architecture }} \
             --no-self-contained \
-            -p:PclTorBundle="$RUNNER_TEMP/pcl3-tor-windows.tar.gz" -p:PclGameIntroClip="$INTRO_CLIP" -p:PclGameIntroAgent="$INTRO_AGENT" -p:DeleteExistingFiles=true -o ./artifact
+            -p:PclTorBundle="$RUNNER_TEMP/pcl3-tor-windows.tar.gz" -p:DeleteExistingFiles=true -o ./artifact
           else
             echo "::error::Unknown launcher build variant: ${{ inputs.variant }}"
             exit 1

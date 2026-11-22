@@ -19,7 +19,8 @@ internal static class WindowsGameIntro
 
     internal static void TryAttach(ProcessStartInfo game, McInstance instance)
     {
-        if (!GameIntroLaunch.IsEnabled(Environment.GetEnvironmentVariable("PCL3_GAME_INTRO_PREVIEW")) ||
+        var environmentSetting = Environment.GetEnvironmentVariable("PCL3_GAME_INTRO_PREVIEW");
+        if ((environmentSetting != "1" && !Config.System.GameIntroEnabled) || environmentSetting == "0" ||
             GameStartupOptionsFile.IsFullscreen(instance.PathIndie) ||
             game.Arguments.Contains("--quickPlay", StringComparison.OrdinalIgnoreCase) ||
             game.Arguments.Contains("--fullscreen", StringComparison.OrdinalIgnoreCase)) return;
@@ -86,7 +87,7 @@ internal static class WindowsGameIntro
     internal static int RunHost(string[] args)
     {
         if (args.Length != 2 || args[0] != HostArgument || !Path.IsPathFullyQualified(args[1]) ||
-            !GameIntroBundle.TryPrepare(out var verifiedClip, out _) ||
+            !GameIntroBundle.TryPrepare(out var verifiedClip, out _, allowDownload: false) ||
             !Path.GetFullPath(args[1]).Equals(Path.GetFullPath(verifiedClip), StringComparison.OrdinalIgnoreCase)) return 2;
         if (Console.IsInputRedirected == false) return 2;
         using var inputDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(2));

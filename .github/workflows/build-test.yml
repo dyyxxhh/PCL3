@@ -59,7 +59,7 @@ jobs:
       - name: Test shared core
         run: dotnet test PCL.Core.Shared.Tests/PCL.Core.Shared.Tests.csproj --configuration Release
       - name: Build Linux CLI
-        run: dotnet publish PCL.Linux.Cli/PCL.Linux.Cli.csproj --configuration Release --runtime linux-x64 --self-contained true -p:PclGameIntroClip= -p:PclGameIntroAgent= -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o ./artifact
+        run: dotnet publish PCL.Linux.Cli/PCL.Linux.Cli.csproj --configuration Release --runtime linux-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o ./artifact
       - name: Smoke test CLI
         run: |
           ./artifact/mcm --help

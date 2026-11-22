@@ -10,7 +10,7 @@ on:
       configuration:
         description: 'Build configuration (Beta is published as prerelease)'
         required: true
-        default: Beta
+        default: Release
         type: choice
         options:
           - Release
@@ -33,29 +33,31 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  prepare_game_intro:
+  upload_game_intro:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Verify clip and build Java agent
+      - name: Prepare and verify standalone game-intro assets
         id: intro
         uses: ./.github/actions/prepare-game-intro
-      - name: Share the verified inputs with the build jobs
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - name: Upload game-intro assets to Release
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
-          name: game-intro-inputs
-          path: |
+          draft: true
+          target_commitish: ${{ github.sha }}
+          tag_name: v${{ inputs.version }}
+          fail_on_unmatched_files: true
+          files: |
             ${{ steps.intro.outputs.clip }}
+            ${{ steps.intro.outputs.clip }}.sha256
             ${{ steps.intro.outputs.agent }}
             ${{ steps.intro.outputs.agent }}.sha256
-          if-no-files-found: error
-          retention-days: 1
 
   build:
-    needs: [prepare_game_intro, changelog]
+    needs: changelog
     strategy:
       matrix:
         include:
@@ -78,7 +80,6 @@ jobs:
       configuration: ${{ matrix.configuration }}
       architecture: ${{ matrix.architecture }}
       variant: ${{ matrix.variant }}
-      include_game_intro: true
     secrets: inherit
 
   changelog:
@@ -145,7 +146,7 @@ jobs:
 
           ## 游戏启动片头（预览）
 
-          本次发布包内置新的原版音轨片头；支持的配置默认开启，设置 `PCL3_GAME_INTRO_PREVIEW=0` 可关闭。`PCL3_LaunchIntro.mp4` 也作为独立 Release 资源提供。
+          启动器不内置片头视频或 Java agent；受支持且启用片头的启动会按需下载并校验，成功后复用本地缓存。下载或校验失败时照常启动。`PCL3_LaunchIntro.mp4` 和 `PCL3_LaunchIntroAgent.jar` 及其 SHA-256 文件随 Release 单独提供。
           新增 Minecraft Java 原版 26.3（Java 25）和 1.21.11（Java 21）；保留 1.21.1 原版、Fabric Loader 0.16.14、Forge 52.1.20 和 NeoForge 21.1.172。标题菜单绘出后，`>按下空格键进入游戏<` 淡入显示，文字不再使用黑底。
           Linux 片头支持有合成器的 X11、支持 layer-shell 的 Wayland（如 Hyprland）以及全屏启动。需要 GTK 3、Python GI/Cairo 及 GStreamer 解码与音频输出插件；Wayland 另需 GTK 3 的 gtk-layer-shell 绑定，不依赖 XWayland。
           Windows 片头继续沿用现有窗口模式支持。缺少组件或不支持的客户端会照常启动。
@@ -164,7 +165,6 @@ jobs:
             PCL3_update.json
             MCM_skill.md
             MCM_skill.md.sha256
-            PCL.GameIntro.Linux/PCL3_LaunchIntro.mp4
           prerelease: ${{ inputs.configuration == 'Beta' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -248,15 +248,8 @@ jobs:
         run: dotnet test PCL.Core.Shared.Tests/PCL.Core.Shared.Tests.csproj --configuration Release
       - name: Prepare pinned Tor runtime
         run: python3 scripts/prepare_tor_bundle.py linux-x86_64 "$RUNNER_TEMP/pcl3-tor-linux.tar.gz"
-      - name: Download verified game-intro inputs
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          name: game-intro-inputs
-          path: ${{ runner.temp }}/game-intro
       - name: Publish Linux CLI
         env:
-          INTRO_CLIP: ${{ format('{0}/game-intro/PCL3_LaunchIntro.mp4', runner.temp) }}
-          INTRO_AGENT: ${{ format('{0}/game-intro/PCL3_LaunchIntroAgent.jar', runner.temp) }}
           PCL_WRITE_SECRET: '1'
           PCL_CURSEFORGE_API_KEY: ${{ secrets.CURSEFORGE_API_KEY }}
         run: |
@@ -268,7 +261,6 @@ jobs:
             --configuration Release --runtime linux-x64 --self-contained true \
             -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true \
             -p:UseSharedCompilation=false -p:PclTorBundle="$RUNNER_TEMP/pcl3-tor-linux.tar.gz" \
-            -p:PclGameIntroClip="$INTRO_CLIP" -p:PclGameIntroAgent="$INTRO_AGENT" \
             -p:McmReleaseVersion="${{ inputs.version }}" \
             -o ./linux-artifact
           test -x ./linux-artifact/mcm
@@ -291,7 +283,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   publish_draft:
-    needs: [rename_and_release, linux_cli_release]
+    needs: [rename_and_release, linux_cli_release, upload_game_intro]
     runs-on: ubuntu-latest
     steps:
       - name: Publish Draft

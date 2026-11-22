@@ -18,8 +18,7 @@ internal sealed class LinuxGameIntro(Process helper, GameIntroLaunch launch) : I
     internal static async Task<LinuxGameIntro?> TryStartAsync(string profile = "vanilla-1.21.1")
     {
         var wayland = !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("WAYLAND_DISPLAY"));
-        if (!GameIntroLaunch.IsEnabled(Environment.GetEnvironmentVariable("PCL3_GAME_INTRO_PREVIEW")) ||
-            (!wayland && string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("DISPLAY"))) ||
+        if ((!wayland && string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("DISPLAY"))) ||
             !File.Exists("/usr/bin/python3")) return null;
         Process? host = null;
         try

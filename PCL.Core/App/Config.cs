@@ -24,6 +24,11 @@ public static partial class Config
         [ConfigItem<bool>("SystemDisableHardwareAcceleration", false)] public partial bool DisableHardwareAcceleration { get; set; }
 
         /// <summary>
+        /// 游戏启动片头。开启后首次启动支持的游戏时按需下载片头资源。
+        /// </summary>
+        [ConfigItem<bool>("SystemGameIntroEnabled", false)] public partial bool GameIntroEnabled { get; set; }
+
+        /// <summary>
         /// 遥测。
         /// </summary>
         [ConfigItem<bool>("SystemTelemetry", false)] public partial bool Telemetry { get; set; }

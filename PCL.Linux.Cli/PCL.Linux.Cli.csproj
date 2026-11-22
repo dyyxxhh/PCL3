@@ -16,7 +16,7 @@
     <ProjectReference Include="..\PCL.Core.Shared\PCL.Core.Shared.csproj" />
     <ProjectReference Include="..\PCL.Core.SecretsGenerator\PCL.Core.SecretsGenerator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
-  <ItemGroup Condition="'$(PclGameIntroClip)' != '' and '$(PclGameIntroAgent)' != ''">
+  <ItemGroup>
     <EmbeddedResource Include="../PCL.GameIntro.Linux/host.py" LogicalName="PCL3_LinuxGameIntroHost.py" />
   </ItemGroup>
 </Project>

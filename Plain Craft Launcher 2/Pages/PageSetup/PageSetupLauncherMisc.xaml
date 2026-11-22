@@ -49,6 +49,7 @@
                             <RowDefinition Height="20" />
                         </Grid.RowDefinitions>
                         <local:MyCheckBox Grid.Row="0" Grid.Column="0" Text="{loc:Loc Setup.Misc.System.DisableHardwareAcceleration}" x:Name="CheckSystemDisableHardwareAcceleration" Tag="SystemDisableHardwareAcceleration" Change="CheckSystemDisableHardwareAcceleration_OnChange"/>
+                        <local:MyCheckBox Grid.Row="0" Grid.Column="1" Text="{loc:Loc Setup.Misc.System.GameIntro}" x:Name="CheckSystemGameIntro" Tag="SystemGameIntroEnabled" ToolTip="{loc:Loc Setup.Misc.System.GameIntro.ToolTip}" Change="CheckBoxChange"/>
 
                     </Grid>
                     <Grid Grid.Row="6" Grid.ColumnSpan="5">

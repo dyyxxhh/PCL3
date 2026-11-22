@@ -2944,6 +2944,8 @@
     <sys:String x:Key="Setup.Misc.System.Announcement.Disabled.Warning.Message">If you choose this option, you will not receive relevant notifications even when serious issues occur in the future.&#xA;For example, if a critical bug is found in a certain game version, you may miss the notification and face unpredictable consequences.&#xA;&#xA;In general, choosing 'Show announcements only when important' should keep you mostly undisturbed.&#xA;Unless you are creating a server modpack or frequently update the launcher manually, this option is strongly discouraged!</sys:String>
     <sys:String x:Key="Setup.Misc.System.Announcement.ImportantOnly">Show announcements only when important</sys:String>
     <sys:String x:Key="Setup.Misc.System.DisableHardwareAcceleration">Disable hardware acceleration</sys:String>
+    <sys:String x:Key="Setup.Misc.System.GameIntro">Enable game intro</sys:String>
+    <sys:String x:Key="Setup.Misc.System.GameIntro.ToolTip">When enabled, supported Minecraft versions download the intro on demand; the installer does not include these resources.</sys:String>
     <sys:String x:Key="Setup.Misc.System.ExportSettings">Export settings</sys:String>
     <sys:String x:Key="Setup.Misc.System.ExportSettings.Filter">PCL₃ config file (*.json)|*.json</sys:String>
     <sys:String x:Key="Setup.Misc.System.ExportSettings.SaveTitle">Select save location</sys:String>

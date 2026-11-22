@@ -219,15 +219,17 @@ MCM 默认根据系统可用内存预算设置 Java 最大堆（约四分之一�
 
 ## 游戏启动片头（预览）
 
-通常无需额外设置即可使用预览。支持片头资源的 MCM 发布包已内置 Linux 播放助手，无需另行下载脚本或设置脚本路径。可在支持 Layer Shell 的原生 Wayland 会话（如 Hyprland）或有合成器的 X11 会话启动受支持的客户端，Linux 全屏模式也适用。设置环境变量 `PCL3_GAME_INTRO_PREVIEW=0` 可关闭预览。
+片头默认关闭。需要显式开启全局开关：
 
 ```sh
-PCL3_GAME_INTRO_PREVIEW=0 mcm launch my
+mcm config set game.intro.enabled true
 ```
+
+开启后，首次启动支持的客户端时才从 PCL₃ Release 按需下载 MP4 和 Java agent；下载内容会校验固定长度和 SHA-256，并缓存到用户本地数据目录。安装包和 MCM 单文件不包含这两项资源；下载或校验失败时照常启动。设置环境变量 `PCL3_GAME_INTRO_PREVIEW=0` 可强制关闭，`=1` 可临时开启（优先于配置）。
 
 系统需要 `/usr/bin/python3`、GTK 3、Python GI/Cairo 和 GStreamer H.264/AAC 解码及音频输出组件（Arch 上可安装 `gst-libav`、`gst-plugins-good`）。Wayland 另需 `gtk-layer-shell`（GTK 3 的 GI 绑定，在 Arch 上由 `gtk-layer-shell` 提供），不需要 `DISPLAY`、XWayland 或 `xprop`；X11 仍需 `xprop`。Wayland 片头覆盖当前输出，不改变游戏自身的窗口或全屏设置。标题菜单绘出后才淡入 `>按下空格键进入游戏<`；此前按住空格需要松开重按。没有所需协议、依赖或支持的客户端指纹时照常启动，不保证无闪现。建议安装 Noto Sans CJK SC；客户端范围见 [片头说明](<../PCL.GameIntro.Agent/README.md#验证范围>)。
 
-`mcm update` 仍只替换单文件程序；助手随新程序更新，不会在磁盘上写出 Python 脚本。片头视频和 Java 桥接 JAR 仍由启动器验证后解包到用户本地数据目录。普通本地构建不含片头资源；开发预览可以显式设置 `PCL3_GAME_INTRO_LINUX_HOST` 指定受信任的绝对脚本路径，仅用于测试。
+`mcm update` 仍只替换单文件程序；助手随新程序更新，不会在磁盘上写出 Python 脚本。片头资源按需下载并缓存到用户本地数据目录；普通本地构建不含片头资源。开发预览可以显式设置 `PCL3_GAME_INTRO_LINUX_HOST` 指定受信任的绝对脚本路径，仅用于测试。
 
 ## 本地开发
 

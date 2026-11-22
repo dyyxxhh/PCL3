@@ -3,7 +3,7 @@ namespace PCL.Core.Shared.Minecraft;
 /// <summary>Private per-launch parameters connecting the verified JVM bridge to a local playback host.</summary>
 public sealed record GameIntroLaunch(string AgentPath, string Endpoint, string Profile = "vanilla-1.21.1")
 {
-    public static bool IsEnabled(string? setting) => setting != "0";
+    public static bool IsEnabled(string? setting) => setting == "1";
 
     public static string? SelectProfile(string? gameVersion, string? loader, string? loaderVersion) =>
         (gameVersion, loader, loaderVersion) switch

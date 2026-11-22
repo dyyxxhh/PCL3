@@ -335,7 +335,10 @@ internal static class Program
             StartupOptionsWarning = Console.Error.WriteLine
         };
         var introProfile = GameIntroLaunch.SelectProfile(managed?.GameVersion ?? version, managed?.Loader, managed?.LoaderVersion);
-        using var intro = introProfile is not null
+        var introEnabled = bool.TryParse(McmConfiguration.Get("game.intro.enabled", managed?.Name), out var configuredIntro) && configuredIntro;
+        if (Environment.GetEnvironmentVariable("PCL3_GAME_INTRO_PREVIEW") is { } introSetting)
+            introEnabled = GameIntroLaunch.IsEnabled(introSetting);
+        using var intro = introEnabled && introProfile is not null
             ? await LinuxGameIntro.TryStartAsync(introProfile).ConfigureAwait(false)
             : null;
         using var process = await installer.LaunchAsync(version, launchOptions with { Intro = intro?.Launch }).ConfigureAwait(false);

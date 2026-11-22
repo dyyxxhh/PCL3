@@ -1,5 +1,5 @@
 name: Prepare game-intro resources
-description: Verify the licensed repository clip and build the pinned Java agent
+description: Build the standalone game-intro assets and verify the launcher's content pins
 outputs:
   clip:
     description: Verified MP4 path
@@ -18,8 +18,13 @@ runs:
         clip="$RUNNER_TEMP/PCL3_LaunchIntro.mp4"
         agent="$RUNNER_TEMP/PCL3_LaunchIntroAgent.jar"
         cp -- "$source_clip" "$clip"
-        test "$(stat -c%s "$clip")" -eq 14408526
-        echo "84bc0cae7a5b47adb7726e8a263da52ff907f3841884e97905d752a25ca41029  $clip" | sha256sum --check
         curl --fail --location --retry 3 --max-time 90 --output "$RUNNER_TEMP/asm-9.8.jar" https://repo.maven.apache.org/maven2/org/ow2/asm/asm/9.8/asm-9.8.jar
-        python3 PCL.GameIntro.Agent/build.py "$RUNNER_TEMP/asm-9.8.jar" "$agent"
+        # javac output must match the class files behind the launcher pin, not the runner's default JDK.
+        PATH="${JAVA_HOME_17_X64:?Java 17 is required}/bin:$PATH" python3 PCL.GameIntro.Agent/build.py "$RUNNER_TEMP/asm-9.8.jar" "$agent"
+        python3 scripts/check_game_intro_release.py "$clip" "$agent"
+        (
+          cd "$RUNNER_TEMP"
+          sha256sum -- "${clip##*/}" > "${clip##*/}.sha256"
+          sha256sum -- "${agent##*/}" > "${agent##*/}.sha256"
+        )
         printf 'clip=%s\nagent=%s\n' "$clip" "$agent" >> "$GITHUB_OUTPUT"
