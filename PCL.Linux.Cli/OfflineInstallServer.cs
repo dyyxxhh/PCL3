@@ -109,7 +109,7 @@ internal sealed class OfflineInstallServer : IAsyncDisposable
         var peer = request.RemoteEndPoint?.Address.ToString() ?? "unknown";
         // Do not log arbitrary paths, query strings, Host/User-Agent headers or account data.
         var route = request.Url?.AbsolutePath;
-        var safeRoute = route is "/" or "/install.sh" or "/bundle.zip" or "/mcm" ? route : "[other]";
+        var safeRoute = route is "/" or "/install.sh" or "/direct" or "/bundle.zip" or "/mcm" ? route : "[other]";
         var method = request.HttpMethod is "GET" or "HEAD" ? request.HttpMethod : "[other]";
         var ranged = request.Headers["Range"] is not null;
         long sent = 0;
@@ -126,9 +126,11 @@ internal sealed class OfflineInstallServer : IAsyncDisposable
             {
                 case "/":
                 case "/install.sh":
+                case "/direct":
                     // The local socket, NOT the untrusted HTTP Host header, determines the origin.
                     if (request.LocalEndPoint is null) { response.StatusCode = 400; return; }
-                    var script = Encoding.UTF8.GetBytes(BuildScript(request.LocalEndPoint, _bundleHash, _launcherHash, _manifest, new FileInfo(_bundle).Length));
+                    var script = Encoding.UTF8.GetBytes(BuildScript(request.LocalEndPoint, _bundleHash, _launcherHash,
+                        _manifest, new FileInfo(_bundle).Length, direct: route == "/direct"));
                     response.ContentType = "text/x-shellscript; charset=utf-8";
                     response.ContentLength64 = script.Length;
                     if (request.HttpMethod == "GET")
@@ -239,7 +241,7 @@ internal sealed class OfflineInstallServer : IAsyncDisposable
             : address.IsIPv6LinkLocal || (bytes[0] & 0xFE) == 0xFC;
     }
 
-    internal static string BuildScript(IPEndPoint endpoint, string bundleHash, string launcherHash, OfflineBundleManifest manifest, long bundleSize)
+    internal static string BuildScript(IPEndPoint endpoint, string bundleHash, string launcherHash, OfflineBundleManifest manifest, long bundleSize, bool direct = false)
     {
         if (new[] { bundleHash, launcherHash }.Any(hash => hash.Length != 64 || !hash.All(char.IsAsciiHexDigit)))
             throw new ArgumentException("Invalid bootstrap checksum.");
@@ -357,11 +359,41 @@ internal sealed class OfflineInstallServer : IAsyncDisposable
             if ! "$mcm" offline import "$work/bundle.zip" --instance "$instance" --game-dir "$game_dir"; then
               fail '离线导入失败。若 MCM/Java 无法运行，请检查 glibc 和发行版系统库；不会自动联网补装。MCM 可执行文件已保留。'
             fi
-            printf '\n安装完成。下面的命令不会联网（请自行设置玩家名）：\n'
-            printf '  %q login offline <玩家名>\n' "$mcm"
-            printf '  %q launch %q --game-dir %q --offline\n' "$mcm" "$instance" "$game_dir"
-            printf '  %q offline doctor --instance %q --game-dir %q\n' "$mcm" "$instance" "$game_dir"
-            printf '%s\n' '提示：显卡驱动和 OpenGL/桌面系统库仍须由目标电脑的操作系统提供；请勿复制来源电脑的驱动。'
+            cleanup
+            trap - EXIT
+            manual_launch() {
+              printf '\n安装完成。下面的命令不会联网（请自行设置玩家名）：\n'
+              printf '  %q login offline <玩家名>\n' "$mcm"
+              printf '  %q launch %q --game-dir %q --offline\n' "$mcm" "$instance" "$game_dir"
+              printf '  %q offline doctor --instance %q --game-dir %q\n' "$mcm" "$instance" "$game_dir"
+            }
+            if [[ '{{{(direct ? "direct" : "interactive")}}}' == direct ]]; then
+              manual_launch
+              printf '%s\n' '提示：显卡驱动和 OpenGL/桌面系统库仍须由目标电脑的操作系统提供；请勿复制来源电脑的驱动。'
+              exit 0
+            fi
+            printf '\n%s\n' '安装完成。显卡驱动和 OpenGL/桌面系统库仍须由目标电脑提供。'
+            # stdin belongs to the installer when invoked with curl | bash.
+            if ! { exec {terminal}<>/dev/tty; } 2>/dev/null; then
+              manual_launch
+              fail '没有可交互的终端，未登录或启动。无人值守安装请使用 /direct。'
+            fi
+            valid_name() { local LC_ALL=C; [[ "$1" =~ ^[a-zA-Z0-9_]{3,16}$ ]]; }
+            while :; do
+              printf '%s' '请输入离线用户名（3–16 位字母、数字或下划线）：' >&"$terminal"
+              if ! IFS= read -r player <&"$terminal"; then
+                manual_launch
+                fail '未输入用户名，未登录或启动。'
+              fi
+              if valid_name "$player"; then break; fi
+              printf '%s\n' '用户名无效，请重试。' >&"$terminal"
+            done
+            exec {terminal}>&-
+            if ! "$mcm" login offline "$player"; then
+              manual_launch
+              fail '离线登录失败，未启动游戏。'
+            fi
+            "$mcm" launch "$instance" --game-dir "$game_dir" --offline
             """ + "\n";
     }
 

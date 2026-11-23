@@ -4,11 +4,14 @@
 All game/Java/account data are independent fixtures. No real account or internet
 service is contacted; invalid outbound proxies make accidental HTTP use fail.
 """
+import errno
 import hashlib
 import http.server
 import json
 import os
 from pathlib import Path
+import pty
+import select
 import signal
 import socket
 import stat
@@ -20,6 +23,43 @@ import time
 import urllib.error
 import urllib.request
 import zipfile
+
+
+def run_with_terminal(command, env, replies):
+    pid, terminal = pty.fork()
+    if pid == 0:
+        os.execvpe(command[0], command, env)
+    output = bytearray()
+    prompt = '请输入离线用户名'.encode()
+    sent = 0
+    deadline = time.monotonic() + 120
+    try:
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0 or not select.select([terminal], [], [], remaining)[0]:
+                raise AssertionError(('installer timed out', output.decode(errors='replace')))
+            try:
+                chunk = os.read(terminal, 65536)
+            except OSError as exc:
+                if exc.errno != errno.EIO:
+                    raise
+                break  # Linux PTYs signal slave closure with EIO.
+            if not chunk:
+                break
+            output.extend(chunk)
+            if sent < len(replies) and output.count(prompt) > sent:
+                os.write(terminal, replies[sent])
+                sent += 1
+        _, status = os.waitpid(pid, 0)
+        pid = None
+        text = output.decode(errors='replace')
+        assert sent == len(replies), text
+        return os.waitstatus_to_exitcode(status), text
+    finally:
+        os.close(terminal)
+        if pid is not None:
+            os.kill(pid, signal.SIGKILL)
+            os.waitpid(pid, 0)
 
 
 def main():
@@ -205,9 +245,12 @@ def main():
                         raise AssertionError("offline server did not become ready")
                     time.sleep(0.1)
 
-            def bootstrap(env, expected=0):
-                result = subprocess.run(["bash", "-c", f"set -o pipefail; curl -fsS --noproxy '*' {origin}/ | bash"],
-                                        env=env, capture_output=True, text=True, timeout=120)
+            def bootstrap_command(route):
+                return ["bash", "-c", f"set -o pipefail; curl -fsS --noproxy '*' {origin}{route} | bash"]
+
+            def bootstrap(env, expected=0, route="/direct"):
+                result = subprocess.run(bootstrap_command(route), env=env, start_new_session=True,
+                                        capture_output=True, text=True, timeout=120)
                 assert result.returncode == expected, (result.returncode, result.stdout, result.stderr)
                 return result.stdout + result.stderr
 
@@ -226,11 +269,44 @@ def main():
             assert not profile.exists()
             marker = lan_instance / "keep.txt"
             marker.write_text("keep", encoding="utf-8")
-            bootstrap(client_environment, expected=1)
+            launch_args = Path(environment["MCM_TEST_ARGS"])
+            launch_args.unlink()
+            assert not profile.exists()
+            bootstrap(client_environment, expected=1, route="/")
             assert marker.read_text() == "keep"
+            assert not profile.exists() and not launch_args.exists()
+
+            no_terminal = bootstrap(client_environment | {"MCM_INSTANCE": "NoTerminal"}, expected=1, route="/")
+            assert "没有可交互的终端" in no_terminal and "安装完成" in no_terminal
+            assert (lan_game / "instances" / "NoTerminal" / "mcm-instance.json").exists()
+            assert not profile.exists() and not launch_args.exists()
+
+            interactive_env = client_environment | {"USER": "SystemOnly", "LOGNAME": "SystemOnly"}
+            run("login", "offline", "ExistingName", env=interactive_env)
+            existing_profile = profile.read_bytes()
+            status, output = run_with_terminal(bootstrap_command("/"),
+                                               interactive_env | {"MCM_INSTANCE": "CancelledPrompt"}, [b"\x04"])
+            assert status == 1 and "未输入用户名，未登录或启动" in output, output
+            assert (lan_game / "instances" / "CancelledPrompt" / "mcm-instance.json").exists()
+            assert profile.read_bytes() == existing_profile and not launch_args.exists()
+
+            status, output = run_with_terminal(bootstrap_command("/install.sh"),
+                                               interactive_env | {"MCM_INSTANCE": "Interactive"},
+                                               [b"\n", b"not a name\n", b"Entered_Name\n"])
+            assert status == 0 and output.count("用户名无效") == 2, output
+            assert output.index("安装完成") < output.index("请输入离线用户名") < output.index("已选择离线账户")
+            assert json.loads(profile.read_text())["userName"] == "Entered_Name"
+            args = launch_args.read_text().splitlines()
+            assert "Entered_Name" in args and "ExistingName" not in args and "SystemOnly" not in args
+            assert str(lan_game / "instances" / "Interactive") in args, args
+            launch_args.unlink()
+            installed_profile = profile.read_bytes()
             second_output = bootstrap(client_environment | {"MCM_INSTANCE": "SecondInstance", "MCM_DOWNLOAD_CONNECTIONS": "1"})
             assert "使用 1 个连接下载" in second_output
             assert (lan_game / "instances" / "SecondInstance" / "mcm-instance.json").exists()
+            assert profile.read_bytes() == installed_profile and not launch_args.exists()
+            with opener.open(origin + "/direct", timeout=5) as response:
+                install_script = response.read().decode()
             # Independent HTTP fixture: range failures must fall back, never install partial data;
             # cancellation must stop every background curl and remove staging files.
             payloads = {"/mcm": executable.read_bytes(), "/bundle.zip": bundle.read_bytes()}

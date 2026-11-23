@@ -260,6 +260,8 @@ public partial class FormMain
                             }
                     }
 
+                if (States.System.LauncherEula) WindowsOfflineLaunch.TryStart();
+
                 // 启动加载器池
                 try
                 {

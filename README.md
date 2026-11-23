@@ -70,7 +70,7 @@ mcm -R sodium.jar.disabled --instance MyGame
 mcm launch MyGame
 ```
 
-首期完整离线安装面向 Linux x86_64/glibc：`mcm offline export` 将实例、完整 Java 和 self-contained MCM 打包，`offline import` 在完全断网的电脑导入；`offline serve` 提供局域网 `curl | bash` 安装。显卡驱动和发行版系统库仍需目标系统准备；Windows 的完整离线包与局域网安装见 [Windows 离线安装说明](docs/windows-offline-install.md)。启动时使用 `--offline` 可禁止启动器自动下载与账户刷新。
+首期完整离线安装面向 Linux x86_64/glibc：`mcm offline export` 将实例、完整 Java 和 self-contained MCM 打包，`offline import` 在完全断网的电脑导入；`offline serve` 提供局域网 `curl | bash` 安装，安装成功后须由用户输入离线用户名才启动；`/direct` 只安装。显卡驱动和发行版系统库仍需目标系统准备；Windows 的完整离线包与局域网安装见 [Windows 离线安装说明](docs/windows-offline-install.md)。启动时使用 `--offline` 可禁止启动器自动下载与账户刷新。
 
 `-R` 删除模组；只想暂时停用时使用 `mod disable`，恢复使用 `mod enable`。完整安装、登录、更新和迁移说明见 [MCM Linux CLI README](PCL.Linux.Cli/README.md)。
 

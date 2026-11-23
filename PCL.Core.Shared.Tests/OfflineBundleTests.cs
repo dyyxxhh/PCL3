@@ -29,6 +29,61 @@ public sealed class OfflineBundleTests
     }
 
     [TestMethod]
+    public async Task WindowsLanRoutesDistinguishInteractiveLaunchFromDirectInstall()
+    {
+        var runtime = $"win-{System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture.ToString().ToLowerInvariant()}";
+        if (runtime is not ("win-x64" or "win-arm64")) Assert.Inconclusive("Requires an x64 or ARM64 test host.");
+        var root = Directory.CreateTempSubdirectory("pcl-windows-lan-test-").FullName;
+        try
+        {
+            var launcher = Path.Combine(root, "PCL3.exe");
+            var bundle = Path.Combine(root, "offline.zip");
+            const string instance = "Fixture-World";
+            await File.WriteAllTextAsync(launcher, "fixture launcher");
+            using (var archive = ZipFile.Open(bundle, ZipArchiveMode.Create))
+            {
+                OfflineBundleFile Add(string path, byte[] data)
+                {
+                    using var stream = archive.CreateEntry(path).Open();
+                    stream.Write(data);
+                    return new(path, data.Length, Convert.ToHexString(SHA256.HashData(data)), false);
+                }
+                var manifest = new OfflineBundleManifest("mcm-offline", 2, runtime, DateTimeOffset.UtcNow,
+                    new OfflineInstanceMetadata(instance, "1.20.1", null, null, "1.20.1"), 17,
+                    OfflineBundleService.WindowsJavaExecutable, OfflineBundleService.WindowsLauncherPath,
+                    [Add("instance/" + OfflineBundleService.WindowsJavaExecutable, "java fixture"u8.ToArray()),
+                     Add(OfflineBundleService.WindowsLauncherPath, File.ReadAllBytes(launcher)),
+                     Add("instance/versions/1.20.1/1.20.1.json", "{}"u8.ToArray())]) { Layout = "pcl-windows" };
+                using var metadata = archive.CreateEntry(OfflineBundleService.ManifestPath).Open();
+                await System.Text.Json.JsonSerializer.SerializeAsync(metadata, manifest,
+                    new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web));
+            }
+            await using var server = await WindowsOfflineDistributionServer.StartAsync(new(bundle, launcher, runtime, instance), IPAddress.Loopback, 0);
+            using var client = new HttpClient(new HttpClientHandler { UseProxy = false }) { BaseAddress = new Uri(server.Origin) };
+            var interactive = await client.GetStringAsync("/");
+            var direct = await client.GetStringAsync("/direct");
+            Assert.AreEqual(interactive, await client.GetStringAsync("/install.ps1"));
+            StringAssert.Contains(interactive, "'Fixture-World'");
+            StringAssert.Contains(interactive, "offline-import");
+            StringAssert.Contains(direct, "offline-import");
+            StringAssert.Contains(interactive, "offline-launch");
+            Assert.DoesNotContain("offline-launch", direct);
+            static string DecodeCommand(string command) => Encoding.Unicode.GetString(Convert.FromBase64String(command.Split(' ')[^1]));
+            foreach (var command in new[] { server.PowerShellCommand, server.CmdCommand })
+                StringAssert.Contains(DecodeCommand(command), server.Origin + "/install.ps1");
+            foreach (var command in new[] { server.DirectPowerShellCommand, server.DirectCmdCommand })
+                StringAssert.Contains(DecodeCommand(command), server.Origin + "/direct");
+            using var head = await client.SendAsync(new HttpRequestMessage(HttpMethod.Head, "/direct"));
+            Assert.AreEqual(HttpStatusCode.OK, head.StatusCode);
+            Assert.AreEqual(Encoding.UTF8.GetByteCount(direct), head.Content.Headers.ContentLength);
+            Assert.AreEqual(0, (await head.Content.ReadAsByteArrayAsync()).Length);
+            using var query = await client.GetAsync("/direct?extra=1");
+            Assert.AreEqual(HttpStatusCode.NotFound, query.StatusCode);
+        }
+        finally { Directory.Delete(root, true); }
+    }
+
+    [TestMethod]
     public async Task WindowsBundleV2CanBeInspectedButNotImportedOnLinux()
     {
         if (!OperatingSystem.IsLinux()) Assert.Inconclusive("This assertion targets a Linux test host.");

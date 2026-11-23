@@ -131,7 +131,7 @@ public partial class PageInstanceExport : IRefreshable, IPageView
             if (_offlineServer is not null) await _offlineServer.DisposeAsync();
             _offlineServer = await WindowsOfflineDistributionServer.StartAsync(
                 new WindowsOfflineDistributionPackage(destination, launcherPath, manifest.TargetRuntime, manifest.Instance.Name), address);
-            var commandText = $"PowerShell:\r\n{_offlineServer.PowerShellCommand}\r\n\r\nCMD:\r\n{_offlineServer.CmdCommand}\r\n\r\n仅限可信局域网。SHA-256 校验不能验证分发者身份。服务地址：{_offlineServer.Origin}";
+            var commandText = $"默认（安装后询问离线用户名并启动）：\r\nPowerShell:\r\n{_offlineServer.PowerShellCommand}\r\n\r\nCMD:\r\n{_offlineServer.CmdCommand}\r\n\r\n仅安装（/direct，保留原行为）：\r\nPowerShell:\r\n{_offlineServer.DirectPowerShellCommand}\r\n\r\nCMD:\r\n{_offlineServer.DirectCmdCommand}\r\n\r\n仅限可信局域网。SHA-256 校验不能验证分发者身份。服务地址：{_offlineServer.Origin}";
             switch (Launcher.MyMsgBox(commandText, "离线包已就绪", "复制 PowerShell 命令", "复制 CMD 命令", "停止局域网共享"))
             {
                 case 1: Clipboard.SetText(_offlineServer.PowerShellCommand); HintService.Hint("PowerShell 命令已复制"); break;

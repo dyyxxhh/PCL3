@@ -50,13 +50,21 @@ public sealed class OfflineInstallServerTests
             StringAssert.Contains(script, "--range");
             StringAssert.Contains(script, "KiB/s | ETA");
             Assert.IsFalse(script.Contains("https://", StringComparison.Ordinal));
+            StringAssert.Contains(script, "[[ 'interactive' == direct ]]");
+            Assert.AreEqual(script, await client.GetStringAsync("/install.sh"));
+            var direct = await client.GetStringAsync("/direct");
+            Assert.AreEqual(script.Replace("[[ 'interactive' == direct ]]", "[[ 'direct' == direct ]]", StringComparison.Ordinal), direct);
+            using var directHead = await client.SendAsync(new HttpRequestMessage(HttpMethod.Head, "/direct"));
+            Assert.AreEqual(HttpStatusCode.OK, directHead.StatusCode);
+            Assert.AreEqual(System.Text.Encoding.UTF8.GetByteCount(direct), directHead.Content.Headers.ContentLength);
+            Assert.AreEqual(0, (await directHead.Content.ReadAsByteArrayAsync()).Length);
             CollectionAssert.AreEqual(await File.ReadAllBytesAsync(fixture.Launcher), await client.GetByteArrayAsync("/mcm"));
             CollectionAssert.AreEqual(await File.ReadAllBytesAsync(fixture.Bundle), await client.GetByteArrayAsync("/bundle.zip"));
             using var head = await client.SendAsync(new HttpRequestMessage(HttpMethod.Head, "/bundle.zip"));
             Assert.AreEqual(HttpStatusCode.OK, head.StatusCode);
             Assert.AreEqual(new FileInfo(fixture.Bundle).Length, head.Content.Headers.ContentLength);
             Assert.AreEqual(0, (await head.Content.ReadAsByteArrayAsync()).Length);
-            foreach (var path in new[] { "/etc/passwd", "/mcm-offline.json", "/bundle.zip?path=private", "/bootstrap/mcm", "/selected-profile.json" })
+            foreach (var path in new[] { "/etc/passwd", "/mcm-offline.json", "/bundle.zip?path=private", "/direct?mode=other", "/bootstrap/mcm", "/selected-profile.json" })
             {
                 using var missing = await client.GetAsync(path);
                 Assert.AreEqual(HttpStatusCode.NotFound, missing.StatusCode, path);

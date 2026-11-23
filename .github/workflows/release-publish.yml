@@ -125,6 +125,16 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Document the Windows LAN install caveat
+        if: inputs.version == '0.4.9'
+        run: |
+          cat >> CHANGELOG.md <<'EOF'
+
+          ## Windows 局域网安装：兼容性提示
+
+          **Windows 版的「安装后输入离线用户名并自动启动刚安装的实例」只通过了交叉构建和 HTTP 路由测试，未做 Windows 真机验收，可能无法正常使用。** 如只需安装，请使用导出页面提供的 `/direct` 命令；它不会询问用户名、切换账号或自动启动游戏。Linux 的默认交互安装已通过端到端测试。
+          EOF
+
       - name: Append download guide
         run: |
           cat >> CHANGELOG.md <<'EOF'

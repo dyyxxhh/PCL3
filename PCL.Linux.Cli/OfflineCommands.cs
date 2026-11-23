@@ -140,7 +140,8 @@ internal static class OfflineCommands
                 foreach (var address in addresses.OrderBy(address => IPAddress.IsLoopback(address)))
                 {
                     var url = new UriBuilder("http", address.ToString(), port).Uri.AbsoluteUri;
-                    Console.WriteLine($"  curl -fS --noproxy '*' {url} | bash");
+                    Console.WriteLine($"  安装并交互式离线启动：curl -fS --noproxy '*' {url} | bash");
+                    Console.WriteLine($"  仅安装（无需交互）：curl -fS --noproxy '*' {url}direct | bash");
                 }
                 Console.WriteLine("Client needs Linux x86_64/glibc, bash, curl and coreutils, but no Java, .NET, MCM or internet.");
                 Console.WriteLine("Client downloads show progress/speed/ETA and use 4 parallel connections for large files (MCM_DOWNLOAD_CONNECTIONS=1..8).");

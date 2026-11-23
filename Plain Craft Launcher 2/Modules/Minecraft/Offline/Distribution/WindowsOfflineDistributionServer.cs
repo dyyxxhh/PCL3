@@ -44,13 +44,24 @@ public sealed class WindowsOfflineDistributionServer : IAsyncDisposable
     private void SetOrigin(IPAddress address, int port)
     {
         Origin = new UriBuilder("http", address.ToString(), port).Uri.GetLeftPart(UriPartial.Authority);
-        PowerShellCommand = "$request=[Net.HttpWebRequest]::Create('" + Origin + "/install.ps1');$request.Proxy=$null;$request.AllowAutoRedirect=$false;$request.Timeout=15000;$request.ReadWriteTimeout=15000;$response=$request.GetResponse();try{if([int]$response.StatusCode -ne 200 -or $response.ContentLength -lt 1 -or $response.ContentLength -gt 65536){throw 'Invalid installer response'};$reader=[IO.StreamReader]::new($response.GetResponseStream());try{$installer=[scriptblock]::Create($reader.ReadToEnd())}finally{$reader.Dispose()}}finally{$response.Dispose()};& $installer";
-        CmdCommand = $"powershell.exe -NoLogo -NoProfile -Command \"try {{ {PowerShellCommand} }} catch {{ [Console]::Error.WriteLine($_); exit 1 }}\"";
+        PowerShellCommand = BuildCommand(Origin + "/install.ps1");
+        CmdCommand = PowerShellCommand;
+        DirectPowerShellCommand = BuildCommand(Origin + "/direct");
+        DirectCmdCommand = DirectPowerShellCommand;
+
+        string BuildCommand(string url)
+        {
+            var script = "$request=[Net.HttpWebRequest]::Create('" + url + "');$request.Proxy=$null;$request.AllowAutoRedirect=$false;$request.Timeout=15000;$request.ReadWriteTimeout=15000;$response=$request.GetResponse();try{if([int]$response.StatusCode -ne 200 -or $response.ContentLength -lt 1 -or $response.ContentLength -gt 65536){throw 'Invalid installer response'};$reader=[IO.StreamReader]::new($response.GetResponseStream());try{$installer=[scriptblock]::Create($reader.ReadToEnd())}finally{$reader.Dispose()}}finally{$response.Dispose()};& $installer";
+            var command = $"try {{ {script} }} catch {{ [Console]::Error.WriteLine($_); exit 1 }}";
+            return "powershell.exe -NoLogo -NoProfile -EncodedCommand " + Convert.ToBase64String(Encoding.Unicode.GetBytes(command));
+        }
     }
 
     public string Origin { get; private set; } = "";
     public string PowerShellCommand { get; private set; } = "";
     public string CmdCommand { get; private set; } = "";
+    public string DirectPowerShellCommand { get; private set; } = "";
+    public string DirectCmdCommand { get; private set; } = "";
 
     public static async Task<WindowsOfflineDistributionServer> StartAsync(WindowsOfflineDistributionPackage package,
         IPAddress bind, int port = 5078, Action<string>? log = null, CancellationToken cancellationToken = default)
@@ -102,7 +113,7 @@ public sealed class WindowsOfflineDistributionServer : IAsyncDisposable
         var timer = Stopwatch.StartNew();
         var route = context.Request.Path.Value switch
         {
-            "/" => "/", "/install.ps1" => "/install.ps1", "/PCL3.exe" => "/PCL3.exe", "/bundle.zip" => "/bundle.zip", _ => "[other]"
+            "/" => "/", "/install.ps1" => "/install.ps1", "/direct" => "/direct", "/PCL3.exe" => "/PCL3.exe", "/bundle.zip" => "/bundle.zip", _ => "[other]"
         };
         var method = context.Request.Method is "GET" or "HEAD" ? context.Request.Method : "[other]";
         var peer = context.Connection.RemoteIpAddress;
@@ -116,9 +127,9 @@ public sealed class WindowsOfflineDistributionServer : IAsyncDisposable
             if (peer is null || !IsLanAddress(peer)) { context.Response.StatusCode = StatusCodes.Status403Forbidden; return; }
             if (method == "[other]") { context.Response.StatusCode = StatusCodes.Status405MethodNotAllowed; context.Response.Headers.Allow = "GET, HEAD"; return; }
             if (context.Request.QueryString.HasValue) { context.Response.StatusCode = StatusCodes.Status404NotFound; return; }
-            if (route is "/" or "/install.ps1")
+            if (route is "/" or "/install.ps1" or "/direct")
             {
-                var bytes = Encoding.UTF8.GetBytes(BuildInstallScript(_package, Origin, _bundleHash, _launcherHash, _bundleSize, _launcherSize));
+                var bytes = Encoding.UTF8.GetBytes(BuildInstallScript(_package, Origin, _bundleHash, _launcherHash, _bundleSize, _launcherSize, route == "/direct"));
                 context.Response.ContentType = route == "/" ? "text/plain; charset=utf-8" : "text/plain; charset=utf-8";
                 context.Response.ContentLength = bytes.Length;
                 if (method == "GET") { await context.Response.Body.WriteAsync(bytes, timeout.Token).ConfigureAwait(false); sent = bytes.Length; }
@@ -207,12 +218,21 @@ public sealed class WindowsOfflineDistributionServer : IAsyncDisposable
             : address.IsIPv6LinkLocal || (bytes[0] & 0xFE) == 0xFC;
     }
 
-    private static string BuildInstallScript(WindowsOfflineDistributionPackage package, string origin, string bundleHash, string launcherHash, long bundleSize, long launcherSize)
+    private static string BuildInstallScript(WindowsOfflineDistributionPackage package, string origin, string bundleHash, string launcherHash, long bundleSize, long launcherSize, bool direct)
     {
+        var launchStep = direct
+            ? ""
+            : "\nStart-Process -FilePath $target -ArgumentList (('offline-launch', '--game-dir', (QuoteNativeArgument $GameDirectory), '--instance', (QuoteNativeArgument $InstanceName)) -join ' ') | Out-Null";
         return $$"""
             param([string]$InstallDirectory = (Join-Path $env:LOCALAPPDATA 'PCL3'), [string]$GameDirectory = '', [string]$InstanceName = '{{EscapePs(package.InstanceName)}}', [ValidateRange(1,8)][int]$Connections = 4)
             $ErrorActionPreference = 'Stop'
             if (-not $GameDirectory) { $GameDirectory = Join-Path $InstallDirectory '.minecraft' }
+            $GameDirectory = [IO.Path]::GetFullPath($GameDirectory)
+            # Start-Process joins its ArgumentList into a Windows native command line.
+            # Double backslashes before a literal quote and before the closing quote.
+            function QuoteNativeArgument([string]$value) {
+              '"' + (($value -replace '(\\*)"', '$1$1\"') -replace '(\\+)$', '$1$1') + '"'
+            }
             if (-not [Environment]::Is64BitOperatingSystem -or [Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString().ToLowerInvariant() -ne '{{package.TargetRuntime[4..]}}') { throw 'Windows 架构与离线包不匹配。' }
             $origin = '{{origin}}'; $bundleHash = '{{bundleHash}}'; $launcherHash = '{{launcherHash}}'
             $temp = Join-Path ([IO.Path]::GetTempPath()) ('pcl3-offline-' + [guid]::NewGuid().ToString('N')); New-Item -ItemType Directory -Path $temp | Out-Null; $activeJobs = [Collections.Generic.List[object]]::new()
@@ -251,8 +271,9 @@ public sealed class WindowsOfflineDistributionServer : IAsyncDisposable
               New-Item -ItemType Directory -Force -Path $InstallDirectory | Out-Null; $target=Join-Path $InstallDirectory 'PCL3.exe'
               if (Test-Path -LiteralPath $target) { if ((Get-FileHash -LiteralPath $target -Algorithm SHA256).Hash.ToLowerInvariant() -ne $launcherHash) { throw "已有不同版本的 PCL3.exe：$target；不会覆盖。" } } else { [IO.File]::Move($exe,$target) }
               New-Item -ItemType Directory -Force -Path $GameDirectory | Out-Null
-              $quoted = 'offline-import --bundle "' + $zip + '" --game-dir "' + $GameDirectory + '" --instance "' + $InstanceName + '"'; $process=Start-Process -FilePath $target -ArgumentList $quoted -Wait -PassThru; if ($process.ExitCode -ne 0) { throw "离线导入失败，退出代码 $($process.ExitCode)" }; Write-Host "安装完成：$GameDirectory\versions\$InstanceName"
-            } finally { foreach ($job in $activeJobs) { Stop-Job $job -ErrorAction SilentlyContinue; Wait-Job $job -ErrorAction SilentlyContinue | Out-Null; Remove-Job $job -Force -ErrorAction SilentlyContinue }; Remove-Item -LiteralPath $temp -Recurse -Force -ErrorAction SilentlyContinue; Write-Progress -Activity 'Offline install' -Completed }
+              $quoted = ('offline-import', '--bundle', (QuoteNativeArgument $zip), '--game-dir', (QuoteNativeArgument $GameDirectory), '--instance', (QuoteNativeArgument $InstanceName)) -join ' '
+              $process=Start-Process -FilePath $target -ArgumentList $quoted -Wait -PassThru; if ($process.ExitCode -ne 0) { throw "离线导入失败，退出代码 $($process.ExitCode)" }; Write-Host "安装完成：$GameDirectory\versions\$InstanceName"
+            } finally { foreach ($job in $activeJobs) { Stop-Job $job -ErrorAction SilentlyContinue; Wait-Job $job -ErrorAction SilentlyContinue | Out-Null; Remove-Job $job -Force -ErrorAction SilentlyContinue }; Remove-Item -LiteralPath $temp -Recurse -Force -ErrorAction SilentlyContinue; Write-Progress -Activity 'Offline install' -Completed }{{launchStep}}
             """;
     }
 

@@ -61,7 +61,7 @@ ZIP 由 `PCL.Core.Shared/OfflineBundleService.cs` 处理，不是 `.mrpack` 或 
 
 ## LAN 分发
 
-`PCL.Linux.Cli/OfflineInstallServer.cs` 启动前验证整个包，将其中的 bootstrap 提取到仅当前用户可读的临时目录。服务支持单范围 `Range: bytes=...`（有效请求返回 `206`，无效/多范围返回 `416`），并只提供固定 GET/HEAD 端点：根路径和 `/install.sh` 返回脚本，`/mcm` 返回包内启动器，`/bundle.zip` 返回原 ZIP。不是通用文件服务器，不接受上传，也不把 URL 映射到磁盘路径。
+`PCL.Linux.Cli/OfflineInstallServer.cs` 启动前验证整个包，将其中的 bootstrap 提取到仅当前用户可读的临时目录。服务支持单范围 `Range: bytes=...`（有效请求返回 `206`，无效/多范围返回 `416`），并只提供固定 GET/HEAD 端点：根路径和 `/install.sh` 返回交互安装脚本，`/direct` 返回仅安装脚本，`/mcm` 返回包内启动器，`/bundle.zip` 返回原 ZIP。不是通用文件服务器，不接受上传，也不把 URL 映射到磁盘路径。
 
 仅接受回环、RFC 1918、链路本地和 IPv6 ULA 对端。脚本的下载地址由服务端本地 socket 的 IP/端口生成，不信任 HTTP Host 或转发头；实例名按 Bash 单引号规则转义。curl 不使用代理、不跟随重定向，限定 HTTP 和当前 LAN 地址。两次下载都先验证启动时固定的 SHA-256，才执行 MCM 或写入安装路径；导入又检查包内每个文件。服务期间原 ZIP 如有变化，客户端会因固定校验和不符而停止。
 
@@ -69,19 +69,21 @@ ZIP 由 `PCL.Core.Shared/OfflineBundleService.cs` 处理，不是 `.mrpack` 或 
 
 Bash 脚本使用目标机已有的 `bash`、`curl`、`coreutils`，不访问包管理器或任何外部下载站点。安装同样不覆盖已有不同版本 MCM；若游戏导入失败，已安装的 MCM 留在原位便于诊断，临时下载文件仍会清理。实例导入本身是事务；“CLI 安装 + 实例安装”不声称是跨文件系统事务。
 
+默认脚本在导入成功后通过控制终端询问离线用户名，不使用系统用户名或已有账户作为默认值。用户确认有效名称后，MCM 离线登录并启动本次导入的实例；没有控制终端或取消时保留安装且不启动。自动化应访问 `/direct`，它只安装，不询问、不改账户、不启动游戏。
+
 ## 回归
 
 - `OfflineBundleTests.cs`：完整 Java/MCM 往返、加载器 profile、隐私排除、内部 Java 链接展开、原版哈希、路径攻击、损坏/缺失文件、平台不匹配、权限、取消回滚、不覆盖实例和输出。
 - `OfflineInstallServerTests.cs`：本地 mock 服务、固定路由、Host 不可信、GET/HEAD/405、并发/取消、局域网边界、Bash 语法。
 - `scripts/check_mcm_offline.py`：self-contained 发布产物端到端测试。临时 HOME/配置、假游戏、可探测版本的独立 Java fixture、无真实账户、无公网依赖；从 ZIP 提取的 MCM 导入与显式离线启动，以及 loopback `curl | bash` 安装、重复实例保护、已有相同启动器复用和服务期间损坏包拒绝。
 
-Windows v2 清单使用 `formatVersion = 2`、`layout = "pcl-windows"`，目标为同架构 `win-x64` 或 `win-arm64`，Java 入口为 `instance/runtime/offline-java/bin/java.exe`，启动器为 `bootstrap/PCL3.exe`。共享归档校验器可检查 v2 包；Windows 导入适配实现同架构校验、暂存验证及版本目录安装。Windows 前端导出页已接入完整包与 PowerShell/CMD 局域网安装命令；显式离线启动和桌面端到端验证仍需补齐。不要把 Linux `mcm offline` 包当作 Windows 离线包使用。
+Windows v2 清单使用 `formatVersion = 2`、`layout = "pcl-windows"`，目标为同架构 `win-x64` 或 `win-arm64`，Java 入口为 `instance/runtime/offline-java/bin/java.exe`，启动器为 `bootstrap/PCL3.exe`。共享归档校验器可检查 v2 包；Windows 导入适配实现同架构校验、暂存验证及版本目录安装。不要把 Linux `mcm offline` 包当作 Windows 离线包使用。
 
 ## 5. Windows 包 v2（接入中）
 
 v2 保留逐文件 SHA-256 清单，但使用 Windows 的版本目录和 Java 可执行文件布局。包来源必须是可信的 Windows 同架构电脑；校验和只检测传输损坏，不验证分发者身份。Linux 安装器拒绝 Windows 布局，Windows 安装器拒绝 Linux 包和架构不匹配的 Windows 包。
 
-来源机通过导出页启动只读 LAN 服务后，可直接复制 PowerShell 或 CMD 命令。命令下载并校验 PCL₃ 自带运行时压缩单文件启动器与完整离线 ZIP，再调用不启动 GUI、不联网的导入入口。它不要求 Bash、curl、管理员权限或永久调整执行策略。安装脚本的 PowerShell 5.1/7、CMD 执行及真实游戏启动必须在 Windows 环境验收，Linux 交叉构建不能替代。
+来源机通过导出页启动只读 LAN 服务后，可直接复制 PowerShell 或 CMD 命令。命令下载并校验 PCL₃ 自带运行时压缩单文件启动器与完整离线 ZIP，再调用离线导入入口。默认在导入成功后用空白输入框询问离线用户名并启动本次实例；`/direct` 只导入，不打开启动器界面。它不要求 Bash、curl、管理员权限或永久调整执行策略。安装脚本的 PowerShell 5.1/7、CMD 执行及真实游戏启动必须在 Windows 环境验收，Linux 交叉构建不能替代。
 
 当前 Windows 归档和导入适配位于 `PCL.Core.Shared/OfflineBundleService.Windows.cs`；普通目录映射、Java 运行能力和已验证的合并版本 JSON 应由 Windows 端准备。启动器、Java、Windows 原生 DLL、显卡驱动及 OpenGL 能力仍需目标电脑提供或验证；离线包不能替代系统驱动。
 
